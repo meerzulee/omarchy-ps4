@@ -60,7 +60,7 @@ without relying on memory or screenshots alone.
 
 ## Phase 3 — Pin and inventory Omarchy Quattro
 
-Status: pending
+Status: complete
 
 - Pin one Quattro commit rather than tracking the moving branch.
 - Extract its packages, services, configuration, migrations, and runtime

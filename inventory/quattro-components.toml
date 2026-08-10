@@ -1,0 +1,138 @@
+schema = 1
+
+[upstream]
+version = "4.0.0.alpha"
+branch = "quattro"
+commit = "4564c24a0e5893402a6ca23a8bda4cec76811bac"
+commit_date = "2026-08-10T03:21:08-07:00"
+core_package_count = 145
+other_package_count = 59
+command_count = 409
+migration_count = 66
+shell_plugin_manifest_count = 29
+
+[[gate]]
+order = 1
+id = "xfce-regression"
+name = "Known-good XFCE fallback"
+depends_on = []
+packages = ["xorg-server", "xfce4-session", "lightdm"]
+status = "Supported"
+next_test = "Cold-boot the clean 2026-08-10 rootfs twice on Baikal hardware."
+
+[[gate]]
+order = 2
+id = "mesa-opengl"
+name = "Mesa EGL and OpenGL hardware rendering"
+depends_on = ["xfce-regression"]
+packages = ["mesa", "mesa-utils", "libdrm"]
+status = "Not tested"
+next_test = "Record eglinfo and glxinfo renderers, then run a stability loop."
+
+[[gate]]
+order = 3
+id = "vulkan"
+name = "RADV Vulkan rendering"
+depends_on = ["mesa-opengl"]
+packages = ["vulkan-radeon", "vulkan-tools"]
+status = "Not tested"
+next_test = "Run vulkaninfo and a visible render test without GPU reset errors."
+
+[[gate]]
+order = 4
+id = "wayland-minimal"
+name = "Minimal Wayland compositor and native client"
+depends_on = ["mesa-opengl"]
+packages = ["wayland"]
+status = "Not tested"
+next_test = "Select a diagnostic compositor, open one native client, test input, and exit cleanly."
+
+[[gate]]
+order = 5
+id = "hyprland-bare"
+name = "Bare Hyprland without Omarchy configuration"
+depends_on = ["mesa-opengl", "wayland-minimal"]
+packages = ["hyprland", "foot"]
+status = "Blocked"
+next_test = "Start from a TTY with a minimal config after lower graphics gates pass."
+
+[[gate]]
+order = 6
+id = "uwsm"
+name = "UWSM-managed Hyprland session"
+depends_on = ["hyprland-bare"]
+packages = ["uwsm"]
+status = "Blocked"
+next_test = "Start, inspect environment import, log out, and restart the session."
+
+[[gate]]
+order = 7
+id = "portals"
+name = "XDG desktop portals"
+depends_on = ["uwsm"]
+packages = ["xdg-desktop-portal-gtk", "xdg-desktop-portal-hyprland"]
+status = "Blocked"
+next_test = "Test file chooser, screenshot, and screen-cast portal negotiation."
+
+[[gate]]
+order = 8
+id = "pipewire"
+name = "PipeWire audio and session management"
+depends_on = ["xfce-regression"]
+packages = ["pipewire", "pipewire-alsa", "pipewire-pulse", "wireplumber"]
+status = "Not tested"
+next_test = "Play HDMI audio, restart user services, and verify recovery."
+
+[[gate]]
+order = 9
+id = "quickshell-minimal"
+name = "Minimal Quickshell surface"
+depends_on = ["wayland-minimal"]
+packages = ["quickshell-git", "qt6-wayland"]
+status = "Blocked"
+next_test = "Render one layer-shell surface and measure idle/resident memory."
+
+[[gate]]
+order = 10
+id = "omarchy-shell"
+name = "Quattro shell and first-party plugins"
+depends_on = ["hyprland-bare", "quickshell-minimal", "pipewire"]
+packages = ["quickshell-git", "jq", "wl-clipboard", "wtype"]
+status = "Blocked"
+next_test = "Load the shell, ping IPC, then enable plugins one at a time."
+
+[[gate]]
+order = 11
+id = "sddm-session"
+name = "SDDM to Omarchy UWSM session"
+depends_on = ["uwsm", "omarchy-shell"]
+packages = ["sddm"]
+status = "Blocked"
+next_test = "Log in, log out, recover from compositor failure, and retain XFCE fallback."
+
+[[gate]]
+order = 12
+id = "dualshock4"
+name = "DualShock 4 interaction"
+depends_on = ["xfce-regression"]
+packages = ["libinput", "bluez", "bluez-utils"]
+status = "Not tested"
+next_test = "Test USB first, then Bluetooth, recording event mapping separately from UI navigation."
+
+[[gate]]
+order = 13
+id = "chromium-wayland"
+name = "Chromium Wayland and accelerated content"
+depends_on = ["hyprland-bare", "portals", "pipewire"]
+packages = ["chromium"]
+status = "Blocked"
+next_test = "Test browsing, video, WebGL, file chooser, and screen sharing."
+
+[[gate]]
+order = 14
+id = "omarchy-ps4-acceptance"
+name = "Reduced Omarchy PS4 desktop profile"
+depends_on = ["sddm-session", "dualshock4", "chromium-wayland"]
+packages = []
+status = "Blocked"
+next_test = "Run a PS4-specific acceptance suite that contains no PC boot or Btrfs assumptions."
