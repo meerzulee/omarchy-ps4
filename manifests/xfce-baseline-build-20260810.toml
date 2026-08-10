@@ -1,0 +1,48 @@
+schema = 1
+id = "xfce-baseline-build-20260810"
+status = "built-and-container-validated-hardware-test-pending"
+recorded_at = "2026-08-10"
+source_commit = "6e24bebf6e0f50805c95239d478f51b952a9aa4a"
+
+[build]
+runtime = "OrbStack"
+docker_context = "orbstack"
+platform = "linux/amd64"
+arch_snapshot = "2026/08/09"
+base_image = "archlinux@sha256:345a872f6c95e082d4b8c050af637eebb57402c6e2177b411c3acf7df84eb33b"
+container_image = "omarchy-ps4/xfce-baseline:2026-08-09"
+container_image_id = "sha256:c1f7a7d0209a3c36a598186608af3f0c4dcf832fe69c8d22d677e17ace4bf033"
+development_ssh = false
+
+[inputs]
+containerfile_sha256 = "10af83139c22f4cf8e7055e8bb48c27a23cb8a767f1d28837c8363f501cdb908"
+package_profile_sha256 = "ba70667362a13a612ab0d7bb6c963eb8d44fa6a79f532b5be277f7f84d983d78"
+configure_sha256 = "9e3b9e9a202b63ccc6f3c4d9e7529673f6ae7fcbcff4f6dcf2dcab9f4cc19169"
+validate_sha256 = "b40e92332ec78041f43e101ecbb7d3604d85276b4f573281c03eb614572bb41b"
+builder_sha256 = "f415b9e3fe827027c8b2b33cb898aae8301ebe4427e81a32a5ef7bc8cc5acd94"
+
+[rootfs]
+package_count = 400
+package_manifest_sha256 = "aa265028ac27a4dd39b335a88f80ce9ed0766c8df19d36eecf4df33ab1509b45"
+root_account_locked = true
+user_account_locked = true
+sshd_enabled = false
+lightdm_enabled = true
+networkmanager_enabled = true
+default_target = "graphical.target"
+root_filesystem_label = "OMARCHY-PS4"
+
+[artifact]
+name = "omarchy-ps4-xfce-rootfs.tar.zst"
+compressed_size = 928243283
+uncompressed_size = 1975872512
+sha256 = "3eb68ee97c8533d515c18dd2ba620c569063764a5a2e6df27204f691f8ff7c5c"
+local_path = "output/xfce-baseline/omarchy-ps4-xfce-rootfs.tar.zst"
+
+[validation]
+archive_integrity = "passed"
+container_rootfs = "passed"
+shellcheck = "passed"
+probe_smoke_test = "passed"
+ps4_cold_boot = "pending"
+xfce_session = "pending"

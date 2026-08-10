@@ -33,7 +33,7 @@ known-good fallback, and the evidence required for a support claim.
 
 ## Phase 1 — Freeze the known-good XFCE baseline
 
-Status: evidence found; clean reproduction pending
+Status: clean rootfs built; real-hardware gate pending
 
 - Preserve the Linux 5.4.247 Baikal kernel and matching modules.
 - Preserve the Arch/XFCE rootfs recipe and artifact digests.

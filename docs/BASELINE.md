@@ -74,3 +74,24 @@ Git repository. Exact sizes and SHA-256 digests are recorded in
   recorded EGL/OpenGL/Vulkan probe.
 - Audio, Bluetooth, controller input, clean shutdown, and repeated cold boots
   still need structured acceptance tests.
+
+## Clean rebuild produced on 2026-08-10
+
+The new repository successfully built and container-validated a clean XFCE
+rootfs through OrbStack from pinned inputs. Its exact provenance is recorded in
+`../manifests/xfce-baseline-build-20260810.toml`.
+
+| Field | Value |
+|---|---|
+| Arch snapshot | 2026-08-09 |
+| Packages | 400, exact versions recorded outside Git with a manifest hash |
+| Rootfs archive | 928,243,283 bytes, Zstandard compressed |
+| Rootfs SHA-256 | `3eb68ee97c8533d515c18dd2ba620c569063764a5a2e6df27204f691f8ff7c5c` |
+| Accounts | Locked; no default password |
+| SSH | Disabled in the release-style build |
+| Root discovery | Filesystem label `OMARCHY-PS4` |
+
+This proves the off-console builder, package resolution, filesystem
+configuration, archive, and static validations. It does **not** yet prove the
+new image boots on the PS4. Phase 1 remains open until the cold-boot and XFCE
+hardware tests pass.
