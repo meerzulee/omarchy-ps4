@@ -1,0 +1,18 @@
+# Build outputs and downloaded artifacts
+/artifacts/
+/build/
+/cache/
+/output/
+*.img
+*.iso
+*.pkg.tar.*
+*.tar.gz
+*.tar.zst
+
+# Local experiment evidence may contain machine/network details. Curated
+# reports belong in Git; raw collections stay local unless explicitly added.
+/experiments/*/raw/
+
+# Editors and operating systems
+.DS_Store
+*.swp

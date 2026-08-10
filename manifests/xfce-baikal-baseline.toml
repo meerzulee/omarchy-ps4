@@ -1,0 +1,65 @@
+schema = 1
+id = "xfce-baikal-5.4.247-20260209"
+status = "known-good-existing-artifacts"
+recorded_at = "2026-08-10"
+original_build_date = "2026-02-09"
+
+[target]
+console_family = "PS4 Slim CUH-2xxx"
+southbridge = "Baikal B1 CXD90036G"
+subsystem_id = "0x30201"
+firmware = "12.02"
+homebrew = "HEN 12.02 with GoldHEN v2.4b18.5"
+vram_gib = 1
+
+[kernel]
+release = "5.4.247-DFAUS-mt_hdmia_nilgpureg-g3070025bad39-dirty"
+source = "https://github.com/feeRnt/ps4-linux-12xx"
+branch = "ps4-linux-5.4.247-baikal-dfaus"
+commit = "3070025bad39"
+
+[rootfs]
+distribution = "Arch Linux x86_64"
+desktop = "XFCE 4.20"
+package_count = 494
+build_recipe_sha256 = "650b443b199226587d12b04d557ba622eb94df3767ad277594f509041bb0be05"
+
+[[artifact]]
+name = "bzImage"
+size = 9106944
+sha256 = "75fabe3a5b9dbea22937446c778d92978e1a8c6a9566d40631cf52b1cc6f7bad"
+
+[[artifact]]
+name = "initramfs.cpio.gz"
+size = 2474782
+sha256 = "7efa43155c5848149da01be449410158815bb0188027d84776f77cd9da64d9c0"
+
+[[artifact]]
+name = "bootargs.txt"
+size = 241
+sha256 = "41b4b446315bb6648fe1d4ab43cc5f6d8a95bbb4a741a1d87fa0355b3c66a90c"
+
+[[artifact]]
+name = "vram.txt"
+size = 1
+sha256 = "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+
+[[artifact]]
+name = "config-5.4.247-DFAUS-mt_hdmia_nilgpureg-g3070025bad39-dirty"
+size = 112528
+sha256 = "7bc70424d73aff39bd22ce99bcb457f46b5de4c7541bb822b621e24a09d1a2a4"
+
+[[artifact]]
+name = "ps4-archlinux-xfce-x86_64.tar.gz"
+size = 1080949784
+sha256 = "ae4ee36fb4d9ea238b4f9764088e6c6bedaa22f67a421088ce35ff7997d5c20c"
+
+[recipes]
+initramfs_builder_sha256 = "f6855ca2fb0ce0d6774796391ca4d65df6ef5484fd08b1e48894d80d16f52364"
+init_sha256 = "ce745f9b132159eaca45e97ba0e0b0e80ca11a40feb5cb131efa206f218af11a"
+
+[local_preservation]
+artifact_directory = "../linux-ps4/dist/attempt-001"
+rootfs_recipe = "../linux-ps4/dist/build-rootfs.sh"
+initramfs_recipe = "../linux-ps4/dist/build-initramfs.sh"
+note = "Local paths document the current workspace only and are not build inputs."
