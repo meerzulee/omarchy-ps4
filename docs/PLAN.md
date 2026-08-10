@@ -47,7 +47,7 @@ USB input, storage, package management, and at least one network path tested.
 
 ## Phase 2 — Test and evidence tooling
 
-Status: pending
+Status: complete
 
 - Add a single command that captures kernel, DRM, Mesa, display, input, audio,
   network, storage, service, and session information.

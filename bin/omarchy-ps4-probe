@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+
+set -uo pipefail
+
+usage() {
+  printf '%s\n' \
+    'Usage: omarchy-ps4-probe [--experiment ID] [--output DIRECTORY]' \
+    '' \
+    'Collect a non-destructive PS4 Linux hardware and desktop evidence bundle.' \
+    'The command does not require root and continues when optional tools are absent.'
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+experiment='baseline'
+output=''
+
+while (( $# > 0 )); do
+  case "$1" in
+    --experiment)
+      (( $# >= 2 )) || fail '--experiment requires a value'
+      experiment=$2
+      shift 2
+      ;;
+    --output)
+      (( $# >= 2 )) || fail '--output requires a value'
+      output=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown argument: $1"
+      ;;
+  esac
+done
+
+[[ $experiment =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || \
+  fail 'experiment ID must use letters, numbers, dots, underscores, or hyphens'
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+project_dir=$(cd -- "$script_dir/.." && pwd)
+timestamp=$(date -u '+%Y%m%dT%H%M%SZ')
+
+if [[ -z $output ]]; then
+  output="$project_dir/experiments/${timestamp}-${experiment}"
+fi
+
+if [[ -e $output ]]; then
+  fail "output already exists: $output"
+fi
+
+raw_dir="$output/raw"
+mkdir -p -- "$raw_dir" || fail "cannot create output: $output"
+
+index="$output/commands.tsv"
+printf 'check\tresult\texit_code\tfile\tcommand\n' > "$index"
+
+command_text() {
+  local rendered='' argument
+  for argument in "$@"; do
+    printf -v argument '%q' "$argument"
+    rendered+="${rendered:+ }$argument"
+  done
+  printf '%s' "$rendered"
+}
+
+record() {
+  local check=$1 result=$2 exit_code=$3 file=$4 command=$5
+  printf '%s\t%s\t%s\t%s\t%s\n' \
+    "$check" "$result" "$exit_code" "$file" "$command" >> "$index"
+}
+
+capture() {
+  local check=$1 file=$2
+  shift 2
+
+  local destination="$raw_dir/$file"
+  local rendered exit_code result
+  rendered=$(command_text "$@")
+
+  "$@" > "$destination" 2>&1
+  exit_code=$?
+
+  if (( exit_code == 0 )); then
+    result='pass'
+  else
+    result='failed'
+  fi
+
+  record "$check" "$result" "$exit_code" "raw/$file" "$rendered"
+}
+
+capture_if_available() {
+  local check=$1 file=$2 executable=$3
+  shift 3
+
+  if command -v "$executable" >/dev/null 2>&1; then
+    capture "$check" "$file" "$executable" "$@"
+  else
+    printf 'Optional command is not installed: %s\n' "$executable" > "$raw_dir/$file"
+    record "$check" 'unavailable' 127 "raw/$file" "$executable"
+  fi
+}
+
+capture_readable_file() {
+  local check=$1 file=$2 source=$3
+
+  if [[ -r $source ]]; then
+    capture "$check" "$file" cp -- "$source" "$raw_dir/$file"
+  else
+    printf 'File is not readable or does not exist: %s\n' "$source" > "$raw_dir/$file"
+    record "$check" 'unavailable' 127 "raw/$file" "read $source"
+  fi
+}
+
+drm_sysfs() {
+  local connector property value
+
+  if [[ ! -d /sys/class/drm ]]; then
+    printf '%s\n' '/sys/class/drm is not available'
+    return 127
+  fi
+
+  for connector in /sys/class/drm/card*-*; do
+    [[ -d $connector ]] || continue
+    printf '[%s]\n' "${connector##*/}"
+    for property in status enabled modes; do
+      if [[ -r $connector/$property ]]; then
+        value=$(<"$connector/$property")
+        printf '%s=%s\n' "$property" "$value"
+      fi
+    done
+    printf '\n'
+  done
+}
+
+capture_readable_file 'kernel command line' 'proc-cmdline.txt' '/proc/cmdline'
+capture_readable_file 'operating system' 'os-release.txt' '/etc/os-release'
+capture 'kernel identity' 'uname.txt' uname -a
+capture_if_available 'CPU identity' 'cpu.txt' lscpu
+capture_if_available 'PCI devices and drivers' 'pci.txt' lspci -nnk
+capture_if_available 'USB devices' 'usb.txt' lsusb
+capture_if_available 'block devices' 'block.txt' lsblk -e 7 -o NAME,PATH,TYPE,SIZE,FSTYPE,FSVER,LABEL,UUID,MOUNTPOINTS,MODEL,TRAN
+capture_if_available 'mounted filesystems' 'mounts.txt' findmnt --real
+capture 'DRM connectors' 'drm-sysfs.txt' drm_sysfs
+capture_if_available 'DRM resources' 'drm-modetest.txt' modetest -c
+capture_if_available 'EGL and OpenGL renderer' 'egl.txt' eglinfo -B
+capture_if_available 'X11 OpenGL renderer' 'glx.txt' glxinfo -B
+capture_if_available 'Vulkan renderer' 'vulkan.txt' vulkaninfo --summary
+capture_if_available 'libinput devices' 'input.txt' libinput list-devices
+capture_if_available 'systemd failures' 'systemd-failed.txt' systemctl --failed --no-pager
+capture_if_available 'login sessions' 'sessions.txt' loginctl list-sessions --no-legend
+capture_if_available 'NetworkManager devices' 'network.txt' nmcli -f GENERAL,IP4 device show
+capture_if_available 'PipeWire graph' 'pipewire.txt' wpctl status
+capture_if_available 'PulseAudio compatibility' 'pulseaudio.txt' pactl info
+capture_if_available 'kernel journal' 'kernel-journal.txt' journalctl -b -k --no-pager
+
+passed=$(awk -F '\t' 'NR > 1 && $2 == "pass" { count++ } END { print count + 0 }' "$index")
+failed=$(awk -F '\t' 'NR > 1 && $2 == "failed" { count++ } END { print count + 0 }' "$index")
+unavailable=$(awk -F '\t' 'NR > 1 && $2 == "unavailable" { count++ } END { print count + 0 }' "$index")
+
+cat > "$output/README.md" <<EOF
+# Experiment evidence: $experiment
+
+- Captured at: $timestamp
+- Passed checks: $passed
+- Failed checks: $failed
+- Unavailable optional checks: $unavailable
+
+The command index is in \`commands.tsv\`; raw command output is in \`raw/\`.
+A failed check may indicate missing permissions or a runtime problem. An
+unavailable check means its optional diagnostic command was not installed.
+
+Before publishing this evidence, review raw files for hostnames, network
+addresses, filesystem identifiers, or other machine-specific information.
+Copy \`../TEMPLATE.md\` into this directory and record the acceptance decision.
+EOF
+
+printf 'Evidence written to %s\n' "$output"
+printf 'Checks: %s passed, %s failed, %s unavailable\n' \
+  "$passed" "$failed" "$unavailable"

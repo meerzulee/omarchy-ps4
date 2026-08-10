@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+test_dir=$(mktemp -d "${TMPDIR:-/tmp}/omarchy-ps4-probe-test.XXXXXX")
+
+cleanup() {
+  [[ -n ${test_dir:-} && -d $test_dir ]] && rm -rf -- "$test_dir"
+}
+trap cleanup EXIT
+
+output="$test_dir/evidence"
+comparison="$test_dir/comparison.md"
+
+"$project_dir/bin/omarchy-ps4-probe" \
+  --experiment smoke-test \
+  --output "$output" >/dev/null
+
+[[ -s $output/README.md ]]
+[[ -s $output/commands.tsv ]]
+[[ -d $output/raw ]]
+grep -q $'^kernel identity\t' "$output/commands.tsv"
+
+"$project_dir/bin/omarchy-ps4-compare" "$output" "$output" > "$comparison"
+grep -q '^| kernel identity | pass | pass |  |$' "$comparison"
+
+if "$project_dir/bin/omarchy-ps4-probe" \
+  --experiment smoke-test \
+  --output "$output" >/dev/null 2>&1; then
+  printf '%s\n' 'probe unexpectedly overwrote an existing evidence directory' >&2
+  exit 1
+fi
+
+if "$project_dir/bin/omarchy-ps4-probe" \
+  --experiment 'invalid experiment' \
+  --output "$test_dir/invalid" >/dev/null 2>&1; then
+  printf '%s\n' 'probe unexpectedly accepted an invalid experiment ID' >&2
+  exit 1
+fi
+
+printf '%s\n' 'probe smoke test passed'

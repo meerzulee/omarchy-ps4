@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    'Usage: omarchy-ps4-compare EVIDENCE_A EVIDENCE_B' \
+    '' \
+    'Compare the check results from two omarchy-ps4-probe evidence directories.'
+}
+
+if (( $# == 1 )) && [[ $1 == '-h' || $1 == '--help' ]]; then
+  usage
+  exit 0
+fi
+
+if (( $# != 2 )); then
+  usage >&2
+  exit 2
+fi
+
+left_dir=${1%/}
+right_dir=${2%/}
+left_index="$left_dir/commands.tsv"
+right_index="$right_dir/commands.tsv"
+
+[[ -r $left_index ]] || {
+  printf 'error: cannot read %s\n' "$left_index" >&2
+  exit 2
+}
+
+[[ -r $right_index ]] || {
+  printf 'error: cannot read %s\n' "$right_index" >&2
+  exit 2
+}
+
+printf '# Evidence comparison\n\n'
+backtick='`'
+printf -- '- A: %s%s%s\n' "$backtick" "$left_dir" "$backtick"
+printf -- '- B: %s%s%s\n\n' "$backtick" "$right_dir" "$backtick"
+printf '| Check | A | B | Changed |\n'
+printf '|---|---|---|---|\n'
+
+awk -F '\t' '
+  FNR == 1 { next }
+  NR == FNR { left[$1] = $2; next }
+  {
+    right[$1] = $2
+    before = ($1 in left) ? left[$1] : "missing"
+    changed = (before == $2) ? "" : "yes"
+    printf "| %s | %s | %s | %s |\n", $1, before, $2, changed
+  }
+  END {
+    for (check in left) {
+      if (!(check in right)) {
+        printf "| %s | %s | missing | yes |\n", check, left[check]
+      }
+    }
+  }
+' "$left_index" "$right_index"
