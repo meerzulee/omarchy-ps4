@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    'Usage: build-xfce-rootfs [--authorized-key FILE] [--output DIRECTORY]' \
+    '' \
+    'Build the pinned x86-64 Arch/XFCE PS4 baseline using OrbStack.' \
+    '' \
+    'Without --authorized-key, accounts are locked and SSH is disabled.' \
+    'With a public key, SSH and key-backed passwordless sudo are enabled for' \
+    'the ps4 development user; password authentication remains disabled.'
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+authorized_key=''
+output=''
+snapshot_date='2026/08/09'
+image_tag='omarchy-ps4/xfce-baseline:2026-08-09'
+
+while (( $# > 0 )); do
+  case "$1" in
+    --authorized-key)
+      (( $# >= 2 )) || fail '--authorized-key requires a file'
+      authorized_key=$2
+      shift 2
+      ;;
+    --output)
+      (( $# >= 2 )) || fail '--output requires a directory'
+      output=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown argument: $1"
+      ;;
+  esac
+done
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+project_dir=$(cd -- "$script_dir/.." && pwd)
+output=${output:-"$project_dir/output/xfce-baseline"}
+
+command -v docker >/dev/null 2>&1 || fail 'Docker CLI is not installed'
+command -v zstd >/dev/null 2>&1 || fail 'zstd is not installed'
+
+docker_context=$(docker context show)
+[[ $docker_context == 'orbstack' ]] || \
+  fail "Docker context must be orbstack; current context is $docker_context"
+
+docker info >/dev/null 2>&1 || fail 'OrbStack Docker engine is not running'
+
+if [[ -n $authorized_key ]]; then
+  [[ -r $authorized_key ]] || fail "cannot read authorized key: $authorized_key"
+fi
+
+if [[ -e $output ]]; then
+  fail "output already exists: $output"
+fi
+
+build_args=(
+  build
+  --platform linux/amd64
+  --progress plain
+  --file "$project_dir/Containerfile.rootfs"
+  --build-arg "SNAPSHOT_DATE=$snapshot_date"
+  --tag "$image_tag"
+)
+
+if [[ -n $authorized_key ]]; then
+  build_args+=(--secret "id=authorized_keys,src=$authorized_key")
+fi
+
+build_args+=("$project_dir")
+
+printf 'Building %s from Arch snapshot %s\n' "$image_tag" "$snapshot_date"
+docker "${build_args[@]}"
+
+printf '%s\n' 'Validating the completed root filesystem image'
+docker run --rm --platform linux/amd64 \
+  "$image_tag" /usr/local/lib/omarchy-ps4/validate-xfce
+
+container_id=$(docker create --platform linux/amd64 "$image_tag")
+cleanup() {
+  if [[ -n ${container_id:-} ]]; then
+    docker rm --force "$container_id" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
+mkdir -p -- "$output"
+archive="$output/omarchy-ps4-xfce-rootfs.tar.zst"
+printf 'Exporting %s\n' "$archive"
+docker export "$container_id" | zstd --threads=0 -10 --quiet -o "$archive"
+
+docker run --rm --platform linux/amd64 "$image_tag" pacman -Q \
+  > "$output/packages.txt"
+
+archive_size=$(stat -f '%z' "$archive" 2>/dev/null || stat -c '%s' "$archive")
+archive_sha256=$(shasum -a 256 "$archive" | awk '{ print $1 }')
+image_id=$(docker image inspect "$image_tag" --format '{{.Id}}')
+package_count=$(wc -l < "$output/packages.txt" | tr -d ' ')
+
+{
+  printf 'schema=1\n'
+  printf 'profile=xfce-baseline\n'
+  printf 'platform=linux/amd64\n'
+  printf 'arch_snapshot=%s\n' "$snapshot_date"
+  printf 'container_image=%s\n' "$image_tag"
+  printf 'container_image_id=%s\n' "$image_id"
+  printf 'development_ssh=%s\n' "$([[ -n $authorized_key ]] && printf enabled || printf disabled)"
+  printf 'package_count=%s\n' "$package_count"
+  printf 'archive=%s\n' "${archive##*/}"
+  printf 'archive_size=%s\n' "$archive_size"
+  printf 'archive_sha256=%s\n' "$archive_sha256"
+} > "$output/manifest.env"
+
+printf '\nBuild complete\n'
+printf '  Rootfs:   %s\n' "$archive"
+printf '  Manifest: %s\n' "$output/manifest.env"
+printf '  Packages: %s\n' "$output/packages.txt"

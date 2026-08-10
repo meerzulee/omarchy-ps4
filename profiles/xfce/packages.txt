@@ -1,0 +1,57 @@
+# Boot and hardware userspace
+base
+linux-firmware-amdgpu
+linux-firmware-mediatek
+linux-firmware-radeon
+linux-firmware-marvell
+linux-firmware-whence
+networkmanager
+openssh
+bluez
+bluez-utils
+usbutils
+pciutils
+
+# Xorg baseline and local input
+xorg-server
+xorg-xinit
+xf86-input-libinput
+libinput
+
+# Deliberately small XFCE session
+xfce4-session
+xfce4-panel
+xfce4-settings
+xfce4-terminal
+xfdesktop
+xfwm4
+thunar
+tumbler
+lightdm
+lightdm-gtk-greeter
+polkit-gnome
+
+# Graphics diagnostics needed before Wayland/Hyprland testing
+mesa
+mesa-utils
+libdrm
+vulkan-radeon
+vulkan-tools
+libva-mesa-driver
+
+# Audio baseline
+pipewire
+pipewire-alsa
+pipewire-pulse
+wireplumber
+alsa-utils
+pavucontrol
+
+# Fonts and practical recovery tools
+noto-fonts
+ttf-dejavu
+sudo
+nano
+less
+htop
+bash-completion

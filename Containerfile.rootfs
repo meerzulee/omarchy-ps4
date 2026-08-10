@@ -1,0 +1,32 @@
+# syntax=docker/dockerfile:1.7
+
+ARG ARCHLINUX_IMAGE=archlinux@sha256:345a872f6c95e082d4b8c050af637eebb57402c6e2177b411c3acf7df84eb33b
+FROM --platform=linux/amd64 ${ARCHLINUX_IMAGE}
+
+ARG SNAPSHOT_DATE=2026/08/09
+
+LABEL org.opencontainers.image.title="Omarchy PS4 XFCE baseline rootfs"
+LABEL org.opencontainers.image.source="https://github.com/omarchy-ps4/omarchy-ps4"
+LABEL org.opencontainers.image.description="Minimal Arch Linux XFCE rootfs for PS4 compatibility testing"
+
+RUN sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf \
+    && printf '%s\n' \
+      "Server = https://archive.archlinux.org/repos/${SNAPSHOT_DATE}/\$repo/os/\$arch" \
+      > /etc/pacman.d/mirrorlist \
+    && pacman -Syyu --noconfirm archlinux-keyring \
+    && pacman -Syu --noconfirm
+
+COPY profiles/xfce/packages.txt /usr/share/omarchy-ps4/packages-xfce.txt
+
+RUN sed -E '/^[[:space:]]*(#|$)/d' /usr/share/omarchy-ps4/packages-xfce.txt \
+      | xargs pacman -S --noconfirm --needed \
+    && pacman -Scc --noconfirm \
+    && sed -i '/^DisableSandbox$/d' /etc/pacman.conf
+
+COPY rootfs/xfce/overlay/ /
+COPY rootfs/xfce/configure /usr/local/lib/omarchy-ps4/configure-xfce
+COPY rootfs/xfce/validate /usr/local/lib/omarchy-ps4/validate-xfce
+COPY bin/omarchy-ps4-probe /usr/local/bin/omarchy-ps4-probe
+
+RUN --mount=type=secret,id=authorized_keys \
+    /usr/local/lib/omarchy-ps4/configure-xfce

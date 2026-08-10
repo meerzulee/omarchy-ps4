@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+for group in audio video input storage network autologin; do
+  groupadd --system --force "$group"
+done
+
+if ! id ps4 >/dev/null 2>&1; then
+  useradd \
+    --create-home \
+    --shell /bin/bash \
+    --groups audio,video,input,storage,network,autologin \
+    ps4
+fi
+
+passwd --lock root
+passwd --lock ps4
+
+ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+locale-gen
+systemd-machine-id-setup --root=/ --commit=no >/dev/null 2>&1 || true
+truncate --size 0 /etc/machine-id
+
+systemctl enable NetworkManager.service
+systemctl enable lightdm.service
+systemctl set-default graphical.target
+
+install -d -m 0755 /etc/ssh/sshd_config.d
+printf '%s\n' \
+  'PasswordAuthentication no' \
+  'KbdInteractiveAuthentication no' \
+  'PermitRootLogin no' \
+  > /etc/ssh/sshd_config.d/20-omarchy-ps4.conf
+
+if [[ -s /run/secrets/authorized_keys ]]; then
+  if ! grep -Eq '^(ssh-(ed25519|rsa)|ecdsa-sha2-)' /run/secrets/authorized_keys; then
+    printf '%s\n' 'authorized key does not look like an OpenSSH public key' >&2
+    exit 1
+  fi
+
+  install -d -m 0700 -o ps4 -g ps4 /home/ps4/.ssh
+  install -m 0600 -o ps4 -g ps4 \
+    /run/secrets/authorized_keys /home/ps4/.ssh/authorized_keys
+
+  random_password=$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
+  password_hash=$(openssl passwd -6 "$random_password")
+  usermod --password "$password_hash" ps4
+  unset random_password password_hash
+
+  printf '%s\n' 'ps4 ALL=(ALL:ALL) NOPASSWD: ALL' \
+    > /etc/sudoers.d/90-omarchy-ps4-development
+  chmod 0440 /etc/sudoers.d/90-omarchy-ps4-development
+  systemctl enable sshd.service
+fi
+
+chown -R ps4:ps4 /home/ps4
+/usr/local/lib/omarchy-ps4/validate-xfce
