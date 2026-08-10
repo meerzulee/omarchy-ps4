@@ -1,0 +1,15 @@
+# repository	ref	recorded_commit	role
+rmuxnet/linux	zaebiz/7.1.7-Stable	d67b62838b413ba9ce49c61d73a314439e0cab67	Aeolia/Belize modern kernel
+rmuxnet/linux	baikal/7.0.8-Stable	d8cbb8e912f59c352479f1158103e8ce7b6ca8c4	Baikal modern kernel
+feeRnt/ps4-linux-12xx	6.15.4-aeolia-belize-crashniels	4a10fe664ed27bec745aa2d5ea4d279e582f5b78	Maintained kernel and fallback lines
+ps4-linux/ps4-linux-loader	master	9acef9fbf79097a2bb39d6c9c17228198bc445cc	Firmware-aware Linux loader
+feeRnt/ps4-linux-initramfs	main	04d91daa22a40e34463cf7c46711353190d26f62	Open initramfs
+DionKill/ps4-video-archlinux	main	ccea8d2c8ca6215d503a33a02aeba7b280cd9d28	Arch PS4 graphics packages
+DionKill/ps4-linux-tutorial	main	1609a51d921686b57c30885067141b6006537b7b	Current community guide
+rmuxnet/ps4-hwinfo-collect	master	8a0fa75fbbf7452b1f84ac688f4e7b9f3561ff9e	Hardware evidence collector
+ps4-linux/ps4-linux.github.io	main	0e83119d1a4fac14cdb900fe1fb93a75a1f05dee	Compatibility database project
+danyboy666/ps4-retrobox	master	6c79062adbe1691707ac3c1ed7baa1f3118734f8	Controller-oriented PS4 userspace reference
+GoldHEN/GoldHEN	master	3bb36e7a9fdc3f38147f7c59c6cbc464c9ca395c	Homebrew-enabler public repository
+TheOfficialFloW/PPPwn	master	fb4ab5ffa97e083775ccad3a95e2348fc6b53e1c	Public exploit reference through firmware 11.00
+fail0verflow/ps4-linux	ps4	ef83f1c67ae5a57ef6fe2d3d5a6b54a33d64f3ef	Original kernel port reference
+codedwrench/ps4-linux	ps4-linux-5.15.y	999e4d75141f493a417a98a831256ee49d990702	5.15 forward-port reference

@@ -3,11 +3,15 @@
 > The active, gate-driven execution roadmap is in
 > [`docs/PLAN.md`](docs/PLAN.md). The existing XFCE evidence is recorded in
 > [`docs/BASELINE.md`](docs/BASELINE.md), and all support claims are tracked in
-> [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md).
+> [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md). The current ecosystem
+> snapshot—what exists, what changed in 2026, and what is still missing—is in
+> [`knowledge/2026-08-10/WORLD-STATE.md`](knowledge/2026-08-10/WORLD-STATE.md).
 
-Research date: 2026-08-09
+Architecture research date: 2026-08-09
 
-Status: Feasible, pending a graphics-stack proof of concept
+Ecosystem snapshot date: 2026-08-10
+
+Status: clean XFCE rootfs built; real-hardware reproduction pending
 
 ## Executive summary
 
@@ -19,15 +23,16 @@ however. The practical design is:
 1. Build a PS4-specific Arch root filesystem off-console.
 2. Replace the stock kernel, GPU packages, bootloader integration, and generic
    PC hardware setup with PS4-specific components.
-3. Install the root filesystem into a loopback disk image stored on the PS4's
-   existing encrypted data partition.
+3. Use an explicitly identified external Linux device for the first product;
+   treat an Orbis-hosted loop image as a later, hardware-dependent option.
 4. Use a small OpenOrbis FPKG to download, verify, install, repair, update, and
    launch the system.
 5. Boot through a PS4 Linux loader and kexec, not GRUB or Limine.
 
-The internal PS4 disk should not be physically repartitioned. Existing PS4
-Linux installations use a large file such as `/user/home/linux.img` as a
-virtual disk. This is reversible and avoids changing Sony's partition layout.
+The internal PS4 disk must not be physically repartitioned. Some existing PS4
+Linux installations use a large file as a virtual disk, which avoids changing
+Sony's partition layout, but the current community guide does not consider
+that path reliable on Baikal. The MVP therefore stays external.
 
 The largest unresolved risk is whether current Hyprland and Quickshell work
 reliably on the PS4's patched AMD graphics stack. That must be proven before
@@ -49,9 +54,10 @@ The application should eventually expose these actions:
 - Export diagnostic logs
 - Remove the Linux installation
 
-Initial hardware support should target Aeolia and Belize consoles. Baikal
-support should be experimental until its internal-storage and graphics paths
-are proven stable.
+Initial hardware work targets the known Baikal B1 console and external storage
+because that is the machine we can test. Support will not be generalized to
+other Baikal, Aeolia, or Belize revisions until each one has recorded hardware
+evidence.
 
 ## What the Omarchy Quattro branch is
 

@@ -71,6 +71,21 @@ Status: complete
 Exit gate: every item included in the proposed PS4 profile has an owner,
 dependency chain, test, and status.
 
+## Research checkpoint — PS4 Linux ecosystem
+
+Status: complete as of 2026-08-10
+
+- Create a dated, evidence-labelled snapshot under `knowledge/`.
+- Separate current projects from historical patch ancestry and binary-only
+  distribution options.
+- Record what exists, what remains experimental, and what was not found.
+- Track exact upstream branch heads in a machine-readable source manifest.
+- Carry unresolved kernel, graphics, licensing, and desktop gaps into the
+  compatibility ladder.
+
+Exit gate: the next hardware experiment is based on current primary sources,
+and a contributor can detect when those sources have moved.
+
 ## Phase 4 — Compatibility ladder
 
 Status: pending

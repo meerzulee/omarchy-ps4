@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+project_dir=$(cd -- "$script_dir/.." && pwd)
+source_file="$project_dir/knowledge/repos.tsv"
+
+command -v gh >/dev/null 2>&1 || {
+  printf 'error: GitHub CLI (gh) is required\n' >&2
+  exit 2
+}
+
+[[ -r $source_file ]] || {
+  printf 'error: cannot read source manifest: %s\n' "$source_file" >&2
+  exit 2
+}
+
+drift=0
+checked=0
+
+printf '%-8s  %-44s  %-28s  %s\n' STATUS REPOSITORY REF CURRENT
+
+while IFS=$'\t' read -r repository ref recorded_commit role; do
+  [[ -n $repository && ${repository:0:1} != '#' ]] || continue
+  checked=$((checked + 1))
+
+  if ! current_commit=$(gh api "repos/$repository/commits/$ref" --jq .sha 2>/dev/null); then
+    printf '%-8s  %-44s  %-28s  %s\n' ERROR "$repository" "$ref" 'unavailable'
+    drift=1
+    continue
+  fi
+
+  if [[ $current_commit == "$recorded_commit" ]]; then
+    status=OK
+  else
+    status=CHANGED
+    drift=1
+  fi
+
+  printf '%-8s  %-44s  %-28s  %.12s\n' "$status" "$repository" "$ref" "$current_commit"
+  if [[ $status == CHANGED ]]; then
+    printf '          recorded %.12s — %s\n' "$recorded_commit" "$role"
+  fi
+done < "$source_file"
+
+printf '\nChecked %d repository refs.\n' "$checked"
+
+if (( drift != 0 )); then
+  printf 'Knowledge-source drift detected; review before creating a new dated snapshot.\n' >&2
+  exit 1
+fi
+
+printf 'All tracked refs match the 2026-08-10 snapshot.\n'
