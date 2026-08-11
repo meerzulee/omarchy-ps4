@@ -18,6 +18,17 @@ For this project, the known console is recorded as:
 | Wireless | MediaTek MT7668 | Project hardware record |
 | Firmware | 12.02 | Project hardware record |
 
+## Network identity
+
+| Runtime | Address | Services / status |
+|---|---|---|
+| Orbis with GoldHEN | `192.168.50.215` | Anonymous FTP `2121`; PayLoader `9090` when enabled |
+| Arch Linux 6.18/XFCE | `192.168.50.125` | Internal MT7668 connected through a user-private NetworkManager profile; provisioned OpenSSH verified with the pinned key on 2026-08-11 |
+
+These are current DHCP observations on the local `192.168.50.0/24` network,
+not permanently assigned addresses. Reconfirm after each reboot until DHCP
+reservations or stable hostnames are configured.
+
 Public sources disagree on some Sony chip-part-number mappings. This snapshot
 therefore uses the kernel-facing names Aeolia, Belize, and Baikal and does not
 pretend that an unverified part-number table is authoritative.

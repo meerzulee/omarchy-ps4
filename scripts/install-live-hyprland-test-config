@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ ${EUID} -ne 0 ]] || fail 'run as the target desktop user, not root'
+[[ $# -eq 1 ]] || fail 'usage: install-live-hyprland-test-config CONFIG_FILE'
+
+config_source=$1
+experiment_id=EXP-20260810-001-A61
+expected_root_label=OMARCHY-PS4
+target=$HOME/.config/hypr/hyprland.conf
+state_root=$HOME/.local/state/omarchy-ps4/experiments
+state_dir="$state_root/${experiment_id}-$(date -u +%Y%m%dT%H%M%SZ)"
+
+[[ -r $config_source ]] || fail "cannot read config: $config_source"
+[[ $(id -un) == ps4 ]] || fail "target user is $(id -un), expected ps4"
+command -v Hyprland >/dev/null || fail 'Hyprland is not installed'
+command -v weston-terminal >/dev/null || fail 'weston-terminal is not installed'
+
+root_source=$(findmnt -no SOURCE /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source")
+[[ -b $root_device ]] || fail "root source is not a block device: $root_source"
+[[ $(lsblk -dnro LABEL "$root_device") == "$expected_root_label" ]] ||
+  fail "root is not labeled $expected_root_label"
+
+parent_name=$(lsblk -dnro PKNAME "$root_device")
+[[ -n $parent_name ]] || fail "cannot resolve parent disk for $root_device"
+[[ $(lsblk -dnro TRAN "/dev/$parent_name") == usb ]] ||
+  fail 'root parent is not a USB device'
+
+verify_tmp=$(mktemp "/tmp/${experiment_id}.verify.XXXXXX")
+cleanup() {
+  rm -f -- "$verify_tmp"
+}
+trap cleanup EXIT
+
+Hyprland --verify-config --config "$config_source" >"$verify_tmp"
+grep -q '^config ok$' "$verify_tmp" ||
+  fail 'Hyprland rejected the test configuration'
+
+install -d -m 0700 "$state_dir"
+install -m 0600 "$verify_tmp" "$state_dir/config.verify.txt"
+if [[ -e $target ]]; then
+  install -D -m 0600 "$target" "$state_dir/hyprland.conf.before"
+  printf '%s\n' present >"$state_dir/target.before"
+else
+  printf '%s\n' absent >"$state_dir/target.before"
+fi
+
+install -D -m 0600 "$config_source" "$target"
+Hyprland --verify-config --config "$target" >"$state_dir/config.installed.verify.txt"
+grep -q '^config ok$' "$state_dir/config.installed.verify.txt" ||
+  fail 'installed configuration did not verify'
+
+printf 'Installed: %s\n' "$target"
+printf 'Evidence: %s\n' "$state_dir"
+printf 'Previous target: %s\n' "$(cat "$state_dir/target.before")"
+printf '%s\n' 'No service, session, package, kernel, boot, or system configuration changed.'

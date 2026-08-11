@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    'Usage: provision-debug-rootfs TARGET_ROOT AUTHORIZED_KEY' \
+    '' \
+    'Provision the mounted Omarchy PS4 development rootfs.' \
+    'This intentionally sets the development credential ps4/ps4.'
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ ${EUID} -eq 0 ]] || fail 'must run as root'
+[[ $# -eq 2 ]] || {
+  usage >&2
+  exit 2
+}
+
+target_root=${1%/}
+authorized_key=$2
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+project_dir=$(cd -- "$script_dir/.." && pwd)
+
+[[ -d $target_root ]] || fail "target root does not exist: $target_root"
+[[ -f $target_root/etc/os-release ]] || fail 'target does not look like a Linux rootfs'
+[[ -f $target_root/etc/fstab ]] || fail 'target is missing /etc/fstab'
+grep -q 'OMARCHY-PS4' "$target_root/etc/fstab" || \
+  fail 'target fstab does not identify OMARCHY-PS4'
+[[ -r $authorized_key ]] || fail "cannot read authorized key: $authorized_key"
+ssh-keygen -l -f "$authorized_key" >/dev/null || fail 'authorized key is invalid'
+grep -q '^ps4:' "$target_root/etc/passwd" || fail 'target user ps4 is missing'
+grep -q '^wheel:' "$target_root/etc/group" || fail 'target group wheel is missing'
+[[ -x $target_root/usr/bin/sudo ]] || fail 'sudo is not installed in target'
+[[ -x $target_root/usr/bin/sshd ]] || fail 'sshd is not installed in target'
+ps4_uid=$(awk -F: '$1 == "ps4" { print $3 }' "$target_root/etc/passwd")
+ps4_gid=$(awk -F: '$1 == "ps4" { print $4 }' "$target_root/etc/passwd")
+
+backup_root="$target_root/var/lib/omarchy-ps4/provision-backups"
+backup_dir="$backup_root/$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 0700 "$backup_dir"
+for relative_path in \
+  etc/passwd \
+  etc/group \
+  etc/shadow \
+  etc/gshadow \
+  etc/ssh/sshd_config.d/20-omarchy-ps4.conf; do
+  if [[ -e $target_root/$relative_path ]]; then
+    install -D -m 0600 "$target_root/$relative_path" \
+      "$backup_dir/$relative_path"
+  fi
+done
+chroot "$target_root" pacman -Q > "$backup_dir/packages.txt"
+
+printf '%s\n' 'Installing pinned development packages'
+chroot "$target_root" pacman -Sy --disable-sandbox --noconfirm --needed \
+  fastfetch \
+  network-manager-applet \
+  linux-firmware-realtek
+
+printf '%s\n' 'Configuring ps4/ps4 and administrator membership'
+chroot "$target_root" usermod --append --groups wheel ps4
+printf '%s\n' 'ps4:ps4' | chroot "$target_root" chpasswd
+
+install -D -m 0440 \
+  "$project_dir/rootfs/debug/90-omarchy-ps4-debug" \
+  "$target_root/etc/sudoers.d/90-omarchy-ps4-debug"
+
+printf '%s\n' 'Installing SSH key and development SSH policy'
+install -d -m 0700 -o "$ps4_uid" -g "$ps4_gid" "$target_root/home/ps4/.ssh"
+install -m 0600 -o "$ps4_uid" -g "$ps4_gid" \
+  "$authorized_key" "$target_root/home/ps4/.ssh/authorized_keys"
+install -D -m 0644 \
+  "$project_dir/rootfs/debug/20-omarchy-ps4.conf" \
+  "$target_root/etc/ssh/sshd_config.d/20-omarchy-ps4.conf"
+chroot "$target_root" ssh-keygen -A
+chroot "$target_root" systemctl enable sshd.service
+
+firmware_zst="$target_root/usr/lib/firmware/rtw88/rtw8822b_fw.bin.zst"
+firmware_bin="$target_root/usr/lib/firmware/rtw88/rtw8822b_fw.bin"
+[[ -f $firmware_zst ]] || fail 'Arch Realtek package did not install RTL8822B firmware'
+zstd --decompress --force --quiet "$firmware_zst" -o "$firmware_bin"
+chmod 0644 "$firmware_bin"
+
+expected_firmware_sha256=a72da690597bfa99d8eb6fc2ab090d18d8ad92ac2befd35db1c9e3662d8d8418
+actual_firmware_sha256=$(sha256sum "$firmware_bin" | awk '{print $1}')
+[[ $actual_firmware_sha256 == "$expected_firmware_sha256" ]] || \
+  fail "unexpected RTL8822B firmware hash: $actual_firmware_sha256"
+
+printf '%s\n' 'Validating provisioned rootfs'
+chroot "$target_root" pwck --read-only >/dev/null
+chroot "$target_root" grpck --read-only >/dev/null
+chroot "$target_root" visudo --check --file=/etc/sudoers >/dev/null
+chroot "$target_root" /usr/bin/sshd -t
+[[ $(chroot "$target_root" systemctl is-enabled sshd.service) == enabled ]]
+chroot "$target_root" pacman -Q \
+  fastfetch network-manager-applet linux-firmware-realtek
+chroot "$target_root" id ps4
+chroot "$target_root" passwd --status ps4
+ssh-keygen -l -f "$target_root/home/ps4/.ssh/authorized_keys"
+printf 'rtw8822b_fw.bin SHA-256 %s\n' "$actual_firmware_sha256"
+printf 'Backup: %s\n' "${backup_dir#"$target_root"}"

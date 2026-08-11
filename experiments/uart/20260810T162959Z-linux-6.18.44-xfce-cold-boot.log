@@ -1,0 +1,27 @@
+[SceHidConfigService] PERIODIC_DOWNLOAD_INTERVAL_SEC={86400} elapsed={845} isFirstTime={1}
+[SceHidConfigService] start DownloadFile
+[SceHidConfigService] DownloadFile : [RevokeList]
+[SceHidConfigService] ifModifiedSince={Fri, 09 Mar 2018 03:55:47 +0000}
+[SceHidConfigService] SERVER_URL={http://ps4-system.sec.np.dl.playstation.net/ps4-system/hid_config/np/v00/hid_config.env}
+[SceHidConfigService] W:\Build\J02688430\vsh\shell\shell_core\hid_config_service\http_client.cpp(132) Get: HCS_ISOK::0x8041013d
+[SceHidConfigService] W:\Build\J02688430\vsh\shell\shell_core\hid_config_service\hid_config_service_manager.cpp(241) DownloadFile: HCS_ISOK::0x8041013d
+[SceHidConfigService] W:\Build\J02688430\vsh\shell\shell_core\hid_config_service\hid_config_service_manager.cpp(314) Run: HCS_CONTINUE::0x8041013d
+[SceHidConfigService] PERIODIC_CHECK_INTERVAL_SEC={420}
+[SceHidConfigService] PERIODIC_DOWNLOAD_INTERVAL_SEC={86400} elapsed={845} isFirstTime={1}
+[SceHidConfigService] start DownloadFile
+[SceHidConfigService] VerifySignature : size: total(610), signature(256), message(354) [byte]
+[SceHidConfigService] VerifySignature : pass
+[SceHidConfigService] DownloadFile : [UsbPower]
+[SceHidConfigService] ifModifiedSince={Mon, 01 Mar 2021 07:07:09 +0000}
+[SceHidConfigService] SERVER_URL={http://ps4-system.sec.np.dl.playstation.net/ps4-system/hidusbpower/np/v00/hidusbpower.env}
+[SceHidConfigService] W:\Build\J02688430\vsh\shell\shell_core\hid_config_service\http_client.cpp(132) Get: HCS_ISOK::0x8041013d
+[SceHidConfigService] W:\Build\J02688430\vsh\shell\shell_core\hid_config_service\hid_config_service_manager.cpp(241) DownloadFile: HCS_ISOK::0x8041013d
+[SceHidConfigService] W:\Build\J02688430\vsh\shell\shell_core\hid_config_service\hid_config_service_manager.cpp(314) Run: HCS_CONTINUE::0x8041013d
+[SceHidConfigService] PERIODIC_CHECK_INTERVAL_SEC={420}
+[SceWorkaroundCtl] PERIODIC_DOWNLOAD_INTERVAL_SEC={86400} elapsed={890} isFirstTime={1}
+[SceWorkaroundCtl] start DownloadFile
+[SceWorkaroundCtl] ifModifiedSince={Thu, 10 Dec 2020 08:29:25 +0000}
+[SceWorkaroundCtl] W:\Build\J02688430\vsh\shell\shell_core\workaround_ctl\http_client.cpp(132) Get: WC_ISOK::0x8041013d
+[SceWorkaroundCtl] W:\Build\J02688430\vsh\shell\shell_core\workaround_ctl\workaround_ctl_manager.cpp(288) DownloadFile: WC_ISOK::0x8041013d
+[SceWorkaroundCtl] W:\Build\J02688430\vsh\shell\shell_core\workaround_ctl\workaround_ctl_manager.cpp(451) Run: WC_CONTINUE::0x8041013d
+[SceWorkaroundCtl] PERIODIC_CHECK_INTERVAL_SEC={420}

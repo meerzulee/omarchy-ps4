@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ ${EUID} -eq 0 ]] || fail 'must run as root'
+[[ $# -eq 3 ]] || fail 'usage: install-live-package-profile EXPERIMENT_ID PROFILE OMARCHY_REPO_URL'
+
+experiment_id=$1
+profile=$2
+omarchy_repo_url=$3
+expected_root_label=OMARCHY-PS4
+repository_arch_token=\$arch
+
+[[ $experiment_id =~ ^EXP-[0-9]{8}-[0-9]{3}-A[0-9]+$ ]] ||
+  fail "invalid experiment ID: $experiment_id"
+[[ -r $profile ]] || fail "cannot read package profile: $profile"
+[[ $omarchy_repo_url == https://pkgs.omarchy.org/*/"$repository_arch_token" ]] ||
+  fail "unexpected Omarchy repository URL: $omarchy_repo_url"
+
+mapfile -t packages < <(
+  sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$profile"
+)
+((${#packages[@]} > 0)) || fail 'package profile is empty'
+for package in "${packages[@]}"; do
+  [[ $package =~ ^[a-z0-9@._+-]+$ ]] || fail "invalid package name: $package"
+done
+
+root_source=$(findmnt -no SOURCE /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source")
+[[ -b $root_device ]] || fail "root source is not a block device: $root_source"
+[[ $(lsblk -dnro LABEL "$root_device") == "$expected_root_label" ]] ||
+  fail "root is not labeled $expected_root_label"
+
+parent_name=$(lsblk -dnro PKNAME "$root_device")
+[[ -n $parent_name ]] || fail "cannot resolve parent disk for $root_device"
+[[ $(lsblk -dnro TRAN "/dev/$parent_name") == usb ]] ||
+  fail 'root parent is not a USB device'
+[[ ! -e /var/lib/pacman/db.lck ]] || fail 'pacman database is locked'
+timedatectl show -p NTPSynchronized --value | grep -qx yes ||
+  fail 'system clock is not synchronized'
+systemctl is-active --quiet display-manager.service ||
+  fail 'display manager is not active before the transaction'
+
+backup_dir="/var/lib/omarchy-ps4/experiments/${experiment_id}-$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 0700 "$backup_dir"
+install -m 0600 "$profile" "$backup_dir/packages.requested.txt"
+pacman -Q >"$backup_dir/packages.before.txt"
+pacman -Qq >"$backup_dir/package-names.before.txt"
+pacman -Qqe >"$backup_dir/explicit-packages.before.txt"
+pacman -Qqm >"$backup_dir/foreign-packages.before.txt" || true
+cp -a /var/log/pacman.log "$backup_dir/pacman.log.before"
+findmnt -no SOURCE,FSTYPE,OPTIONS / >"$backup_dir/root.before.txt"
+df -B1 / >"$backup_dir/free-space.before.txt"
+
+pacman_config=$(mktemp /tmp/omarchy-ps4-pacman.XXXXXX)
+cleanup() {
+  rm -f -- "$pacman_config"
+}
+trap cleanup EXIT
+
+cp /etc/pacman.conf "$pacman_config"
+if grep -q '^\[omarchy\]$' "$pacman_config"; then
+  fail '/etc/pacman.conf already contains an omarchy repository; inspect it before continuing'
+fi
+{
+  printf '\n[omarchy]\n'
+  printf '%s\n' '# Matches the current upstream Quattro beta channel. Package identities and'
+  printf '%s\n' '# transaction URLs are captured below before installation.'
+  printf '%s\n' 'SigLevel = Optional TrustAll'
+  printf 'Server = %s\n' "$omarchy_repo_url"
+} >>"$pacman_config"
+
+sha256sum /etc/pacman.conf "$pacman_config" >"$backup_dir/pacman-config.sha256"
+printf '%s\n' "$omarchy_repo_url" >"$backup_dir/omarchy-repository.txt"
+
+printf 'Refreshing databases with a temporary pacman configuration...\n'
+pacman --config "$pacman_config" -Syy --noconfirm
+
+: >"$backup_dir/packages.resolved.txt"
+for package in "${packages[@]}"; do
+  version=$(pacman --config "$pacman_config" -Si "$package" 2>/dev/null |
+    sed -n 's/^Version[[:space:]]*: //p' | head -n1)
+  [[ -n $version ]] || fail "package is unavailable: $package"
+  printf '%s=%s\n' "$package" "$version" >>"$backup_dir/packages.resolved.txt"
+done
+
+pacman --config "$pacman_config" -Sp --print-format '%n %v %l' -- "${packages[@]}" \
+  >"$backup_dir/transaction-preview.txt"
+printf 'Root: %s (USB, label %s)\n' "$root_device" "$expected_root_label"
+printf 'Backup: %s\n' "$backup_dir"
+printf 'Requested packages: %d\n' "${#packages[@]}"
+printf 'Installing the resolved profile; no boot or display-manager package is requested.\n'
+
+pacman --config "$pacman_config" -S --needed --noconfirm --ask 4 -- "${packages[@]}"
+
+pacman -Q >"$backup_dir/packages.after.txt"
+pacman -Qq >"$backup_dir/package-names.after.txt"
+comm -13 "$backup_dir/package-names.before.txt" "$backup_dir/package-names.after.txt" \
+  >"$backup_dir/new-packages.txt"
+cp -a /var/log/pacman.log "$backup_dir/pacman.log.after"
+df -B1 / >"$backup_dir/free-space.after.txt"
+
+while IFS='=' read -r package version; do
+  installed=$(pacman -Q "$package" 2>/dev/null | awk '{ print $2 }')
+  [[ $installed == "$version" ]] ||
+    fail "installed $package $installed, expected $version"
+done <"$backup_dir/packages.resolved.txt"
+systemctl is-active --quiet display-manager.service ||
+  fail 'display manager stopped during the package transaction'
+
+{
+  printf '%s\n' 'Rollback preview; inspect new-packages.txt before running:'
+  printf 'pacman -Rns -- %s\n' "$(tr '\n' ' ' <"$backup_dir/new-packages.txt")"
+} >"$backup_dir/ROLLBACK.txt"
+
+printf 'Installed profile packages: %d\n' "${#packages[@]}"
+printf 'Resolved versions: %s/packages.resolved.txt\n' "$backup_dir"
+printf 'New packages: %s/new-packages.txt\n' "$backup_dir"
+printf '%s\n' 'The permanent pacman configuration, sessions, services, boot files, and desktop configuration were not changed.'

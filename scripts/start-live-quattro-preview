@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ ${EUID} -ne 0 ]] || fail 'run as the target desktop user, not root'
+[[ $# -ge 2 && $# -le 3 ]] ||
+  fail 'usage: start-live-quattro-preview EXPERIMENT_ID COMMIT [rhi|software|software-full]'
+
+experiment_id=$1
+commit=$2
+renderer=${3:-rhi}
+unit=omarchy-ps4-quattro-poc.service
+expected_root_label=OMARCHY-PS4
+
+[[ $experiment_id =~ ^EXP-[0-9]{8}-[0-9]{3}-A[0-9]+$ ]] ||
+  fail "invalid experiment ID: $experiment_id"
+[[ $commit =~ ^[0-9a-f]{40}$ ]] || fail "invalid upstream commit: $commit"
+[[ $renderer == rhi || $renderer == software || $renderer == software-full ]] ||
+  fail "invalid renderer: $renderer"
+[[ $(id -un) == ps4 ]] || fail "target user is $(id -un), expected ps4"
+
+root_source=$(findmnt -no SOURCE /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source")
+[[ -b $root_device ]] || fail "root source is not a block device: $root_source"
+[[ $(lsblk -dnro LABEL "$root_device") == "$expected_root_label" ]] ||
+  fail "root is not labeled $expected_root_label"
+
+source_path=$HOME/.local/share/omarchy-ps4/upstream/current
+stage_path=$HOME/.local/share/omarchy-ps4/staged/current
+[[ $(<"$source_path/UPSTREAM_COMMIT") == "$commit" ]] || fail 'staged source commit mismatch'
+[[ $(<"$stage_path/UPSTREAM_COMMIT") == "$commit" ]] || fail 'staged config commit mismatch'
+[[ -r $source_path/shell/shell.qml ]] || fail 'Quattro shell entry is missing'
+[[ -r $stage_path/omarchy/shell.json ]] || fail 'PS4 shell configuration is missing'
+command -v qs >/dev/null || fail 'Quickshell is not installed'
+
+if systemctl --user is-active --quiet "$unit"; then
+  fail "$unit is already active"
+fi
+systemctl --user reset-failed "$unit" 2>/dev/null || true
+
+instance=$(hyprctl instances 2>/dev/null | sed -n 's/^instance \([^:]*\):/\1/p' | head -n1)
+[[ -n $instance ]] || fail 'no running Hyprland instance was found'
+wayland_display=$(hyprctl -i "$instance" instances 2>/dev/null |
+  sed -n 's/^[[:space:]]*wl socket: //p' | head -n1)
+if [[ -z $wayland_display ]]; then
+  wayland_display=$(hyprctl instances 2>/dev/null |
+    sed -n 's/^[[:space:]]*wl socket: //p' | head -n1)
+fi
+[[ -n $wayland_display ]] || fail 'cannot resolve the Hyprland Wayland socket'
+
+state_root=$HOME/.local/state/omarchy-ps4/experiments
+state_dir="$state_root/${experiment_id}-$(date -u +%Y%m%dT%H%M%SZ)"
+preview_home=$HOME/.local/share/omarchy-ps4/preview/$experiment_id
+[[ ! -e $preview_home ]] || fail "preview HOME already exists: $preview_home"
+install -d -m 0700 "$state_dir" "$preview_home/.config/omarchy"
+install -m 0600 "$stage_path/omarchy/shell.json" "$preview_home/.config/omarchy/shell.json"
+hyprctl instances >"$state_dir/hyprland.instances.before.txt"
+hyprctl -i "$instance" clients -j >"$state_dir/hyprland.clients.before.json"
+
+runtime_dir=/run/user/$(id -u)
+renderer_environment=()
+mesa_environment=()
+if [[ -n ${AMD_DEBUG:-} ]]; then
+  mesa_environment+=(--setenv="AMD_DEBUG=$AMD_DEBUG")
+fi
+if [[ $renderer == software || $renderer == software-full ]]; then
+  renderer_environment+=(--setenv=QT_QUICK_BACKEND=software --setenv=QSG_INFO=1)
+fi
+if [[ $renderer == software-full ]]; then
+  renderer_environment+=(--setenv=QSG_SOFTWARE_RENDERER_FORCE_PARTIAL_UPDATES=0)
+fi
+systemd-run --user --unit="$unit" --service-type=exec \
+  --setenv="HOME=$preview_home" \
+  --setenv="OMARCHY_PATH=$source_path" \
+  --setenv="PATH=$source_path/bin:/usr/local/bin:/usr/bin" \
+  --setenv="XDG_RUNTIME_DIR=$runtime_dir" \
+  --setenv="DBUS_SESSION_BUS_ADDRESS=unix:path=$runtime_dir/bus" \
+  --setenv="WAYLAND_DISPLAY=$wayland_display" \
+  --setenv="HYPRLAND_INSTANCE_SIGNATURE=$instance" \
+  --setenv=XDG_CURRENT_DESKTOP=Hyprland \
+  --setenv=XDG_SESSION_TYPE=wayland \
+  --setenv=QT_QPA_PLATFORM=wayland \
+  "${mesa_environment[@]}" \
+  "${renderer_environment[@]}" \
+  qs -n -p "$source_path/shell"
+
+printf '%s\n' "$unit" >"$state_dir/unit.txt"
+printf '%s\n' "$preview_home" >"$state_dir/preview-home.txt"
+printf '%s\n' "$instance" >"$state_dir/hyprland-instance.txt"
+printf '%s\n' "$wayland_display" >"$state_dir/wayland-display.txt"
+printf '%s\n' "$renderer" >"$state_dir/renderer.txt"
+{
+  printf 'systemctl --user stop %q\n' "$unit"
+  printf 'systemctl --user reset-failed %q\n' "$unit"
+  printf 'rm -rf -- %q\n' "$preview_home"
+} >"$state_dir/ROLLBACK.txt"
+
+printf 'Preview unit: %s\n' "$unit"
+printf 'Preview HOME: %s\n' "$preview_home"
+printf 'Hyprland instance: %s\n' "$instance"
+printf 'Wayland display: %s\n' "$wayland_display"
+printf 'Qt Quick renderer: %s\n' "$renderer"
+printf 'Evidence: %s\n' "$state_dir"

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ ${EUID} -eq 0 ]] || fail 'must run as root'
+[[ $# -eq 1 ]] || fail 'usage: remove-live-udiskie EXPERIMENT_ID'
+
+experiment_id=$1
+expected_root_label=OMARCHY-PS4
+[[ $experiment_id =~ ^EXP-[0-9]{8}-[0-9]{3}-A[0-9]+$ ]] ||
+  fail "invalid experiment ID: $experiment_id"
+
+root_source=$(findmnt -no SOURCE /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source")
+[[ -b $root_device ]] || fail "root source is not a block device: $root_source"
+[[ $(lsblk -dnro LABEL "$root_device") == "$expected_root_label" ]] ||
+  fail "root is not labeled $expected_root_label"
+parent_name=$(lsblk -dnro PKNAME "$root_device")
+[[ -n $parent_name ]] || fail "cannot resolve parent disk for $root_device"
+[[ $(lsblk -dnro TRAN "/dev/$parent_name") == usb ]] ||
+  fail 'root parent is not a USB device'
+[[ ! -e /var/lib/pacman/db.lck ]] || fail 'pacman database is locked'
+pacman -Q udiskie >/dev/null 2>&1 || fail 'udiskie is not installed'
+
+backup="/var/lib/omarchy-ps4/experiments/${experiment_id}-$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 0700 "$backup"
+pacman -Q >"$backup/packages.before.txt"
+pacman -Rs --print-format '%n=%v' -- udiskie >"$backup/removal.resolved.txt"
+
+systemctl stop udisks2.service
+pacman -Rns --noconfirm -- udiskie
+
+pacman -Q >"$backup/packages.after.txt"
+while IFS='=' read -r package version; do
+  pacman -Q "$package" >/dev/null 2>&1 && fail "$package remains installed"
+  printf '%s=%s\n' "$package" "$version"
+done <"$backup/removal.resolved.txt" >"$backup/removal.verified.txt"
+
+{
+  printf '%s\n' 'Rollback with the frozen Arch and recorded Omarchy repositories:'
+  printf 'pacman -S -- %s\n' "$(cut -d= -f1 "$backup/removal.resolved.txt" | tr '\n' ' ')"
+} >"$backup/ROLLBACK.txt"
+
+printf 'Backup: %s\n' "$backup"
+printf 'Removed packages: %s\n' "$(wc -l <"$backup/removal.resolved.txt")"
+printf 'UDisks2 service: %s\n' "$(systemctl is-active udisks2.service 2>/dev/null || true)"
+printf '%s\n' 'No other profile package, session, display-manager, boot, kernel, or disk configuration was changed.'

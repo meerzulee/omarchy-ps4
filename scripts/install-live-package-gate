@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    'Usage: install-live-package-gate EXPERIMENT_ID PACKAGE VERSION' \
+    '' \
+    'Install one pinned package and its repository dependencies on the live' \
+    'external OMARCHY-PS4 root. Records package and rollback evidence first.'
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ ${EUID} -eq 0 ]] || fail 'must run as root'
+[[ $# -eq 3 ]] || {
+  usage >&2
+  exit 2
+}
+
+experiment_id=$1
+expected_package=$2
+expected_version=$3
+expected_root_label=OMARCHY-PS4
+
+[[ $experiment_id =~ ^EXP-[0-9]{8}-[0-9]{3}-A[0-9]+$ ]] ||
+  fail "invalid experiment ID: $experiment_id"
+[[ $expected_package =~ ^[a-z0-9@._+-]+$ ]] ||
+  fail "invalid package name: $expected_package"
+[[ -n $expected_version ]] || fail 'expected package version is empty'
+
+root_source=$(findmnt -no SOURCE /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source")
+[[ -b $root_device ]] || fail "root source is not a block device: $root_source"
+
+root_label=$(lsblk -dnro LABEL "$root_device")
+[[ $root_label == "$expected_root_label" ]] ||
+  fail "root label is '$root_label', expected '$expected_root_label'"
+
+parent_name=$(lsblk -dnro PKNAME "$root_device")
+[[ -n $parent_name ]] || fail "cannot resolve parent disk for $root_device"
+parent_device=/dev/$parent_name
+transport=$(lsblk -dnro TRAN "$parent_device")
+[[ $transport == usb ]] ||
+  fail "root parent $parent_device uses '$transport', expected USB"
+
+current_version=$(pacman -Si "$expected_package" |
+  sed -n 's/^Version[[:space:]]*: //p' | head -n 1)
+[[ $current_version == "$expected_version" ]] ||
+  fail "repository offers $expected_package $current_version, expected $expected_version"
+
+if pacman -Q "$expected_package" >/dev/null 2>&1; then
+  fail "$expected_package is already installed; refusing an ambiguous gate"
+fi
+
+backup_root=/var/lib/omarchy-ps4/experiments
+backup_dir="$backup_root/${experiment_id}-$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 0700 "$backup_dir"
+
+pacman -Q >"$backup_dir/packages.before.txt"
+pacman -Qq >"$backup_dir/package-names.before.txt"
+pacman -Qqe >"$backup_dir/explicit-packages.before.txt"
+pacman -Qqm >"$backup_dir/foreign-packages.before.txt" || true
+cp -a /var/log/pacman.log "$backup_dir/pacman.log.before"
+findmnt -no SOURCE,FSTYPE,OPTIONS / >"$backup_dir/root.before.txt"
+lsblk -o NAME,PATH,TRAN,VENDOR,MODEL,SIZE,FSTYPE,LABEL,MOUNTPOINTS \
+  >"$backup_dir/block-devices.before.txt"
+systemctl is-active display-manager.service >"$backup_dir/display-manager-active.before.txt"
+systemctl is-enabled display-manager.service >"$backup_dir/display-manager-enabled.before.txt"
+readlink -f /etc/systemd/system/display-manager.service \
+  >"$backup_dir/display-manager-unit.before.txt"
+pacman -Sp --print-format '%n %v %l' "$expected_package" \
+  >"$backup_dir/transaction-preview.txt"
+
+printf 'Root: %s (%s, label %s)\n' "$root_device" "$transport" "$root_label"
+printf 'Backup: %s\n' "$backup_dir"
+printf 'Installing %s %s from the current signed Arch repository database\n' \
+  "$expected_package" "$expected_version"
+
+pacman -S --needed --noconfirm "$expected_package"
+
+pacman -Q >"$backup_dir/packages.after.txt"
+pacman -Qq >"$backup_dir/package-names.after.txt"
+comm -13 \
+  "$backup_dir/package-names.before.txt" \
+  "$backup_dir/package-names.after.txt" \
+  >"$backup_dir/new-packages.txt"
+cp -a /var/log/pacman.log "$backup_dir/pacman.log.after"
+
+installed_version=$(pacman -Q "$expected_package" | awk '{ print $2 }')
+[[ $installed_version == "$expected_version" ]] ||
+  fail "installed $expected_package $installed_version, expected $expected_version"
+systemctl is-active --quiet display-manager.service ||
+  fail 'display manager stopped during the package transaction'
+
+{
+  printf '%s\n' 'Rollback preview; inspect new-packages.txt before running:'
+  printf 'pacman -Rns -- %s\n' "$(tr '\n' ' ' <"$backup_dir/new-packages.txt")"
+} >"$backup_dir/ROLLBACK.txt"
+
+printf 'Installed: %s\n' "$(pacman -Q "$expected_package")"
+printf 'Display manager: %s (%s)\n' \
+  "$(systemctl is-active display-manager.service)" \
+  "$(readlink -f /etc/systemd/system/display-manager.service)"
+printf 'New package list: %s/new-packages.txt\n' "$backup_dir"
+printf '%s\n' 'No session, service, boot, kernel, disk, or display-manager configuration was changed.'

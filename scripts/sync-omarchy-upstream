@@ -27,8 +27,8 @@ actual_remote=$(git -C "$checkout" remote get-url origin)
   exit 2
 }
 
-if [[ -n $(git -C "$checkout" status --short) ]]; then
-  printf 'error: cached Omarchy checkout has local changes: %s\n' "$checkout" >&2
+if ! git -C "$checkout" diff --quiet || ! git -C "$checkout" diff --cached --quiet; then
+  printf 'error: cached Omarchy checkout has tracked local changes: %s\n' "$checkout" >&2
   exit 2
 fi
 

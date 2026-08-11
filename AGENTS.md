@@ -14,12 +14,26 @@
 
 ## Test discipline
 
+- Follow [`docs/DEVELOPMENT-MODE.md`](docs/DEVELOPMENT-MODE.md) for every
+  PS4-side action. Continuous UART plus a bounded `EXP-YYYYMMDD-NNN` session is
+  mandatory before the operator acts.
 - Change one variable per hardware experiment.
 - Record the console model, southbridge, firmware, kernel, package versions,
   commands, result, and attached logs for every experiment.
 - A failed experiment must have a documented rollback path.
 - Do not promote a component to the root filesystem until its individual gate
   passes.
+- Close the active entry in [`experiments/SESSIONS.md`](experiments/SESSIONS.md)
+  before starting another hardware experiment.
+
+## Agent collaboration
+
+- Additional agents may perform bounded advice, independent audit, research,
+  tests, or implementation work.
+- Delegated conclusions must be verified by the primary agent. Agent agreement
+  is not hardware evidence.
+- Spawning an agent does not authorize console actions, destructive storage
+  operations, public pushes/releases, or Git history rewrites.
 
 ## Local infrastructure
 

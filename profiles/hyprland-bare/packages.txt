@@ -1,0 +1,2 @@
+# Bare compositor gate. UWSM, portals, shell and Omarchy config come later.
+hyprland=0.56.2-1

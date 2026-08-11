@@ -1,18 +1,22 @@
 # Omarchy Quattro inventory for PS4
 
+The base-install decision is documented separately in
+[`OMARCHY-BASE.md`](OMARCHY-BASE.md): upstream has a full workstation package
+list, but no safe bare-install mode for this existing PS4 root.
+
 ## Pinned upstream
 
 | Field | Value |
 |---|---|
 | Version | `4.0.0.alpha` |
 | Branch | `quattro` |
-| Commit | `4564c24a0e5893402a6ca23a8bda4cec76811bac` |
-| Commit date | 2026-08-10 03:21:08 -0700 |
-| Core packages | 145 |
+| Commit | `08204846ef6c2e2de8eba873d5888749e1d46ba5` |
+| Commit date | 2026-08-11 18:34:07 +0200 |
+| Core packages | 147 |
 | Additional/conditional packages | 59 |
-| Helper commands | 409 |
-| Migrations | 66 |
-| Quickshell plugin manifests | 29 |
+| Helper commands | 415 |
+| Migrations | 70 |
+| Quickshell plugin manifests | 37 |
 
 Run `./scripts/sync-omarchy-upstream` to reproduce the ignored checkout under
 `cache/omarchy-quattro`. The lock is in `../upstream/omarchy.lock`; the
@@ -67,6 +71,8 @@ Each candidate remains isolated until its gate passes on the PS4.
 
 - Btrfs/Snapper and Limine snapshot integration; the MVP uses ext4.
 - Suspend, hibernate, firmware updates, and unattended major graphics updates.
+- UDisks/`udiskie` automount while the internal PS4 disk is exposed; A78 showed
+  that device discovery probes `sdb` and produces repeated I/O errors.
 - Intel, Nvidia, Apple, Surface, ASUS, Framework, Tuxedo, fingerprint, laptop,
   and DKMS hardware branches.
 - Power-profile and brightness behavior that assumes a laptop battery/backlight.

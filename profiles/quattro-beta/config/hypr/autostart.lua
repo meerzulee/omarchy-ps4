@@ -1,0 +1,2 @@
+-- PS4 session startup is owned by the source override in
+-- source-overrides/default/hypr/autostart.lua.

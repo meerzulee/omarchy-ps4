@@ -6,12 +6,18 @@
 > [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md). The current ecosystem
 > snapshot—what exists, what changed in 2026, and what is still missing—is in
 > [`knowledge/2026-08-10/WORLD-STATE.md`](knowledge/2026-08-10/WORLD-STATE.md).
+> The prepared Linux 6.18/XFCE hardware runbook is
+> [`docs/FIRST-BOOT-6.18-XFCE.md`](docs/FIRST-BOOT-6.18-XFCE.md).
+> Hardware work follows [`docs/DEVELOPMENT-MODE.md`](docs/DEVELOPMENT-MODE.md),
+> and the durable resume point is
+> [`experiments/SESSIONS.md`](experiments/SESSIONS.md).
 
 Architecture research date: 2026-08-09
 
 Ecosystem snapshot date: 2026-08-10
 
-Status: clean XFCE rootfs built; real-hardware reproduction pending
+Status: Linux 6.18/XFCE boots on Baikal B1; native Wayland passed; direct bare
+Hyprland is running with physical confirmation pending
 
 ## Executive summary
 
@@ -37,6 +43,10 @@ that path reliable on Baikal. The MVP therefore stays external.
 The largest unresolved risk is whether current Hyprland and Quickshell work
 reliably on the PS4's patched AMD graphics stack. That must be proven before
 building the installer or full distribution.
+
+Upstream has no safe bare installer for this root. See
+[`docs/OMARCHY-BASE.md`](docs/OMARCHY-BASE.md) for the exact stable/Quattro
+split and the PS4 layer sequence.
 
 ## Project scope
 

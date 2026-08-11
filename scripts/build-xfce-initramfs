@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly WORKSPACE_DIR="$(cd "${REPO_DIR}/.." && pwd)"
+readonly SOURCE_INITRAMFS="${PS4_SOURCE_INITRAMFS:-${WORKSPACE_DIR}/linux-ps4-kernel/checkpoint/initramfs/initramfs-v26-with-edid.cpio.gz}"
+readonly INIT_SOURCE="${REPO_DIR}/rootfs/initramfs/init"
+readonly OUTPUT_DIR="${REPO_DIR}/output/xfce-baseline"
+readonly OUTPUT_INITRAMFS="${OUTPUT_DIR}/initramfs.cpio.gz"
+
+if ! command -v orb >/dev/null 2>&1 || [[ "$(orb status)" != "Running" ]]; then
+  printf '%s\n' 'error: OrbStack must be running' >&2
+  exit 1
+fi
+
+if [[ ! -f "${SOURCE_INITRAMFS}" ]]; then
+  printf 'error: source firmware initramfs not found: %s\n' "${SOURCE_INITRAMFS}" >&2
+  exit 1
+fi
+
+if [[ ! -x "${INIT_SOURCE}" ]]; then
+  printf 'error: init script is missing or not executable: %s\n' "${INIT_SOURCE}" >&2
+  exit 1
+fi
+
+mkdir -p "${OUTPUT_DIR}"
+readonly WORK_DIR="$(mktemp -d "${OUTPUT_DIR}/.initramfs-work.XXXXXX")"
+trap 'rm -rf "${WORK_DIR}"' EXIT
+
+orb -m ubuntu -u root bash -s -- \
+  "${SOURCE_INITRAMFS}" \
+  "${INIT_SOURCE}" \
+  "${OUTPUT_INITRAMFS}" \
+  "${WORK_DIR}" <<'BUILD'
+set -euo pipefail
+
+source_initramfs=$1
+init_source=$2
+output_initramfs=$3
+work_dir=$4
+source_dir="${work_dir}/source"
+root_dir="${work_dir}/root"
+
+mkdir -p "${source_dir}" "${root_dir}"
+(
+  cd "${source_dir}"
+  gzip -dc "${source_initramfs}" | cpio -id --quiet
+)
+
+file "${source_dir}/bin/busybox" | grep -q 'x86-64.*statically linked'
+
+mkdir -p \
+  "${root_dir}/bin" \
+  "${root_dir}/dev/pts" \
+  "${root_dir}/etc" \
+  "${root_dir}/lib/firmware/amdgpu" \
+  "${root_dir}/lib/firmware/edid" \
+  "${root_dir}/newroot" \
+  "${root_dir}/proc" \
+  "${root_dir}/run" \
+  "${root_dir}/sbin" \
+  "${root_dir}/sys" \
+  "${root_dir}/tmp" \
+  "${root_dir}/usr/bin" \
+  "${root_dir}/usr/sbin"
+
+install -m 0755 "${source_dir}/bin/busybox" "${root_dir}/bin/busybox"
+install -m 0755 "${init_source}" "${root_dir}/init"
+cp -a "${source_dir}/lib/firmware/amdgpu/." "${root_dir}/lib/firmware/amdgpu/"
+cp -a "${source_dir}/lib/firmware/edid/." "${root_dir}/lib/firmware/edid/"
+
+while IFS= read -r applet; do
+  [[ "${applet}" == busybox ]] && continue
+  ln -s busybox "${root_dir}/bin/${applet}"
+done < <("${root_dir}/bin/busybox" --list)
+ln -sf ../bin/busybox "${root_dir}/sbin/mdev"
+
+(
+  cd "${root_dir}"
+  find . -print0 \
+    | LC_ALL=C sort -z \
+    | cpio --null -o --format=newc --quiet \
+    | gzip -n -9 > "${output_initramfs}"
+)
+BUILD
+
+printf 'Built %s\n' "${OUTPUT_INITRAMFS}"
+shasum -a 256 "${OUTPUT_INITRAMFS}"

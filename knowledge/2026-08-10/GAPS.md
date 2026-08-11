@@ -12,9 +12,11 @@ kernel or Wayland experiment should replace this step.
 
 ## 2. Establish a modern Baikal kernel baseline
 
-Pin `rmuxnet/linux` branch `baikal/7.0.8-Stable` at `d8cbb8e9`, build kernel
-and matching modules from source, and test it with the unchanged XFCE rootfs.
-This isolates kernel changes from Mesa and desktop changes.
+Build the pinned `linux-ps4-kernel` target `6.18-baikal` (Linux 6.18.44 at
+`1efe5d048a39`, 47 active patches) and matching modules, then test it with the
+unchanged XFCE rootfs. The rmux branch `baikal/7.0.8-Stable` at `d8cbb8e9`
+remains the current comparison tree rather than an opaque replacement. This
+isolates kernel changes from Mesa and desktop changes.
 
 Required observations: boot time, USB stability, rootfs mounting, HDMI mode,
 GPU initialization/reset, MT7668 Wi-Fi and Bluetooth, SATA enumeration, audio,
@@ -36,9 +38,12 @@ We still need:
 
 ## 4. Prove Wayland before Hyprland
 
-No public PS4 Hyprland or Quickshell implementation was found. The first
-Wayland experiment must therefore be intentionally small: one compositor, one
-native client, keyboard/mouse input, correct HDMI mode, clean exit, and logs.
+This project has public evidence of Hyprland and OpenGL rendering on Baikal B1
+with an earlier experimental Linux 6.15 stack. That is useful feasibility
+evidence, not proof of the clean 6.18 kernel or a complete desktop. No public
+Quickshell/Omarchy integration was found. The first 6.18 Wayland experiment
+must therefore stay intentionally small: one compositor, one native client,
+keyboard/mouse input, correct HDMI mode, clean exit, and logs.
 
 Only after that passes do we test bare Hyprland, followed by UWSM, portals,
 PipeWire, Quickshell, and Omarchy configuration in that order.
@@ -62,12 +67,16 @@ Orbis storage, but the complete user journey is not owned by one project.
 
 Missing product pieces include:
 
-- exact exploit/homebrew provenance for our 12.02 path;
 - licensed, pinned loader inputs;
 - signed A/B kernel and initramfs assets;
 - last-known-good selection and failed-boot recovery;
 - a safe external-drive installer with exact-target confirmation;
 - useful error reporting without requiring UART or SSH.
+
+The firmware-12.02 path is now pinned in
+`FW-12.02-PAYLOAD-CHAIN.md`: existing GoldHEN, ready PayLoader on TCP 9090,
+and the v25 1024MB ELF. Loader licensing and real-hardware boot acceptance
+remain open.
 
 ## 8. Resolve redistribution questions early
 

@@ -9,15 +9,19 @@ installing the entire Omarchy stack and debugging all failures at once.
 
 For every component:
 
-1. Pin the exact upstream source or Arch package version.
-2. Install only that component and its required dependencies.
-3. Run its defined test on the known console.
-4. Save commands, versions, logs, and the observed result.
-5. Classify it using `COMPATIBILITY.md`.
-6. If it passes, keep upstream behavior and continue.
-7. If it fails, isolate the lowest failing layer before considering a patch.
-8. Build a PS4-specific replacement only when no maintained solution exists.
-9. Confirm XFCE still boots after every change.
+1. Resume from `experiments/SESSIONS.md`; never rely on chat memory alone.
+2. Pin the exact upstream source or Arch package version.
+3. Install only that component and its required dependencies.
+4. Start a bounded UART session before the operator performs a PS4-side action.
+5. Run its defined test on the known console with one changed variable.
+6. Save commands, versions, raw/compact UART logs, and the operator's observed
+   result.
+7. Close the session with a conclusion, rollback state, and one next action.
+8. Classify it using `COMPATIBILITY.md`.
+9. If it passes, keep upstream behavior and continue.
+10. If it fails, isolate the lowest failing layer before considering a patch.
+11. Build a PS4-specific replacement only when no maintained solution exists.
+12. Confirm XFCE still boots after every change.
 
 ## Phase 0 — Repository foundation
 
@@ -124,6 +128,29 @@ Status: pending
 
 Exit gate: a clean rootfs can install the proven desktop stack entirely from
 signed repositories and pinned source inputs.
+
+## Deferred kernel workstream — Atomic PS4 display
+
+Status: planned; keep the working legacy DCE8 kernel as the default and
+recovery path
+
+- Develop on a separate `wip/display-core-atomic` branch.
+- Resolve the PS4 AMDGPU/Display Core patch rejects and make Liverpool and
+  Gladius initialization internally consistent.
+- Bring Liverpool up through AMD Display Core (`amdgpu_dm`) instead of merely
+  forcing `amdgpu.dc=1` on the incomplete path.
+- Convert the Aeolia-controlled MN864729 HDMI integration into a per-device,
+  atomic DRM bridge and connect it to Display Core link/connector creation.
+- Preserve the known-good firmware-trained DP transmitter state and begin with
+  the proven 1920x1080 at 60 Hz mode.
+- Validate atomic modesetting and page flips before testing color management,
+  DPMS, hotplug, additional modes, HDMI audio, or hardware video decoding.
+
+Exit gate: Aquamarine acquires `DRM_CLIENT_CAP_ATOMIC` without its legacy
+fallback, HDMI and framebuffer output survive the defined cold-boot count, and
+`modetest` exposes the expected atomic CRTC and plane properties. CTM, gamma,
+audio, and other optional capabilities remain unsupported until their own
+hardware gates pass.
 
 ## Phase 6 — Product integration
 

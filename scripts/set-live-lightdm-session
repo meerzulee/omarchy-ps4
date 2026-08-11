@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ ${EUID} -eq 0 ]] || fail 'must run as root'
+[[ $# -eq 2 ]] || fail 'usage: set-live-lightdm-session EXPERIMENT_ID SESSION'
+
+experiment_id=$1
+session_name=$2
+expected_root_label=OMARCHY-PS4
+config=/etc/lightdm/lightdm.conf.d/20-omarchy-ps4.conf
+target_user=ps4
+target_home=$(getent passwd "$target_user" | cut -d: -f6)
+user_dmrc=$target_home/.dmrc
+
+[[ $experiment_id =~ ^EXP-[0-9]{8}-[0-9]{3}-A[0-9]+$ ]] ||
+  fail "invalid experiment ID: $experiment_id"
+[[ $session_name == xfce || $session_name == hyprland || $session_name == hyprland-uwsm ]] ||
+  fail "unsupported recovery/test session: $session_name"
+[[ -f $config ]] || fail "LightDM drop-in is missing: $config"
+[[ -n $target_home && -d $target_home ]] ||
+  fail "cannot resolve home for $target_user"
+
+session_entry=/usr/share/xsessions/$session_name.desktop
+if [[ $session_name == hyprland || $session_name == hyprland-uwsm ]]; then
+  session_entry=/usr/share/wayland-sessions/$session_name.desktop
+fi
+[[ -r $session_entry ]] || fail "session entry is missing: $session_entry"
+
+root_source=$(findmnt -no SOURCE /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source")
+[[ -b $root_device ]] || fail "root source is not a block device: $root_source"
+[[ $(lsblk -dnro LABEL "$root_device") == "$expected_root_label" ]] ||
+  fail "root is not labeled $expected_root_label"
+
+parent_name=$(lsblk -dnro PKNAME "$root_device")
+[[ -n $parent_name ]] || fail "cannot resolve parent disk for $root_device"
+[[ $(lsblk -dnro TRAN "/dev/$parent_name") == usb ]] ||
+  fail 'root parent is not a USB device'
+
+[[ $(grep -c '^autologin-session=' "$config") -eq 1 ]] ||
+  fail 'expected exactly one autologin-session setting'
+[[ $(grep -c '^user-session=' "$config") -eq 1 ]] ||
+  fail 'expected exactly one user-session setting'
+
+backup_dir="/var/lib/omarchy-ps4/experiments/${experiment_id}-$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 0700 "$backup_dir"
+install -m 0600 "$config" "$backup_dir/20-omarchy-ps4.conf.before"
+if [[ -e $user_dmrc ]]; then
+  install -m 0600 "$user_dmrc" "$backup_dir/dmrc.before"
+  printf '%s\n' present >"$backup_dir/dmrc.state.before"
+else
+  printf '%s\n' absent >"$backup_dir/dmrc.state.before"
+fi
+lightdm --show-config >"$backup_dir/lightdm.before.txt" 2>&1
+
+new_config=$(mktemp /tmp/omarchy-ps4-lightdm.XXXXXX)
+new_dmrc=$(mktemp /tmp/omarchy-ps4-dmrc.XXXXXX)
+cleanup() {
+  rm -f -- "$new_config" "$new_dmrc"
+}
+trap cleanup EXIT
+
+awk -v session="$session_name" '
+  /^autologin-session=/ { print "autologin-session=" session; next }
+  /^user-session=/ { print "user-session=" session; next }
+  { print }
+' "$config" >"$new_config"
+
+if [[ -e $user_dmrc ]]; then
+  awk -v session="$session_name" '
+    BEGIN { in_desktop = 0; saw_desktop = 0; wrote_session = 0 }
+    /^\[Desktop\]$/ {
+      in_desktop = 1
+      saw_desktop = 1
+      print
+      next
+    }
+    /^\[/ {
+      if (in_desktop && !wrote_session) {
+        print "Session=" session
+        wrote_session = 1
+      }
+      in_desktop = 0
+      print
+      next
+    }
+    in_desktop && /^Session=/ {
+      print "Session=" session
+      wrote_session = 1
+      next
+    }
+    { print }
+    END {
+      if (!saw_desktop) {
+        print "[Desktop]"
+        print "Session=" session
+      } else if (in_desktop && !wrote_session) {
+        print "Session=" session
+      }
+    }
+  ' "$user_dmrc" >"$new_dmrc"
+else
+  printf '[Desktop]\nSession=%s\n' "$session_name" >"$new_dmrc"
+fi
+
+install -m 0644 "$new_config" "$config"
+install -m 0600 -o "$target_user" -g "$target_user" "$new_dmrc" "$user_dmrc"
+lightdm --show-config >"$backup_dir/lightdm.after.txt" 2>&1
+grep -q "autologin-session=$session_name" "$backup_dir/lightdm.after.txt" ||
+  fail 'effective autologin session did not change as requested'
+grep -q "user-session=$session_name" "$backup_dir/lightdm.after.txt" ||
+  fail 'effective user session did not change as requested'
+grep -q "^Session=$session_name$" "$user_dmrc" ||
+  fail 'per-user LightDM session did not change as requested'
+
+{
+  printf 'Restore with:\n'
+  printf 'install -m 0644 %q %q\n' \
+    "$backup_dir/20-omarchy-ps4.conf.before" "$config"
+  if [[ $(cat "$backup_dir/dmrc.state.before") == present ]]; then
+    printf 'install -m 0600 -o %q -g %q %q %q\n' \
+      "$target_user" "$target_user" "$backup_dir/dmrc.before" "$user_dmrc"
+  else
+    printf 'rm -f -- %q\n' "$user_dmrc"
+  fi
+} >"$backup_dir/ROLLBACK.txt"
+
+printf 'Pending LightDM session: %s\n' "$session_name"
+printf 'Per-user LightDM session: %s\n' "$session_name"
+printf 'Session entry: %s\n' "$session_entry"
+printf 'Backup: %s\n' "$backup_dir"
+printf '%s\n' 'LightDM was not reloaded or restarted; the active session is unchanged.'

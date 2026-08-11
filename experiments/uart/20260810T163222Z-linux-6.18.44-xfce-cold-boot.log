@@ -1,0 +1,18 @@
+[SL][16:53:55:975][Thread 0x00018848][INFO][TRACE][ALWAYS][MAIN STREAM][BEGIN][Heap]sanity OK, free 2281504 (37%), in-use 3944416 (63%), peak 4491328 (72%), when 962 [sec]
+[SL][16:53:56:174][Thread 0x00018848][INFO][TRACE][ALWAYS][MAIN STREAM][END  ][Heap]sanity OK, free 2280640 (37%), in-use 3945280 (63%), peak 4491328 (72%), when 962 [sec]
+[SceShellCore] Libc Heap Status: free 37%, in-use 3852.9 KB, trend +1.0 KB/min, peak 4386.1 KB, when 953 [sec]
+[SceShellUI] I/PSM.UI : UI system timer elapsed 00:16:00
+[SceSystemStateMgr] No user input for 900 seconds
+[SceNetEv] PERIODIC_DOWNLOAD_INTERVAL_SEC={86400} contentId={8}, serviceName={netev}
+[SceNetEv] start DownloadFile, contentId={8}, serviceName={netev}
+[SceNetEv] ifModifiedSince={Tue, 02 Mar 2021 16:11:59 +0000}
+[SceNetEv] W:\Build\J02688430\vsh\shell\shell_core\netev\netev_http_client.cpp(132) Get: NETEV_ISOK::0x8041013d
+[SceNetEv] W:\Build\J02688430\vsh\shell\shell_core\netev\netev_manager.cpp(345) DownloadFile: NETEV_ISOK::0x8041013d
+[SceNetEv] W:\Build\J02688430\vsh\shell\shell_core\netev\netev_manager.cpp(493) Run: NETEV_CONTINUE::0x8041013d
+[SceNetEv] PERIODIC_CHECK_INTERVAL_SEC={480}
+[SceShellCore] Libc Heap Status: free 36%, in-use 3867.4 KB, trend +14.7 KB/min, peak 4386.1 KB, when 1049 [sec]
+[SceShellCore] Libc Heap Status: free 36%, in-use 3886.6 KB, trend +34.3 KB/min, peak 4386.1 KB, when 1080 [sec]
+[SceShellCore] Libc Heap Status: free 36%, in-use 3899.3 KB, trend +27.2 KB/min, peak 4386.1 KB, when 1111 [sec]
+[SceShellCore] Libc Heap Status: free 36%, in-use 3898.0 KB, trend +10.5 KB/min, peak 4386.1 KB, when 1142 [sec]
+[SceShellCore] Libc Heap Status: free 36%, in-use 3901.2 KB, trend +0.4 KB/min, peak 4386.1 KB, when 1173 [sec]
+[SceShellCore] Libc Heap Status: free 36%, in-use 3901.9 KB, trend +4.2 KB/min, peak 4386.1 KB, when 1204 [sec]

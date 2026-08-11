@@ -4,8 +4,10 @@ linux-firmware-amdgpu
 linux-firmware-mediatek
 linux-firmware-radeon
 linux-firmware-marvell
+linux-firmware-realtek
 linux-firmware-whence
 networkmanager
+network-manager-applet
 openssh
 bluez
 bluez-utils
@@ -54,4 +56,5 @@ sudo
 nano
 less
 htop
+fastfetch
 bash-completion

@@ -3,13 +3,13 @@ schema = 1
 [upstream]
 version = "4.0.0.alpha"
 branch = "quattro"
-commit = "4564c24a0e5893402a6ca23a8bda4cec76811bac"
-commit_date = "2026-08-10T03:21:08-07:00"
-core_package_count = 145
+commit = "08204846ef6c2e2de8eba873d5888749e1d46ba5"
+commit_date = "2026-08-11T18:34:07+02:00"
+core_package_count = 147
 other_package_count = 59
-command_count = 409
-migration_count = 66
-shell_plugin_manifest_count = 29
+command_count = 415
+migration_count = 70
+shell_plugin_manifest_count = 37
 
 [[gate]]
 order = 1

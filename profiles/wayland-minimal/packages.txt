@@ -1,0 +1,2 @@
+# First Wayland compatibility gate. Keep this separate from Hyprland/Omarchy.
+weston=15.0.1-3

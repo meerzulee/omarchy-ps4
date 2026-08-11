@@ -1,0 +1,48 @@
+# Omarchy Quattro desktop runtime for PS4.
+#
+# This is deliberately not upstream install/omarchy-base.packages: that list
+# also installs a PC bootloader, Snapper, SDDM, Docker, printing, production
+# applications, and hardware paths that do not belong on the PS4 root.
+
+# Shell and terminal
+foot
+quickshell-git
+qt6-wayland
+xdg-terminal-exec
+
+# Session integration
+gnome-keyring
+xdg-desktop-portal-gtk
+xdg-desktop-portal-hyprland
+
+# Audio and screen sharing
+gst-plugin-pipewire
+libpulse
+pipewire
+pipewire-alsa
+pipewire-jack
+pipewire-pulse
+wireplumber
+
+# Omarchy shell helpers used by the default configuration
+brightnessctl
+grim
+gum
+hyprland-guiutils
+hyprland-preview-share-picker
+hyprpicker
+hyprsunset
+jq
+pamixer
+qrencode
+slurp
+socat
+wl-clipboard
+wtype
+zbar
+
+# Fonts and icons used by the shell
+noto-fonts
+noto-fonts-emoji
+ttf-jetbrains-mono-nerd-basic
+woff2-font-awesome

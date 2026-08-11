@@ -20,17 +20,22 @@ test exists; package installation alone is not support.
 | Layer | Component/capability | Status | Next evidence required |
 |---|---|---|---|
 | Baseline | Linux 5.4.247 boot | Supported | Reproduce twice from a clean build |
-| Baseline | systemd graphical boot | Supported | Include in automated probe |
-| Display | HDMI 1080p60 | Supported | Capture connector/mode and EDID |
-| Display | Xorg modesetting | Supported | Record Xorg and DRM logs |
+| Baseline | Linux 5.4 systemd graphical boot | Supported | Include in automated probe |
+| Baseline | Linux 6.18.44 external root/systemd boot | Degraded | A51 passed; diagnose internal-SATA delay, then repeat a true cold boot |
+| Storage | Linux 6.18 Baikal MSI/xHCI/USB root | Degraded | Eliminate internal-SATA I/O retries and repeat cleanly |
+| Display | Linux 5.4 HDMI 1080p60 | Supported | Capture connector/mode and EDID |
+| Display | Linux 5.4 Xorg modesetting | Supported | Record Xorg and DRM logs |
+| Display | Linux 6.18 HDMI 1080p60 | Candidate | A43 and A51 displayed XFCE; repeat unchanged from a true cold boot |
 | Desktop | XFCE 4.20 | Supported | Two clean cold boots |
 | Network | MT7668 Wi-Fi | Supported | Reconnect after cold boot |
+| Network | OpenSSH over MT7668 | Candidate | A51 key login passed at `192.168.50.125`; repeat after cold boot |
 | Network | Ethernet on Baikal | Needs replacement | Driver investigation after desktop gate |
 | Graphics | Mesa EGL/OpenGL acceleration | Not tested | `eglinfo`, renderer, and stability test |
+| Graphics | Linux 6.18 amdgpu command submission | Candidate | A25 had no ring/fence storm; verify renderer after visible HDMI |
 | Graphics | Vulkan | Not tested | `vulkaninfo` and render test |
-| Wayland | Minimal compositor/client | Not tested | Native client plus input/output test |
-| Desktop | Bare Hyprland | Not tested | Start, render, open terminal, exit cleanly |
-| Session | UWSM | Not tested | Login, environment, logout, restart |
+| Wayland | Minimal compositor/client | Candidate | A57 visibly rendered a native EGL client in nested Weston; direct DRM/seat test remains |
+| Desktop | Bare Hyprland | Candidate | A64/A65 direct DRM, physical 1080p60, native terminal and USB input passed; repeat from a cold boot |
+| Session | UWSM | Candidate | A73 direct login/runtime and A75 clean compositor stop passed; stopping returns to the LightDM greeter, and unattended XFCE recovery needs a connected retry |
 | Integration | XDG desktop portals | Not tested | File picker and screen-share portal tests |
 | Media | PipeWire HDMI audio | Not tested | Playback, levels, restart, and recovery |
 | Media | PipeWire screen capture | Not tested | Portal-mediated capture test |

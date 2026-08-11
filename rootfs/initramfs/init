@@ -1,0 +1,83 @@
+#!/bin/sh
+
+PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export PATH
+
+say() {
+  printf '%s\n' "[omarchy-ps4-initramfs] $*"
+  printf '%s\n' "[omarchy-ps4-initramfs] $*" > /dev/kmsg 2>/dev/null || true
+}
+
+rescue() {
+  say "$*"
+  say "Dropping to a root rescue shell."
+  exec /bin/sh
+}
+
+mount -t proc proc /proc || rescue "Could not mount proc."
+mount -t sysfs sysfs /sys || rescue "Could not mount sysfs."
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+mkdir -p /run /newroot /dev/pts
+mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /run || rescue "Could not mount /run."
+mount -t devpts devpts /dev/pts 2>/dev/null || true
+
+printf '%s\n' /bin/mdev > /proc/sys/kernel/hotplug 2>/dev/null || true
+mdev -s 2>/dev/null || true
+
+ROOT_SPEC="LABEL=OMARCHY-PS4"
+ROOT_FSTYPE="ext4"
+
+for parameter in $(cat /proc/cmdline); do
+  case "$parameter" in
+    root=*) ROOT_SPEC=${parameter#root=} ;;
+    rootfstype=*) ROOT_FSTYPE=${parameter#rootfstype=} ;;
+  esac
+done
+
+say "Linux $(uname -r) reached the initramfs."
+say "Command line: $(cat /proc/cmdline)"
+say "Waiting for root filesystem $ROOT_SPEC ($ROOT_FSTYPE)."
+
+ROOT_DEVICE=""
+attempt=0
+while [ "$attempt" -lt 60 ]; do
+  mdev -s 2>/dev/null || true
+
+  case "$ROOT_SPEC" in
+    LABEL=*|UUID=*|PARTUUID=*)
+      ROOT_DEVICE=$(findfs "$ROOT_SPEC" 2>/dev/null || true)
+      ;;
+    /dev/*)
+      [ -b "$ROOT_SPEC" ] && ROOT_DEVICE=$ROOT_SPEC
+      ;;
+  esac
+
+  [ -n "$ROOT_DEVICE" ] && [ -b "$ROOT_DEVICE" ] && break
+  attempt=$((attempt + 1))
+  sleep 1
+done
+
+if [ -z "$ROOT_DEVICE" ] || [ ! -b "$ROOT_DEVICE" ]; then
+  say "Available block filesystems:"
+  blkid 2>/dev/null || true
+  rescue "Root filesystem $ROOT_SPEC was not found after 60 seconds."
+fi
+
+say "Resolved $ROOT_SPEC to $ROOT_DEVICE."
+mount -t "$ROOT_FSTYPE" -o rw "$ROOT_DEVICE" /newroot || rescue "Could not mount $ROOT_DEVICE."
+
+if [ ! -e /newroot/etc/os-release ] || [ ! -x /newroot/sbin/init ]; then
+  umount /newroot 2>/dev/null || true
+  rescue "$ROOT_DEVICE does not contain the expected Linux root filesystem."
+fi
+
+printf '%s\n' "$ROOT_DEVICE" > /run/ps4-root-device
+say "Root filesystem validated; starting systemd."
+
+mkdir -p /newroot/dev /newroot/proc /newroot/sys /newroot/run
+mount --move /dev /newroot/dev || rescue "Could not move /dev."
+mount --move /proc /newroot/proc || rescue "Could not move /proc."
+mount --move /sys /newroot/sys || rescue "Could not move /sys."
+mount --move /run /newroot/run || rescue "Could not move /run."
+
+exec switch_root /newroot /sbin/init

@@ -1,0 +1,2 @@
+# PS4 Liverpool diagnostic: force Mesa to allocate non-tiled buffers.
+export AMD_DEBUG=notiling

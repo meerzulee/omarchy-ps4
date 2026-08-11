@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ ${EUID} -ne 0 ]] || fail 'run as the target desktop user, not root'
+[[ $# -eq 4 ]] || fail 'usage: stage-live-quattro EXPERIMENT_ID COMMIT ARCHIVE PROFILE_DIR'
+
+experiment_id=$1
+commit=$2
+archive=$3
+profile_dir=$4
+expected_root_label=OMARCHY-PS4
+
+[[ $experiment_id =~ ^EXP-[0-9]{8}-[0-9]{3}-A[0-9]+$ ]] ||
+  fail "invalid experiment ID: $experiment_id"
+[[ $commit =~ ^[0-9a-f]{40}$ ]] || fail "invalid upstream commit: $commit"
+[[ -r $archive ]] || fail "cannot read source archive: $archive"
+[[ -d $profile_dir/config && -d $profile_dir/source-overrides ]] ||
+  fail "incomplete profile directory: $profile_dir"
+[[ $(id -un) == ps4 ]] || fail "target user is $(id -un), expected ps4"
+
+root_source=$(findmnt -no SOURCE /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source")
+[[ -b $root_device ]] || fail "root source is not a block device: $root_source"
+[[ $(lsblk -dnro LABEL "$root_device") == "$expected_root_label" ]] ||
+  fail "root is not labeled $expected_root_label"
+parent_name=$(lsblk -dnro PKNAME "$root_device")
+[[ -n $parent_name ]] || fail "cannot resolve parent disk for $root_device"
+[[ $(lsblk -dnro TRAN "/dev/$parent_name") == usb ]] ||
+  fail 'root parent is not a USB device'
+
+if tar -tzf "$archive" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+  fail 'source archive contains an unsafe path'
+fi
+jq empty "$profile_dir/config/omarchy/shell.json"
+
+state_root=$HOME/.local/state/omarchy-ps4/experiments
+state_dir="$state_root/${experiment_id}-$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 0700 "$state_dir"
+sha256sum "$archive" >"$state_dir/source-archive.sha256"
+printf '%s\n' "$commit" >"$state_dir/upstream-commit.txt"
+
+share_root=$HOME/.local/share/omarchy-ps4
+source_root=$share_root/upstream
+stage_root=$share_root/staged
+source_target=$source_root/$commit
+stage_target=$stage_root/$commit
+source_link=$source_root/current
+stage_link=$stage_root/current
+
+install -d -m 0700 "$source_root" "$stage_root"
+for link in "$source_link" "$stage_link"; do
+  if [[ -L $link ]]; then
+    readlink "$link" >"$state_dir/$(basename "${link%/*}").link.before"
+  else
+    printf '%s\n' absent >"$state_dir/$(basename "${link%/*}").link.before"
+  fi
+done
+[[ ! -e $source_target ]] || fail "source target already exists: $source_target"
+[[ ! -e $stage_target ]] || fail "stage target already exists: $stage_target"
+
+source_tmp=$(mktemp -d "$source_root/.${commit}.XXXXXX")
+stage_tmp=$(mktemp -d "$stage_root/.${commit}.XXXXXX")
+cleanup() {
+  rm -rf -- "$source_tmp" "$stage_tmp"
+}
+trap cleanup EXIT
+
+tar -xzf "$archive" -C "$source_tmp"
+cp -a "$profile_dir/source-overrides/." "$source_tmp/"
+printf '%s\n' "$commit" >"$source_tmp/UPSTREAM_COMMIT"
+cp -a "$profile_dir/config/." "$stage_tmp/"
+printf '%s\n' "$commit" >"$stage_tmp/UPSTREAM_COMMIT"
+
+[[ $(<"$source_tmp/UPSTREAM_COMMIT") == "$commit" ]] || fail 'source commit marker mismatch'
+[[ $(<"$source_tmp/version") == 4.0.0.alpha ]] || fail 'unexpected Quattro version'
+jq empty "$stage_tmp/omarchy/shell.json"
+[[ -r $stage_tmp/hypr/hyprland.lua ]] || fail 'staged Hyprland entry is missing'
+[[ -r $stage_tmp/uwsm/env.d/10-omarchy-ps4 ]] || fail 'staged UWSM environment is missing'
+
+mv "$source_tmp" "$source_target"
+mv "$stage_tmp" "$stage_target"
+ln -sfn "$commit" "$source_link"
+ln -sfn "$commit" "$stage_link"
+
+hyprctl instances >"$state_dir/hyprland.instances.after.txt"
+{
+  printf 'rm -rf -- %q %q\n' "$source_target" "$stage_target"
+  printf 'rm -f -- %q %q\n' "$source_link" "$stage_link"
+} >"$state_dir/ROLLBACK.txt"
+
+printf 'Staged Omarchy source: %s\n' "$source_target"
+printf 'Staged PS4 config: %s\n' "$stage_target"
+printf 'Upstream commit: %s\n' "$commit"
+printf 'Evidence: %s\n' "$state_dir"
+printf '%s\n' 'No active Hyprland, UWSM, LightDM, boot, kernel, service, or pacman configuration was changed.'

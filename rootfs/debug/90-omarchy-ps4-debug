@@ -1,0 +1,2 @@
+# Development-only sudo policy. Do not ship in a release image.
+%wheel ALL=(ALL:ALL) ALL
