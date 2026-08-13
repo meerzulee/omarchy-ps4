@@ -43,10 +43,11 @@ actual_version=$(<"$checkout/version")
   exit 1
 }
 
-[[ $actual_version == "$OMARCHY_VERSION" ]] || {
-  printf 'error: expected version %s, got %s\n' "$OMARCHY_VERSION" "$actual_version" >&2
+[[ $actual_version == "$OMARCHY_SOURCE_VERSION" ]] || {
+  printf 'error: expected source version %s, got %s\n' "$OMARCHY_SOURCE_VERSION" "$actual_version" >&2
   exit 1
 }
 
-printf 'Omarchy %s is pinned at %s\n' "$actual_version" "$actual_commit"
+printf 'Omarchy %s (source reports %s) is pinned at %s\n' \
+  "$OMARCHY_RELEASE_VERSION" "$actual_version" "$actual_commit"
 printf 'Checkout: %s\n' "$checkout"

@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    'Usage: install EXPERIMENT_ID' \
+    '' \
+    'Install the portable Omarchy PS4 user layer. This does not use pacman,' \
+    'write /etc, change the display manager, or touch boot and disk settings.'
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ ${EUID} -ne 0 ]] || fail 'run as the target desktop user, not root'
+[[ $# -eq 1 ]] || {
+  usage >&2
+  exit 2
+}
+
+experiment_id=$1
+[[ $experiment_id =~ ^EXP-[0-9]{8}-[0-9]{3}-A[0-9]+$ ]] || \
+  fail "invalid experiment ID: $experiment_id"
+
+bundle_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+payload=$bundle_dir/payload
+[[ -d $payload/omarchy && -d $payload/config ]] || fail 'portable payload is incomplete'
+appledouble=$(find "$payload" -type f -name '._*' -print -quit)
+[[ -z $appledouble ]] || \
+  fail "portable payload contains macOS AppleDouble metadata: $appledouble"
+commit=$(<"$payload/UPSTREAM_COMMIT")
+[[ $commit =~ ^[0-9a-f]{40}$ ]] || fail 'portable payload has an invalid commit marker'
+"$bundle_dir/check" --quiet || fail 'portable preflight did not pass; run ./check for details'
+
+state_root=$HOME/.local/state/omarchy-ps4/portable
+state_dir=$state_root/${experiment_id}-$(date -u +%Y%m%dT%H%M%SZ)
+install_root=$HOME/.local/share/omarchy-ps4/portable
+release=$install_root/releases/$commit
+config_release=$install_root/config/$commit
+user_font=$HOME/.local/share/fonts/omarchy-ps4/omarchy.ttf
+[[ ! -e $release && ! -e $config_release ]] || \
+  fail "portable commit is already installed: $commit"
+
+install -d -m 0700 "$state_dir/backup" "$install_root/releases" "$install_root/config"
+printf '%s\n' "$commit" >"$state_dir/upstream-commit.txt"
+sha256sum "$payload/MANIFEST.sha256" >"$state_dir/payload-manifest.sha256"
+(
+  cd "$payload"
+  sha256sum --quiet -c MANIFEST.sha256
+)
+
+release_tmp=$(mktemp -d "$install_root/releases/.${commit}.XXXXXX")
+config_tmp=$(mktemp -d "$install_root/config/.${commit}.XXXXXX")
+activation_started=0
+restore_activation() {
+  rm -f -- \
+    "$HOME/.config/hypr" \
+    "$HOME/.config/hyprland-xdg-terminals.list" \
+    "$HOME/.config/foot" \
+    "$HOME/.config/fastfetch" \
+    "$HOME/.config/mimeapps.list" \
+    "$HOME/.config/omarchy" \
+    "$HOME/.config/uwsm/env.d/10-omarchy-ps4" \
+    "$user_font" \
+    "$install_root/current" \
+    "$install_root/config/current"
+  if [[ -r $state_dir/paths.tsv ]]; then
+    while IFS=$'\t' read -r state original backup; do
+      [[ $state == present ]] || continue
+      [[ -e $backup || -L $backup ]] && mv -- "$backup" "$original"
+    done <"$state_dir/paths.tsv"
+  fi
+  rm -rf -- "$release" "$config_release"
+  fc-cache -f "$HOME/.local/share/fonts"
+}
+cleanup() {
+  local status=$?
+  rm -rf -- "$release_tmp" "$config_tmp"
+  if (( status != 0 && activation_started == 1 )); then
+    restore_activation
+    printf '%s\n' 'Portable activation failed and was rolled back automatically.' >&2
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+cp -a "$payload/omarchy/." "$release_tmp/"
+cp -a "$payload/config/." "$config_tmp/"
+printf '%s\n' "$commit" >"$release_tmp/UPSTREAM_COMMIT"
+printf '%s\n' "$commit" >"$config_tmp/UPSTREAM_COMMIT"
+mv "$release_tmp" "$release"
+mv "$config_tmp" "$config_release"
+
+backup_path() {
+  local path=$1 name=$2
+  if [[ -e $path || -L $path ]]; then
+    mv -- "$path" "$state_dir/backup/$name"
+    printf 'present\t%s\t%s\n' "$path" "$state_dir/backup/$name" >>"$state_dir/paths.tsv"
+  else
+    printf 'absent\t%s\t-\n' "$path" >>"$state_dir/paths.tsv"
+  fi
+}
+
+: >"$state_dir/paths.tsv"
+activation_started=1
+backup_path "$install_root/current" portable-current
+backup_path "$install_root/config/current" config-current
+backup_path "$HOME/.config/hypr" config-hypr
+backup_path "$HOME/.config/hyprland-xdg-terminals.list" config-hyprland-xdg-terminals
+backup_path "$HOME/.config/foot" config-foot
+backup_path "$HOME/.config/fastfetch" config-fastfetch
+backup_path "$HOME/.config/mimeapps.list" config-mimeapps
+backup_path "$HOME/.config/omarchy" config-omarchy
+install -d "$HOME/.config/uwsm/env.d"
+backup_path "$HOME/.config/uwsm/env.d/10-omarchy-ps4" uwsm-env
+install -d "$(dirname "$user_font")"
+backup_path "$user_font" font-omarchy
+
+ln -s "releases/$commit" "$install_root/current"
+ln -s "$commit" "$install_root/config/current"
+ln -s "$install_root/config/current/hypr" "$HOME/.config/hypr"
+ln -s "$install_root/config/current/hyprland-xdg-terminals.list" \
+  "$HOME/.config/hyprland-xdg-terminals.list"
+ln -s "$install_root/config/current/foot" "$HOME/.config/foot"
+ln -s "$install_root/config/current/fastfetch" "$HOME/.config/fastfetch"
+ln -s "$install_root/config/current/mimeapps.list" "$HOME/.config/mimeapps.list"
+ln -s "$install_root/config/current/omarchy" "$HOME/.config/omarchy"
+ln -s "$install_root/config/current/uwsm/env.d/10-omarchy-ps4" \
+  "$HOME/.config/uwsm/env.d/10-omarchy-ps4"
+ln -s "$install_root/current/default/fonts/omarchy/omarchy.ttf" "$user_font"
+fc-cache -f "$HOME/.local/share/fonts"
+
+cat >"$state_dir/ROLLBACK.sh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+rm -f -- \
+  "$HOME/.config/hypr" \
+  "$HOME/.config/hyprland-xdg-terminals.list" \
+  "$HOME/.config/foot" \
+  "$HOME/.config/fastfetch" \
+  "$HOME/.config/mimeapps.list" \
+  "$HOME/.config/omarchy" \
+  "$HOME/.config/uwsm/env.d/10-omarchy-ps4" \
+  "$user_font" \
+  "$install_root/current" \
+  "$install_root/config/current"
+while IFS=$'\\t' read -r state original backup; do
+  [[ \$state == present ]] || continue
+  mv -- "\$backup" "\$original"
+done <"$state_dir/paths.tsv"
+rm -rf -- "$release" "$config_release"
+fc-cache -f "$HOME/.local/share/fonts"
+printf 'Portable Omarchy PS4 rollback complete.\\n'
+EOF
+chmod 0700 "$state_dir/ROLLBACK.sh"
+activation_started=0
+
+printf 'Portable Omarchy PS4 installed.\n'
+printf 'Runtime: %s\n' "$release"
+printf 'Config:  %s\n' "$config_release"
+printf 'Commit:  %s\n' "$commit"
+printf 'Rollback: %s\n' "$state_dir/ROLLBACK.sh"
+printf '%s\n' 'No service or running session was restarted. Use a bounded UART experiment before logging into or reloading the Hyprland session.'

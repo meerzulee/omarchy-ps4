@@ -1,0 +1,89 @@
+#!/bin/sh
+
+install_say() {
+  printf '%s\n' "[omarchy-ps4-installer] $*" > /dev/kmsg 2>/dev/null || true
+  [ "${OMARCHY_SPLASH:-0}" = 1 ] || printf '%s\n' "[omarchy-ps4-installer] $*"
+}
+
+install_fail() {
+  install_say "ERROR: $*"
+  return 1
+}
+
+resolve_device() {
+  device_spec=$1
+  device_result=""
+  device_attempt=0
+  while [ "$device_attempt" -lt 60 ]; do
+    mdev -s 2>/dev/null || true
+    device_result=$(findfs "$device_spec" 2>/dev/null || true)
+    [ -n "$device_result" ] && [ -b "$device_result" ] && break
+    device_attempt=$((device_attempt + 1))
+    sleep 1
+  done
+  [ -n "$device_result" ] && [ -b "$device_result" ] || return 1
+  printf '%s\n' "$device_result"
+}
+
+is_usb_partition() {
+  partition_name=${1#/dev/}
+  partition_path=$(readlink -f "/sys/class/block/$partition_name" 2>/dev/null || true)
+  case "$partition_path" in
+    *'/usb'* ) return 0 ;;
+    * ) return 1 ;;
+  esac
+}
+
+install_usb_rootfs() {
+  bundle_spec=${OMARCHY_BUNDLE_SPEC:-LABEL=PS4BOOT}
+  root_spec=${OMARCHY_ROOT_SPEC:-LABEL=OMARCHY-PS4}
+  rootfs_relative=${OMARCHY_ROOTFS_PATH:-/omarchy-ps4/omarchy-ps4-rootfs.tar.zst}
+
+  [ "$root_spec" = 'LABEL=OMARCHY-PS4' ] || install_fail "Target must be LABEL=OMARCHY-PS4."
+  command -v zstd >/dev/null 2>&1 || install_fail "The installer initramfs has no zstd decoder."
+
+  install_say "Resolving bundle source $bundle_spec."
+  bundle_device=$(resolve_device "$bundle_spec") || install_fail "Bundle source was not found."
+  install_say "Resolving external target $root_spec."
+  root_device=$(resolve_device "$root_spec") || install_fail "USB root target was not found."
+
+  [ "$bundle_device" != "$root_device" ] || install_fail "Bundle source and root target are the same partition."
+  is_usb_partition "$root_device" || install_fail "$root_device is not below a USB device in sysfs."
+  [ "$(blkid -s TYPE -o value "$root_device" 2>/dev/null)" = ext4 ] || install_fail "$root_device is not ext4."
+
+  mkdir -p /bundle /newroot
+  mount -t vfat -o rw "$bundle_device" /bundle || install_fail "Could not mount $bundle_device as FAT32."
+  rootfs_archive="/bundle$rootfs_relative"
+  checksum_file="$rootfs_archive.sha256"
+  product_bootargs=/bundle/omarchy-ps4/bootargs-product.txt
+
+  [ -f "$rootfs_archive" ] || install_fail "Rootfs archive is missing: $rootfs_relative"
+  [ -f "$checksum_file" ] || install_fail "Rootfs checksum file is missing."
+  [ -f "$product_bootargs" ] || install_fail "Product boot profile is missing."
+
+  expected_sha256=$(awk 'NR == 1 { print $1 }' "$checksum_file")
+  actual_sha256=$(sha256sum "$rootfs_archive" | awk '{ print $1 }')
+  [ "$actual_sha256" = "$expected_sha256" ] || install_fail "Rootfs SHA-256 verification failed."
+
+  mount -t ext4 -o rw "$root_device" /newroot || install_fail "Could not mount $root_device."
+  if find /newroot -mindepth 1 -maxdepth 1 ! -name lost+found | grep -q .; then
+    install_fail "$root_device is not empty; refusing to overwrite it."
+  fi
+
+  install_say "Installing the verified root filesystem to $root_device."
+  zstd -dc "$rootfs_archive" | tar -xpf - -C /newroot || install_fail "Rootfs extraction failed."
+  [ -x /newroot/sbin/init ] && [ -e /newroot/etc/os-release ] || install_fail "Installed rootfs failed validation."
+
+  if [ ! -e /newroot/var/lib/omarchy-ps4/provisioning/pending ] && [ "${OMARCHY_ALLOW_DEVELOPMENT_ROOTFS:-0}" != 1 ]; then
+    install_fail "Rootfs has no deferred-owner marker."
+  fi
+
+  mkdir -p /newroot/var/lib/omarchy-ps4
+  printf '%s\n' "$actual_sha256" > /newroot/var/lib/omarchy-ps4/installed-rootfs.sha256
+  printf '%s\n' "$root_device" > /run/ps4-root-device
+  install -m 0644 "$product_bootargs" /bundle/bootargs.txt || install_fail "Could not activate the product boot profile."
+  sync
+  install_say "Installation complete; product boot profile activated."
+}
+
+install_usb_rootfs

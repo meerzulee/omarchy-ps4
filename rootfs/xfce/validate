@@ -28,6 +28,14 @@ done
 [[ -r /usr/share/xsessions/xfce.desktop ]]
 [[ -r /etc/fstab ]]
 
+xorg_device_config=/etc/X11/xorg.conf.d/20-omarchy-ps4-modesetting.conf
+[[ -r "$xorg_device_config" ]]
+grep -Eq '^[[:space:]]*Option[[:space:]]+"AccelMethod"[[:space:]]+"none"[[:space:]]*$' \
+  "$xorg_device_config" || {
+  printf '%s\n' 'PS4 Xorg recovery profile must disable glamor acceleration' >&2
+  exit 1
+}
+
 if passwd --status root | grep -qv ' L '; then
   printf '%s\n' 'root account is not locked' >&2
   exit 1

@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+[[ $# -eq 1 ]] || fail 'usage: package-content-test PACKAGE_DIRECTORY'
+package_dir=$1
+[[ -d $package_dir ]] || fail "package directory does not exist: $package_dir"
+
+mapfile -t runtime_packages < <(find "$package_dir" -maxdepth 1 -type f -name 'omarchy-ps4-[0-9]*.pkg.tar.*' -print)
+mapfile -t settings_packages < <(find "$package_dir" -maxdepth 1 -type f -name 'omarchy-ps4-settings-*.pkg.tar.*' -print)
+mapfile -t provisioning_packages < <(find "$package_dir" -maxdepth 1 -type f -name 'omarchy-ps4-provisioning-*.pkg.tar.*' -print)
+[[ ${#runtime_packages[@]} -eq 1 ]] || fail "expected one runtime package, found ${#runtime_packages[@]}"
+[[ ${#settings_packages[@]} -eq 1 ]] || fail "expected one settings package, found ${#settings_packages[@]}"
+[[ ${#provisioning_packages[@]} -eq 1 ]] || fail "expected one provisioning package, found ${#provisioning_packages[@]}"
+
+temporary=$(mktemp -d)
+trap 'rm -rf -- "$temporary"' EXIT
+mkdir -p "$temporary/runtime" "$temporary/settings" "$temporary/provisioning"
+bsdtar -xf "${runtime_packages[0]}" -C "$temporary/runtime"
+bsdtar -xf "${settings_packages[0]}" -C "$temporary/settings"
+bsdtar -xf "${provisioning_packages[0]}" -C "$temporary/provisioning"
+
+for required in \
+  usr/bin/omarchy-menu \
+  usr/bin/omarchy-launch-nautilus \
+  usr/bin/omarchy-update \
+  usr/bin/omarchy-ps4-probe \
+  usr/bin/omarchy-ps4-status \
+  usr/lib/omarchy-ps4/upstream-bin/omarchy-update \
+  usr/share/omarchy/shell/shell.qml \
+  usr/share/omarchy/themes/tokyo-night; do
+  [[ -e $temporary/runtime/$required ]] || fail "runtime package is missing $required"
+done
+
+for required in \
+  usr/bin/omarchy-ps4-prepare-for-owner \
+  usr/bin/omarchy-ps4-provision-owner \
+  usr/lib/systemd/system/omarchy-ps4-provision-owner.service \
+  etc/sudoers.d/10-omarchy-ps4-wheel; do
+  [[ -e $temporary/provisioning/$required ]] || \
+    fail "provisioning package is missing $required"
+done
+
+[[ ! -e $temporary/provisioning/etc/systemd/system/multi-user.target.wants/omarchy-ps4-provision-owner.service ]] || \
+  fail 'provisioning service must not be enabled by package installation'
+grep -Fq 'expected_root_label=OMARCHY-PS4' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'provisioner does not guard the external PS4 root label'
+grep -Fq 'root_transport == usb' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'provisioner does not guard the USB root transport'
+grep -Fq 'target_root != /' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-prepare-for-owner" || \
+  fail 'image preparation does not refuse the running root'
+grep -Fq 'root_transport == usb' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-prepare-for-owner" || \
+  fail 'image preparation does not guard the USB root transport'
+grep -Fq 'PREPARE-FOR-ANOTHER-OWNER' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-prepare-for-owner" || \
+  fail 'image preparation does not require explicit confirmation'
+grep -Fq 'target already contains owner account' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-prepare-for-owner" || \
+  fail 'image preparation does not protect existing owner data'
+! grep -Eq 'cryptsetup|limine|mkinitcpio|sddm|btrfs' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'provisioner contains a forbidden PC boot or storage integration'
+
+for required in \
+  etc/skel/.config/hypr/hyprland.lua \
+  etc/skel/.config/fastfetch/config.jsonc \
+  etc/skel/.config/omarchy/branding/about.txt \
+  etc/skel/.config/omarchy/shell.json \
+  etc/skel/.config/omarchy/shell.toml \
+  usr/share/omarchy/config/omarchy/shell.json \
+  usr/share/omarchy/config/omarchy/shell.toml \
+  usr/share/omarchy/default/uwsm/env.d/10-omarchy \
+  usr/share/omarchy/applications; do
+  [[ -e $temporary/settings/$required ]] || fail "settings package is missing $required"
+done
+
+jq -e '
+  .version == 1 and
+  .bar.position == "top" and
+  (.bar.layout.left | type == "array") and
+  (.bar.layout.center | type == "array") and
+  (.bar.layout.right | type == "array") and
+  (.disabledPlugins | index("omarchy.idle")) and
+  (.disabledPlugins | index("omarchy.nightlight"))
+' "$temporary/settings/etc/skel/.config/omarchy/shell.json" >/dev/null || \
+  fail 'packaged shell config is incomplete or does not block nightlight'
+grep -Eq '^[[:space:]]*border-width[[:space:]]*=[[:space:]]*0[[:space:]]*$' \
+  "$temporary/settings/etc/skel/.config/omarchy/shell.toml" || \
+  fail 'packaged PS4 menu border workaround is missing'
+grep -Eq '^[[:space:]]*base-size[[:space:]]*=[[:space:]]*14[[:space:]]*$' \
+  "$temporary/settings/etc/skel/.config/omarchy/shell.toml" || \
+  fail 'packaged 1080p text preset is missing'
+grep -Eq '^[[:space:]]*scale-with-font[[:space:]]*=[[:space:]]*false[[:space:]]*$' \
+  "$temporary/settings/etc/skel/.config/omarchy/shell.toml" || \
+  fail 'packaged PS4 bar icon scale guard is missing'
+jq -e 'any(.modules[]; type == "object" and .format == "Omarchy PS4 Quattro RC3")' \
+  "$temporary/settings/etc/skel/.config/fastfetch/config.jsonc" >/dev/null || \
+  fail 'packaged PS4 Fastfetch config is missing branding'
+cmp -s \
+  "$temporary/settings/usr/share/omarchy/icon.txt" \
+  "$temporary/settings/etc/skel/.config/omarchy/branding/about.txt" || \
+  fail 'packaged About branding does not match the pinned Omarchy icon'
+
+cmp -s \
+  "$temporary/runtime/usr/bin/omarchy-update" \
+  "$temporary/runtime/usr/bin/omarchy-ps4-status" && \
+  fail 'guarded update command unexpectedly matches the status command'
+grep -Fq 'Unsupported on Omarchy PS4' "$temporary/runtime/usr/bin/omarchy-update" || \
+  fail 'omarchy-update is not guarded'
+grep -Fq 'thunar' "$temporary/runtime/usr/bin/omarchy-launch-nautilus" || \
+  fail 'native file-manager command does not use Thunar'
+grep -Fq 'nautilus' "$temporary/runtime/usr/lib/omarchy-ps4/upstream-bin/omarchy-launch-nautilus" || \
+  fail 'native package did not preserve the upstream file-manager command'
+grep -Fq 'inode/directory=thunar.desktop' \
+  "$temporary/settings/usr/share/applications/mimeapps.list" || \
+  fail 'native directory MIME handler does not use Thunar'
+
+for forbidden in \
+  etc/mkinitcpio.conf \
+  etc/limine-entry-tool.conf \
+  etc/snapper \
+  etc/systemd/system/display-manager.service; do
+  [[ ! -e $temporary/settings/$forbidden ]] || \
+    fail "settings package leaked unsafe live path: $forbidden"
+done
+
+printf '%s\n' 'Package content policy passed.'

@@ -4,7 +4,7 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export PATH
 
 say() {
-  printf '%s\n' "[omarchy-ps4-initramfs] $*"
+  [ "${OMARCHY_SPLASH:-0}" = 1 ] || printf '%s\n' "[omarchy-ps4-initramfs] $*"
   printf '%s\n' "[omarchy-ps4-initramfs] $*" > /dev/kmsg 2>/dev/null || true
 }
 
@@ -26,19 +26,41 @@ mdev -s 2>/dev/null || true
 
 ROOT_SPEC="LABEL=OMARCHY-PS4"
 ROOT_FSTYPE="ext4"
+OMARCHY_SPLASH=0
+OMARCHY_INSTALL=""
+OMARCHY_BUNDLE_SPEC="LABEL=PS4BOOT"
+OMARCHY_ROOTFS_PATH="/omarchy-ps4/omarchy-ps4-rootfs.tar.zst"
+OMARCHY_ALLOW_DEVELOPMENT_ROOTFS=0
 
-for parameter in $(cat /proc/cmdline); do
+kernel_command_line=$(cat /proc/cmdline)
+for parameter in $kernel_command_line; do
   case "$parameter" in
     root=*) ROOT_SPEC=${parameter#root=} ;;
     rootfstype=*) ROOT_FSTYPE=${parameter#rootfstype=} ;;
+    omarchy.splash=1) OMARCHY_SPLASH=1 ;;
+    omarchy.install=*) OMARCHY_INSTALL=${parameter#omarchy.install=} ;;
+    omarchy.bundle=*) OMARCHY_BUNDLE_SPEC=${parameter#omarchy.bundle=} ;;
+    omarchy.rootfs=*) OMARCHY_ROOTFS_PATH=${parameter#omarchy.rootfs=} ;;
+    omarchy.allow_development_rootfs=1) OMARCHY_ALLOW_DEVELOPMENT_ROOTFS=1 ;;
   esac
 done
 
+export OMARCHY_SPLASH OMARCHY_ROOT_SPEC="$ROOT_SPEC" OMARCHY_BUNDLE_SPEC OMARCHY_ROOTFS_PATH OMARCHY_ALLOW_DEVELOPMENT_ROOTFS
+
+if [ "$OMARCHY_SPLASH" = 1 ] && [ -x /bin/omarchy-splash ]; then
+  /bin/omarchy-splash >/dev/null 2>&1 &
+fi
+
 say "Linux $(uname -r) reached the initramfs."
 say "Command line: $(cat /proc/cmdline)"
+if [ "$OMARCHY_INSTALL" = usb ]; then
+  say "Starting verified external-USB installation."
+  /install-rootfs || rescue "External-USB installation failed."
+fi
+
 say "Waiting for root filesystem $ROOT_SPEC ($ROOT_FSTYPE)."
 
-ROOT_DEVICE=""
+ROOT_DEVICE=$(cat /run/ps4-root-device 2>/dev/null || true)
 attempt=0
 while [ "$attempt" -lt 60 ]; do
   mdev -s 2>/dev/null || true
@@ -64,7 +86,9 @@ if [ -z "$ROOT_DEVICE" ] || [ ! -b "$ROOT_DEVICE" ]; then
 fi
 
 say "Resolved $ROOT_SPEC to $ROOT_DEVICE."
-mount -t "$ROOT_FSTYPE" -o rw "$ROOT_DEVICE" /newroot || rescue "Could not mount $ROOT_DEVICE."
+if [ ! -e /newroot/etc/os-release ]; then
+  mount -t "$ROOT_FSTYPE" -o rw "$ROOT_DEVICE" /newroot || rescue "Could not mount $ROOT_DEVICE."
+fi
 
 if [ ! -e /newroot/etc/os-release ] || [ ! -x /newroot/sbin/init ]; then
   umount /newroot 2>/dev/null || true

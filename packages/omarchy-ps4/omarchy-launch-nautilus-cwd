@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Launch Files at the active terminal directory using Thunar
+
+exec setsid uwsm-app -- thunar "$(omarchy-cmd-terminal-cwd)"

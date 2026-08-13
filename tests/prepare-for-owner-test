@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'prepare-for-owner-test: %s\n' "$1" >&2
+  exit 1
+}
+
+[[ $# -eq 1 ]] || fail 'usage: prepare-for-owner-test PACKAGE_DIRECTORY'
+package_dir=$1
+package=$(find "$package_dir" -maxdepth 1 -type f \
+  -name 'omarchy-ps4-provisioning-*.pkg.tar.*' -print -quit)
+[[ -n $package ]] || fail 'provisioning package is missing'
+
+temporary=$(mktemp -d)
+trap 'rm -rf -- "$temporary"' EXIT
+mkdir -p "$temporary/package" "$temporary/root" "$temporary/tools"
+bsdtar -xf "$package" -C "$temporary/package"
+prepare=$temporary/package/usr/bin/omarchy-ps4-prepare-for-owner
+[[ -x $prepare ]] || fail 'preparation command is missing from package'
+
+target=$temporary/root
+mkdir -p \
+  "$target/etc/lightdm/lightdm.conf.d" \
+  "$target/etc/ssh" \
+  "$target/etc/sudoers.d" \
+  "$target/home/ps4" \
+  "$target/usr/bin" \
+  "$target/usr/lib/systemd/system" \
+  "$target/usr/share/omarchy/install/provisioning" \
+  "$target/var/lib/dbus"
+
+cat >"$target/etc/passwd" <<'EOF'
+root:x:0:0:root:/root:/bin/bash
+ps4:x:1000:1000:Development user:/home/ps4:/bin/bash
+EOF
+cat >"$target/etc/shadow" <<'EOF'
+root:!:1::::::
+ps4:$6$debug:1::::::
+EOF
+cat >"$target/etc/group" <<'EOF'
+root:x:0:
+wheel:x:998:ps4
+video:x:39:ps4
+ps4:x:1000:
+EOF
+cat >"$target/etc/gshadow" <<'EOF'
+root:!::
+wheel:!::ps4
+video:!::ps4
+ps4:!::
+EOF
+printf 'ps4:100000:65536\n' >"$target/etc/subuid"
+printf 'ps4:100000:65536\n' >"$target/etc/subgid"
+printf '%%wheel ALL=(ALL:ALL) ALL\n' >"$target/etc/sudoers"
+printf 'ps4 ALL=(ALL:ALL) NOPASSWD: ALL\n' \
+  >"$target/etc/sudoers.d/90-omarchy-ps4-development"
+cat >"$target/etc/lightdm/lightdm.conf.d/20-omarchy-ps4.conf" <<'EOF'
+[Seat:*]
+autologin-user=ps4
+autologin-user-timeout=0
+autologin-session=xfce
+user-session=omarchy
+EOF
+printf 'arch\n' >"$target/etc/os-release"
+printf 'cloned-machine\n' >"$target/etc/machine-id"
+printf 'cloned-machine\n' >"$target/var/lib/dbus/machine-id"
+printf 'private\n' >"$target/etc/ssh/ssh_host_ed25519_key"
+printf 'debug data\n' >"$target/home/ps4/file"
+printf '#!/bin/sh\n' >"$target/usr/bin/omarchy-ps4-provision-owner"
+printf '[Service]\n' >"$target/usr/lib/systemd/system/omarchy-ps4-provision-owner.service"
+printf '# setup form\n' >"$target/usr/share/omarchy/install/provisioning/setup-form.sh"
+chmod 0755 "$target/usr/bin/omarchy-ps4-provision-owner"
+
+real_findmnt=$(command -v findmnt)
+real_readlink=$(command -v readlink)
+cat >"$temporary/tools/findmnt" <<EOF
+#!/usr/bin/env bash
+if [[ \$* == *' -nro TARGET '* || \$* == '-nro TARGET --target $target' ]]; then
+  printf '%s\\n' '$target'
+else
+  printf '%s\\n' '/dev/fake1'
+fi
+EOF
+cat >"$temporary/tools/readlink" <<EOF
+#!/usr/bin/env bash
+if [[ \${*: -1} == /dev/fake1 ]]; then
+  printf '%s\\n' '$temporary/fake-device'
+else
+  exec '$real_readlink' "\$@"
+fi
+EOF
+cat >"$temporary/tools/blkid" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' 'OMARCHY-PS4'
+EOF
+cat >"$temporary/tools/lsblk" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' 'usb'
+EOF
+chmod 0755 "$temporary/tools/"*
+mknod "$temporary/fake-device" b 7 199
+
+PATH="$temporary/tools:$PATH" "$prepare" --check "$target" |
+  grep -Fq 'Check passed; no files were changed.' || fail 'check mode failed'
+[[ -e $target/home/ps4/file ]] || fail 'check mode changed the target'
+
+PATH="$temporary/tools:$PATH" "$prepare" \
+  --confirm PREPARE-FOR-ANOTHER-OWNER "$target"
+
+! grep -q '^ps4:' "$target/etc/passwd" || fail 'development passwd entry remains'
+! grep -q '^ps4:' "$target/etc/shadow" || fail 'development shadow entry remains'
+! grep -q 'ps4' "$target/etc/group" || fail 'development group membership remains'
+! grep -q 'ps4' "$target/etc/gshadow" || fail 'development gshadow membership remains'
+[[ ! -e $target/home/ps4 ]] || fail 'development home remains'
+[[ ! -e $target/etc/sudoers.d/90-omarchy-ps4-development ]] || fail 'development sudo remains'
+[[ ! -e $target/etc/ssh/ssh_host_ed25519_key ]] || fail 'SSH host key remains'
+[[ ! -e $target/var/lib/dbus/machine-id ]] || fail 'D-Bus machine ID remains'
+[[ ! -s $target/etc/machine-id ]] || fail 'machine ID was not cleared'
+! grep -q '^autologin-user' "$target/etc/lightdm/lightdm.conf.d/20-omarchy-ps4.conf" || \
+  fail 'LightDM autologin remains'
+grep -q '^user-session=omarchy$' "$target/etc/lightdm/lightdm.conf.d/20-omarchy-ps4.conf" || \
+  fail 'LightDM owner session was lost'
+[[ -f $target/var/lib/omarchy-ps4/provisioning/pending ]] || fail 'pending marker is missing'
+[[ -L $target/etc/systemd/system/multi-user.target.wants/omarchy-ps4-provision-owner.service ]] || \
+  fail 'owner provisioning service is not armed'
+
+printf 'owner:x:1001:1001:Real owner:/home/owner:/bin/bash\n' >>"$target/etc/passwd"
+if PATH="$temporary/tools:$PATH" "$prepare" --check "$target" 2>/dev/null; then
+  fail 'preparation accepted an existing real owner'
+fi
+
+printf '%s\n' 'Prepare-for-owner fixture passed.'

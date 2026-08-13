@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+fpkg_dir="$(cd -- "$script_dir/.." && pwd)"
+repo_dir="$(cd -- "$fpkg_dir/.." && pwd)"
+workspace_dir="$(cd -- "$repo_dir/.." && pwd)"
+allow_development_rootfs=false
+
+if [[ "${1:-}" == "--allow-development-rootfs" ]]; then
+  allow_development_rootfs=true
+  shift
+fi
+if [[ $# -ne 0 ]]; then
+  printf 'usage: %s [--allow-development-rootfs]\n' "$0" >&2
+  exit 2
+fi
+
+kernel_source="$workspace_dir/linux-ps4-kernel/output/6.18-baikal/bzImage"
+initramfs_source="$repo_dir/output/xfce-baseline/initramfs.cpio.gz"
+bootargs_dir="$fpkg_dir/bootargs"
+rootfs_source="$repo_dir/output/xfce-baseline/omarchy-ps4-xfce-rootfs.tar.zst"
+loader_source="$fpkg_dir/vendor/payloads/ps4-linux-loader.elf"
+bundle_dir="$fpkg_dir/vendor/bundle"
+boot_dir="$bundle_dir/boot"
+image_dir="$bundle_dir/images"
+inventory="$fpkg_dir/vendor/provenance/offline-bundle.json"
+
+if [[ "$allow_development_rootfs" != true ]]; then
+  printf '%s\n' \
+    'offline-bundle: refusing the current development rootfs' \
+    'reason: it autologins the locked ps4 lab account and has no deferred-owner marker' \
+    'rerun with --allow-development-rootfs only for a private, non-release lab package' >&2
+  exit 1
+fi
+
+"$fpkg_dir/tools/vendor-loader"
+
+verify() {
+  local source_file="$1"
+  local expected_sha256="$2"
+  local label="$3"
+  if [[ ! -f "$source_file" ]]; then
+    printf 'offline-bundle: missing %s: %s\n' "$label" "$source_file" >&2
+    exit 1
+  fi
+  local actual_sha256
+  actual_sha256="$(shasum -a 256 "$source_file" | awk '{print $1}')"
+  if [[ "$actual_sha256" != "$expected_sha256" ]]; then
+    printf 'offline-bundle: %s digest mismatch\nexpected: %s\nactual:   %s\n' "$label" "$expected_sha256" "$actual_sha256" >&2
+    exit 1
+  fi
+}
+
+stage_link() {
+  local source_file="$1"
+  local destination_file="$2"
+  mkdir -p "$(dirname -- "$destination_file")"
+  ln -f "$source_file" "$destination_file"
+}
+
+verify "$kernel_source" "b54490ed1f5d12432bf4ead11f27f1cf8aed008f0b76787c0060141b97414614" kernel
+verify "$initramfs_source" "307fcce4d3a4893fb9a729c9c43dec886979afe088e7d6f44e430e1132709264" initramfs
+verify "$bootargs_dir/6.18-baikal-install-usb-lab.txt" "890746a95672b3cf8714ad3f232452a5e6d5eaf5ae47ecd4bfebc2823f317c27" install-bootargs
+verify "$bootargs_dir/6.18-baikal-product-splash.txt" "3c023f27188299545d4929adfa9c2738f01f6a5108a706135516b23a9d27ee2c" product-bootargs
+verify "$bootargs_dir/6.18-baikal-debug-uart.txt" "853c72a260dcc6d35108954639fbfc9b8e1db57e1bb9e1f302160e0124b0bf43" debug-bootargs
+verify "$rootfs_source" "3eb68ee97c8533d515c18dd2ba620c569063764a5a2e6df27204f691f8ff7c5c" rootfs
+verify "$loader_source" "c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef0846d67fa9d1e5ce65" loader
+
+stage_link "$kernel_source" "$boot_dir/bzImage"
+stage_link "$initramfs_source" "$boot_dir/initramfs.cpio.gz"
+stage_link "$bootargs_dir/6.18-baikal-install-usb-lab.txt" "$boot_dir/bootargs.txt"
+stage_link "$bootargs_dir/6.18-baikal-product-splash.txt" "$boot_dir/bootargs-product.txt"
+stage_link "$bootargs_dir/6.18-baikal-debug-uart.txt" "$boot_dir/bootargs-debug.txt"
+stage_link "$rootfs_source" "$image_dir/omarchy-ps4-rootfs.tar.zst"
+printf '%s  %s\n' "3eb68ee97c8533d515c18dd2ba620c569063764a5a2e6df27204f691f8ff7c5c" "omarchy-ps4-rootfs.tar.zst" > "$image_dir/omarchy-ps4-rootfs.tar.zst.sha256"
+printf '1024\n' > "$boot_dir/vram.txt"
+install -m 0644 "$fpkg_dir/CREDITS.md" "$bundle_dir/CREDITS.md"
+
+mkdir -p "$(dirname -- "$inventory")"
+printf '%s\n' \
+  '{' \
+  '  "schema": 1,' \
+  '  "profile": "offline-private-lab",' \
+  '  "release_eligible": false,' \
+  '  "reason": "development rootfs uses locked ps4 autologin and lacks deferred-owner marker",' \
+  '  "target": "ps4-slim-baikal-b1-fw12.02",' \
+  '  "vram_mb": 1024,' \
+  '  "contents": {' \
+  '    "kernel": {"path": "/app0/bundle/boot/bzImage", "sha256": "b54490ed1f5d12432bf4ead11f27f1cf8aed008f0b76787c0060141b97414614"},' \
+  '    "initramfs": {"path": "/app0/bundle/boot/initramfs.cpio.gz", "sha256": "307fcce4d3a4893fb9a729c9c43dec886979afe088e7d6f44e430e1132709264"},' \
+  '    "bootargs_install": {"path": "/app0/bundle/boot/bootargs.txt", "sha256": "890746a95672b3cf8714ad3f232452a5e6d5eaf5ae47ecd4bfebc2823f317c27"},' \
+  '    "bootargs_product": {"path": "/app0/bundle/boot/bootargs-product.txt", "sha256": "3c023f27188299545d4929adfa9c2738f01f6a5108a706135516b23a9d27ee2c"},' \
+  '    "bootargs_debug": {"path": "/app0/bundle/boot/bootargs-debug.txt", "sha256": "853c72a260dcc6d35108954639fbfc9b8e1db57e1bb9e1f302160e0124b0bf43"},' \
+  '    "rootfs": {"path": "/app0/bundle/images/omarchy-ps4-rootfs.tar.zst", "sha256": "3eb68ee97c8533d515c18dd2ba620c569063764a5a2e6df27204f691f8ff7c5c"},' \
+  '    "loader": {"path": "/app0/payloads/ps4-linux-loader.elf", "sha256": "c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef0846d67fa9d1e5ce65", "license": "NOASSERTION"},' \
+  '    "credits": {"path": "/app0/CREDITS.md"}' \
+  '  }' \
+  '}' > "$inventory"
+
+printf 'offline-bundle: staged private lab inputs in %s\n' "$bundle_dir"
+printf 'offline-bundle: release eligible: no\n'

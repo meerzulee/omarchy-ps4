@@ -1,0 +1,21 @@
+[Unit]
+Description=Omarchy PS4 first-boot owner setup
+ConditionPathExists=/var/lib/omarchy-ps4/provisioning/pending
+After=local-fs.target systemd-user-sessions.service
+Before=display-manager.service getty@tty1.service
+Conflicts=getty@tty1.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/omarchy-ps4-provision-owner
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+
+[Install]
+WantedBy=multi-user.target

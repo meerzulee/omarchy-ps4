@@ -1,0 +1,12 @@
+# Packages from upstream omarchy-base.packages that must not enter the PS4
+# root. Each exclusion has a hardware or boot-path reason documented here.
+bolt # Thunderbolt management has no PS4 device model.
+ddcutil # Generic DDC probing is unsafe behind the Aeolia/MN864729 bridge.
+gnome-disk-utility # Pulls storage discovery into the known-failing internal SATA path.
+gvfs-mtp # Pulls GVfs and UDisks into D-Bus activation; portable devices wait for a storage gate.
+kernel-modules-hook # Assumes stock Arch kernel and mkinitcpio lifecycle.
+nautilus # Depends on GVfs/UDisks; PS4 file-manager actions are routed to Thunar.
+nautilus-python # Nautilus extensions are inactive while Nautilus is excluded.
+plymouth # Replaced by the PS4 initramfs framebuffer splash; Plymouth remains outside this custom boot chain.
+power-profiles-daemon # The PS4 power and thermal model is not a PC profile backend.
+udiskie # A78 proved that UDisks probing triggers internal-disk I/O errors.

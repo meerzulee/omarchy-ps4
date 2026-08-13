@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "release": {
+    "id": "omarchy-ps4-4.0.0rc3-baikal-b1-draft1",
+    "version": "4.0.0rc3",
+    "channel": "edge",
+    "sequence": 1,
+    "published_at": "2026-08-13T00:00:00Z"
+  },
+  "target": {
+    "architecture": "x86_64",
+    "models": ["ps4-slim"],
+    "southbridges": ["baikal-b1"],
+    "firmwares": ["12.02"],
+    "root_transport": "usb",
+    "root_label": "OMARCHY-PS4"
+  },
+  "first_boot": {
+    "mode": "deferred-owner",
+    "pending_marker": "/var/lib/omarchy-ps4/provisioning/pending",
+    "service": "omarchy-ps4-provision-owner.service",
+    "default_password": false
+  },
+  "loader": {
+    "delivery": "embedded",
+    "app_path": "/app0/payloads/ps4-linux-loader.elf",
+    "source_url": "https://github.com/ps4-linux/ps4-linux-loader",
+    "source_commit": "9acef9fbf79097a2bb39d6c9c17228198bc445cc",
+    "version": "v25",
+    "sha256": "c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef0846d67fa9d1e5ce65",
+    "license": "NOASSERTION"
+  },
+  "artifacts": [
+    {
+      "name": "bzImage",
+      "role": "kernel",
+      "url": "https://downloads.example.invalid/omarchy-ps4/draft/bzImage",
+      "size": 1,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "initramfs.cpio.gz",
+      "role": "initramfs",
+      "url": "https://downloads.example.invalid/omarchy-ps4/draft/initramfs.cpio.gz",
+      "size": 1,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "bootargs.txt",
+      "role": "bootargs",
+      "url": "https://downloads.example.invalid/omarchy-ps4/draft/bootargs.txt",
+      "size": 1,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "omarchy-ps4-rootfs.tar.zst",
+      "role": "rootfs",
+      "url": "https://downloads.example.invalid/omarchy-ps4/draft/omarchy-ps4-rootfs.tar.zst",
+      "size": 1,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

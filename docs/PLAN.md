@@ -1,6 +1,6 @@
 # Omarchy PS4 execution plan
 
-Status date: 2026-08-10
+Status date: 2026-08-13
 
 This plan is the project sequence. Work moves forward by passing gates, not by
 installing the entire Omarchy stack and debugging all failures at once.
@@ -92,7 +92,9 @@ and a contributor can detect when those sources have moved.
 
 ## Phase 4 — Compatibility ladder
 
-Status: pending
+Status: active; XFCE, native Wayland, Hyprland, UWSM, Foot, and the Quattro
+shell have reached visible hardware results. Display stability, audio, Vulkan,
+video decode, capture, and remaining integrations are not accepted.
 
 Test in this order:
 
@@ -116,10 +118,15 @@ stops advancement only for its dependent branch; unrelated tests may continue.
 Exit gate: the ledger distinguishes proven, degraded, replaceable, blocked,
 and intentionally excluded Omarchy capabilities.
 
-## Phase 5 — PS4 compatibility packages
+## Phase 5 — Portable runtime and PS4 compatibility packages
 
-Status: pending
+Status: portable runtime and package recipes implemented; native package and
+real-hardware installation gates remain
 
+- Ship the pinned Quattro user layer first as a non-root, versioned portable
+  bundle with an exact rollback.
+- Keep XFCE, LightDM, `/etc`, boot assets, and system services outside the
+  portable transaction.
 - Package only the patches and overrides justified by Phase 4 evidence.
 - Keep kernel, modules, Mesa, libdrm, LLVM, and 32-bit graphics libraries in a
   tested compatibility set.
@@ -154,14 +161,34 @@ hardware gates pass.
 
 ## Phase 6 — Product integration
 
-Status: pending
+Status: active; Quattro RC3 source, deferred-owner design, package hosting
+architecture, and the Orbis manager protocol draft are pinned. Native FPKG,
+installer implementation, and real-hardware acceptance remain.
 
-- Produce the reduced Omarchy PS4 rootfs.
+- Produce the full Omarchy PS4 workstation profile on top of the proven base,
+  while keeping unsupported hardware services disabled by default.
 - Add first-boot setup designed for television and controller use.
 - Build installation, progress, diagnostics, repair, and removal flows.
 - Add signed A/B boot assets and last-known-good rollback.
+- Adapt Quattro's deferred-owner setup to the external PS4 root without SDDM,
+  Limine, LUKS re-keying, or Btrfs factory-reset assumptions.
+- Publish packages through a separate, signed `omarchy-ps4-pkgs` repository
+  with edge/stable promotion and mandatory trusted signatures.
 - Test interrupted downloads, power loss, full disks, invalid signatures, and
   failed boots as first-class user journeys.
+- Build the `fpkg/` manager as the single Install/Boot/Repair entry point. It
+  downloads signed image artifacts and carries the pinned Linux loader payload,
+  while GoldHEN remains an explicit prerequisite.
+- Keep owner/password entry in Linux first boot; the FPKG and downloadable
+  image must contain no default credential.
+- Resolve PS4 Linux Loader redistribution rights before any public FPKG embeds
+  its ELF.
+- Install only to a preformatted external USB root labelled `OMARCHY-PS4`;
+  keep formatting as a separate, explicit Linux-host preparation step.
+- Use the SATA-disabled product profile to avoid the internal-disk timeout,
+  with the visible-log/no-SATA-change debug profile retained as rollback.
+- Show the custom framebuffer splash on HDMI while keeping Baikal earlycon on
+  UART; do not add Plymouth to the custom PS4 boot chain.
 
 Exit gate: installation and recovery are understandable without a development
 machine, SSH session, or undocumented shell command.

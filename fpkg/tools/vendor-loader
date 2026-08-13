@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+fpkg_dir="$(cd -- "$script_dir/.." && pwd)"
+workspace_dir="$(cd -- "$fpkg_dir/../.." && pwd)"
+source_elf="${1:-$workspace_dir/payloads/ps4-linux-loader/v25/elf/linux-1024mb.elf}"
+destination_dir="$fpkg_dir/vendor/payloads"
+destination_elf="$destination_dir/ps4-linux-loader.elf"
+provenance_dir="$fpkg_dir/vendor/provenance"
+provenance_file="$provenance_dir/loader.json"
+expected_sha256="c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef0846d67fa9d1e5ce65"
+
+if [[ ! -f "$source_elf" ]]; then
+  printf 'loader: missing input: %s\n' "$source_elf" >&2
+  exit 1
+fi
+
+actual_sha256="$(shasum -a 256 "$source_elf" | awk '{print $1}')"
+if [[ "$actual_sha256" != "$expected_sha256" ]]; then
+  printf 'loader: digest mismatch\nexpected: %s\nactual:   %s\n' "$expected_sha256" "$actual_sha256" >&2
+  exit 1
+fi
+
+mkdir -p "$destination_dir" "$provenance_dir"
+install -m 0644 "$source_elf" "$destination_elf"
+printf '%s  %s\n' "$expected_sha256" "ps4-linux-loader.elf" > "$destination_dir/ps4-linux-loader.elf.sha256"
+printf '%s\n' \
+  '{' \
+  '  "component": "PS4 Linux Loader",' \
+  '  "version": "v25",' \
+  '  "source_url": "https://github.com/ps4-linux/ps4-linux-loader",' \
+  '  "source_commit": "9acef9fbf79097a2bb39d6c9c17228198bc445cc",' \
+  '  "binary": "ps4-linux-loader.elf",' \
+  '  "sha256": "c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef0846d67fa9d1e5ce65",' \
+  '  "license": "NOASSERTION",' \
+  '  "redistribution": "private-test-only"' \
+  '}' > "$provenance_file"
+printf 'loader: staged private build input at %s\n' "$destination_elf"
+printf 'loader: source https://github.com/ps4-linux/ps4-linux-loader @ 9acef9fbf79097a2bb39d6c9c17228198bc445cc (v25)\n'
+printf 'loader: not licensed for public redistribution\n'

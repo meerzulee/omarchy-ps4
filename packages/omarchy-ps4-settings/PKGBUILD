@@ -1,0 +1,149 @@
+# Maintainer: Omarchy PS4 contributors
+
+pkgname=omarchy-ps4-settings
+pkgver=4.0.0rc3
+pkgrel=1
+pkgdesc='PS4-safe settings, applications, and session defaults for Omarchy Quattro'
+arch=('any')
+url='https://github.com/meerzulee/omarchy-ps4'
+license=('MIT')
+provides=('omarchy-settings')
+conflicts=('omarchy-settings' 'omarchy-settings-dev')
+
+_commit=144f4d1e31d6ddc2cba5dfd69278cabf02bafd05
+
+depends=('bash' 'curl' 'gum' 'hicolor-icon-theme')
+makedepends=('git' 'imagemagick')
+
+source=(
+  "omarchy::git+https://github.com/basecamp/omarchy.git#commit=${_commit}"
+  'ps4-autostart.lua'
+  'ps4-hyprland.lua'
+  'ps4-shell.json'
+  'ps4-shell.toml'
+  'ps4-fastfetch.jsonc'
+  'ps4-menu.jsonc'
+  '10-omarchy-ps4'
+)
+sha256sums=(
+  'SKIP'
+  '2181f8acfd8a3853e8e3e287a61eb226aabcc66366902085d96b788f7b38bf39'
+  'ad14354d524a24c74ac590a6143b0f53b88792474dbb5dce5badb5fdc0176fc6'
+  '16ba16d951108165777c3ad533a395612956c5c45b301d2d6e0ba661f6570264'
+  '29d13a5b2cf835a975dbf498567771f061efb0439365e7d12426a16b1272cf65'
+  'f684fd6fe6198d1f0f15229b43ec539fc725c41ce8137b0aca9087ca90fbbdb9'
+  'f81b53ae11ef1403ce1b21728a1bff97cceb3720b63968a068b84d17da7da0c6'
+  '5ef8215f03636e72f8d5b1d59e923270fcdb96c1dc73a15e344b6d22222d1399'
+)
+
+prepare() {
+  cd "$srcdir/omarchy"
+
+  install -Dm644 "$srcdir/ps4-autostart.lua" config/hypr/autostart.lua
+  install -Dm644 "$srcdir/ps4-autostart.lua" default/hypr/autostart.lua
+  install -Dm644 "$srcdir/ps4-hyprland.lua" config/hypr/hyprland.lua
+  install -Dm644 "$srcdir/ps4-shell.json" config/omarchy/shell.json
+  install -Dm644 "$srcdir/ps4-shell.toml" config/omarchy/shell.toml
+  install -Dm644 "$srcdir/ps4-fastfetch.jsonc" config/fastfetch/config.jsonc
+  install -Dm644 icon.txt config/omarchy/branding/about.txt
+  install -Dm644 logo.txt config/omarchy/branding/screensaver.txt
+  install -Dm644 "$srcdir/ps4-menu.jsonc" config/omarchy/extensions/omarchy-menu.jsonc
+  install -Dm644 "$srcdir/10-omarchy-ps4" default/uwsm/env.d/10-omarchy
+  sed -i 's/org\.gnome\.Nautilus\.desktop/thunar.desktop/g' default/applications/mimeapps.list
+}
+
+package() {
+  cd "$srcdir/omarchy"
+
+  install -d "$pkgdir/etc/skel/.config" "$pkgdir/usr/share/omarchy/config"
+  cp -a config/. "$pkgdir/etc/skel/.config/"
+  cp -a config/. "$pkgdir/usr/share/omarchy/config/"
+
+  install -d "$pkgdir/usr/share/omarchy/default"
+  cp -a default/. "$pkgdir/usr/share/omarchy/default/"
+
+  install -d "$pkgdir/usr/share/omarchy/applications"
+  cp -a applications/. "$pkgdir/usr/share/omarchy/applications/"
+
+  install -d "$pkgdir/etc/skel/.local/share/applications"
+  cp applications/*.desktop "$pkgdir/etc/skel/.local/share/applications/"
+
+  if [[ -d applications/icons ]]; then
+    install -d \
+      "$pkgdir/usr/share/icons/hicolor/48x48/apps" \
+      "$pkgdir/usr/share/icons/hicolor/256x256/apps" \
+      "$pkgdir/usr/share/icons/hicolor/scalable/apps"
+    for icon in applications/icons/*; do
+      [[ -f $icon ]] || continue
+      icon_name=${icon##*/}
+      icon_id=$(printf '%s\n' "${icon_name%.*}" |
+        tr '[:upper:]' '[:lower:]' |
+        sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
+      case "$icon_name" in
+        *.svg)
+          install -Dm644 "$icon" "$pkgdir/usr/share/icons/hicolor/scalable/apps/$icon_id.svg"
+          ;;
+        *)
+          magick "$icon" -thumbnail 256x256 -background transparent -gravity center -extent 256x256 \
+            "PNG32:$pkgdir/usr/share/icons/hicolor/256x256/apps/$icon_id.png"
+          magick "$icon" -thumbnail 48x48 -background transparent -gravity center -extent 48x48 \
+            "PNG32:$pkgdir/usr/share/icons/hicolor/48x48/apps/$icon_id.png"
+          ;;
+      esac
+    done
+  fi
+
+  install -Dm644 "$srcdir/10-omarchy-ps4" "$pkgdir/usr/share/uwsm/env.d/10-omarchy"
+  install -Dm644 default/fontconfig/conf.avail/50-omarchy.conf \
+    "$pkgdir/usr/share/fontconfig/conf.avail/50-omarchy.conf"
+  install -d "$pkgdir/etc/fonts/conf.d"
+  ln -s /usr/share/fontconfig/conf.avail/50-omarchy.conf \
+    "$pkgdir/etc/fonts/conf.d/50-omarchy.conf"
+  install -Dm644 default/xdg-terminal-exec/hyprland-xdg-terminals.list \
+    "$pkgdir/usr/share/xdg-terminal-exec/hyprland-xdg-terminals.list"
+  install -Dm644 default/applications/mimeapps.list \
+    "$pkgdir/usr/share/applications/mimeapps.list"
+  install -Dm644 default/wayland-sessions/omarchy.desktop \
+    "$pkgdir/usr/local/share/wayland-sessions/omarchy.desktop"
+
+  install -d "$pkgdir/usr/share/sddm/themes"
+  cp -a default/sddm/omarchy "$pkgdir/usr/share/sddm/themes/"
+  install -Dm644 default/sddm/hyprland.lua "$pkgdir/usr/share/sddm/hyprland.lua"
+
+  install -Dm644 default/fonts/omarchy/omarchy.ttf \
+    "$pkgdir/usr/share/fonts/omarchy/omarchy.ttf"
+  install -Dm644 etc/fastfetch/config.jsonc "$pkgdir/etc/fastfetch/config.jsonc"
+  install -Dm644 etc/profile.d/omarchy.sh "$pkgdir/etc/profile.d/omarchy.sh"
+
+  install -Dm644 default/systemd/user/omarchy-fcitx5.service \
+    "$pkgdir/usr/lib/systemd/user/omarchy-fcitx5.service"
+  install -Dm644 default/systemd/user/bt-agent.service \
+    "$pkgdir/usr/lib/systemd/user/bt-agent.service"
+
+  install -Dm755 bin/omarchy-debug "$pkgdir/usr/bin/omarchy-debug"
+  install -Dm755 bin/omarchy-debug-idle "$pkgdir/usr/bin/omarchy-debug-idle"
+  install -Dm755 bin/omarchy-upload-log "$pkgdir/usr/bin/omarchy-upload-log"
+
+  install -Dm644 logo.txt "$pkgdir/usr/share/omarchy/logo.txt"
+  install -Dm644 logo.svg "$pkgdir/usr/share/omarchy/logo.svg"
+  install -Dm644 icon.txt "$pkgdir/usr/share/omarchy/icon.txt"
+  install -Dm644 icon.png "$pkgdir/usr/share/omarchy/icon.png"
+  install -Dm644 icon.png "$pkgdir/usr/share/pixmaps/omarchy.png"
+  install -Dm644 icon.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/omarchy.png"
+
+  install -Dm644 logo.txt "$pkgdir/etc/skel/.config/omarchy/branding/screensaver.txt"
+  install -Dm644 icon.txt "$pkgdir/etc/skel/.config/omarchy/branding/about.txt"
+  install -Dm644 default/hypr/toggles/flags.lua \
+    "$pkgdir/etc/skel/.local/state/omarchy/toggles/hypr/flags.lua"
+  install -Dm644 default/nautilus-python/extensions/localsend.py \
+    "$pkgdir/etc/skel/.local/share/nautilus-python/extensions/localsend.py"
+  install -Dm644 default/nautilus-python/extensions/transcode.py \
+    "$pkgdir/etc/skel/.local/share/nautilus-python/extensions/transcode.py"
+  install -Dm644 default/tensaku/state.toml \
+    "$pkgdir/etc/skel/.local/state/tensaku/state.toml"
+
+  install -Dm644 default/bashrc "$pkgdir/usr/share/omarchy/etc-overrides/dot.bashrc"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -d "$pkgdir/usr/share/omarchy-ps4"
+  printf '%s\n' "$_commit" >"$pkgdir/usr/share/omarchy-ps4/settings-upstream-commit"
+}

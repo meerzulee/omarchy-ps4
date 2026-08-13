@@ -1,0 +1,52 @@
+#!/bin/bash
+
+set -uo pipefail
+
+status_line() {
+  local label=$1 state=$2 detail=${3:-}
+  printf '%-14s %-12s %s\n' "$label" "$state" "$detail"
+}
+
+printf 'Omarchy PS4 compatibility status\n\n'
+
+kernel=$(uname -r)
+case "$kernel" in
+  *-ps4-*) status_line kernel working "$kernel" ;;
+  *) status_line kernel unknown "$kernel" ;;
+esac
+
+if [[ -r /sys/class/drm/card0-HDMI-A-1/status ]]; then
+  connector=$(</sys/class/drm/card0-HDMI-A-1/status)
+  status_line display "$([[ $connector == connected ]] && printf working || printf check)" \
+    "HDMI-A-1 $connector; legacy DCE8, AMD_DEBUG=notiling"
+else
+  status_line display unknown 'HDMI connector state unavailable'
+fi
+
+if command -v glxinfo >/dev/null 2>&1; then
+  renderer=$(glxinfo -B 2>/dev/null | sed -n 's/^[[:space:]]*OpenGL renderer string: //p' | head -n1)
+  status_line OpenGL "$([[ -n $renderer ]] && printf working || printf check)" "${renderer:-renderer unavailable}"
+else
+  status_line OpenGL unknown 'install mesa-utils for renderer evidence'
+fi
+
+if command -v nmcli >/dev/null 2>&1; then
+  network=$(nmcli -t -f DEVICE,STATE device 2>/dev/null | awk -F: '$2 == "connected" { print $1; exit }')
+  status_line network "$([[ -n $network ]] && printf working || printf check)" "${network:-no connected NetworkManager device}"
+else
+  status_line network unknown 'NetworkManager CLI unavailable'
+fi
+
+if command -v wpctl >/dev/null 2>&1 && wpctl status >/dev/null 2>&1; then
+  status_line audio testing 'PipeWire is reachable; HDMI audio is not yet accepted'
+else
+  status_line audio unsupported 'no accepted HDMI audio path'
+fi
+
+status_line Vulkan testing 'package present does not imply a working PS4 Vulkan path'
+status_line video-decode unsupported 'UVD/VA-API has not passed its hardware gate'
+status_line suspend unsupported 'PS4 power transitions are blocked'
+status_line nightlight unsupported 'gamma LUT operation can black out DCE8 HDMI'
+status_line internal-SATA blocked 'automatic probing is disabled after I/O failures'
+
+printf '\nCollect evidence with: omarchy-ps4-probe --experiment NAME\n'

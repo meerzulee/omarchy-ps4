@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+
+"$project_dir/scripts/compose-omarchy-full-profile" --check
+
+profile=$project_dir/profiles/omarchy-full/packages.txt
+blocked=$project_dir/profiles/omarchy-full/blocked-packages.txt
+
+for required in omarchy-ps4 firefox foot herdr hyprland libreoffice-fresh obs-studio obsidian quickshell-git thunar; do
+  grep -Fxq "$required" "$profile" || {
+    printf 'missing full-profile package: %s\n' "$required" >&2
+    exit 1
+  }
+done
+
+while IFS= read -r raw; do
+  package=${raw%%#*}
+  package=${package//[[:space:]]/}
+  [[ -n $package ]] || continue
+  if grep -Fxq "$package" "$profile"; then
+    printf 'blocked package leaked into full profile: %s\n' "$package" >&2
+    exit 1
+  fi
+done <"$blocked"
+
+printf '%s\n' 'Full profile composition passed.'

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+archive="$repo_dir/output/xfce-baseline/initramfs.cpio.gz"
+inspect_dir="$(mktemp -d "$repo_dir/output/.initramfs-test.XXXXXX")"
+
+[[ -f "$archive" ]] || { printf 'initramfs-product: missing archive\n' >&2; exit 1; }
+(
+  cd "$inspect_dir"
+  gzip -dc "$archive" | cpio -id --quiet
+)
+
+for required_file in init install-rootfs bin/busybox bin/omarchy-splash bin/zstd lib/ld-musl-x86_64.so.1 usr/lib/libzstd.so.1; do
+  [[ -e "$inspect_dir/$required_file" ]] || { printf 'initramfs-product: missing %s\n' "$required_file" >&2; exit 1; }
+done
+for applet in awk blkid find findfs grep install mount readlink sha256sum sleep sync tar; do
+  [[ -e "$inspect_dir/bin/$applet" || -e "$inspect_dir/sbin/$applet" ]] || { printf 'initramfs-product: missing applet %s\n' "$applet" >&2; exit 1; }
+done
+
+sh -n "$inspect_dir/init" "$inspect_dir/install-rootfs"
+file "$inspect_dir/bin/omarchy-splash" | grep -q 'x86-64.*statically linked'
+orb -m ubuntu -u root chroot "$inspect_dir" /bin/zstd --version >/dev/null
+
+printf 'initramfs-product: OK\n'

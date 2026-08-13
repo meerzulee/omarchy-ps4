@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+REPO_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+readonly REPO_DIR
+readonly OUTPUT_DIR="$REPO_DIR/output/initramfs-tools"
+
+if ! command -v orb >/dev/null 2>&1 || [[ "$(orb status)" != Running ]]; then
+  printf 'error: OrbStack must be running\n' >&2
+  exit 1
+fi
+if [[ "$(docker context show)" != orbstack ]]; then
+  printf 'error: Docker context must be orbstack\n' >&2
+  exit 1
+fi
+
+mkdir -p "$OUTPUT_DIR"
+docker run --rm --platform linux/amd64 \
+  -v "$REPO_DIR:/src:ro" \
+  -v "$OUTPUT_DIR:/out" \
+  alpine:3.22 sh -eu -c '
+    apk add --no-cache build-base linux-headers zstd
+    cc -static -Os -s -Wall -Wextra -Werror \
+      /src/rootfs/initramfs/omarchy-splash.c -o /out/omarchy-splash
+    install -m 0755 /usr/bin/zstd /out/zstd
+    install -m 0755 /lib/ld-musl-x86_64.so.1 /out/ld-musl-x86_64.so.1
+    libzstd=$(find /usr/lib -name "libzstd.so.1" -o -name "libzstd.so.1.*" | head -n 1)
+    test -n "$libzstd"
+    install -m 0644 "$libzstd" /out/libzstd.so.1
+  '
+
+file "$OUTPUT_DIR/omarchy-splash" "$OUTPUT_DIR/zstd"
+shasum -a 256 "$OUTPUT_DIR/omarchy-splash" "$OUTPUT_DIR/zstd" \
+  "$OUTPUT_DIR/ld-musl-x86_64.so.1" "$OUTPUT_DIR/libzstd.so.1"

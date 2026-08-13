@@ -3,6 +3,7 @@
 /build/
 /cache/
 /output/
+/upstream/omarchy.git/
 *.img
 *.iso
 *.pkg.tar.*

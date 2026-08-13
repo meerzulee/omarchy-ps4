@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+bundle_dir="$repo_dir/fpkg/vendor/bundle"
+inventory="$repo_dir/fpkg/vendor/provenance/offline-bundle.json"
+
+check_hash() {
+  local relative_file="$1"
+  local expected_sha256="$2"
+  local actual_sha256
+  actual_sha256="$(shasum -a 256 "$bundle_dir/$relative_file" | awk '{print $1}')"
+  if [[ "$actual_sha256" != "$expected_sha256" ]]; then
+    printf 'fpkg-offline-bundle: digest mismatch: %s\n' "$relative_file" >&2
+    exit 1
+  fi
+}
+
+check_hash boot/bzImage b54490ed1f5d12432bf4ead11f27f1cf8aed008f0b76787c0060141b97414614
+check_hash boot/initramfs.cpio.gz 307fcce4d3a4893fb9a729c9c43dec886979afe088e7d6f44e430e1132709264
+check_hash boot/bootargs.txt 890746a95672b3cf8714ad3f232452a5e6d5eaf5ae47ecd4bfebc2823f317c27
+check_hash boot/bootargs-product.txt 3c023f27188299545d4929adfa9c2738f01f6a5108a706135516b23a9d27ee2c
+check_hash boot/bootargs-debug.txt 853c72a260dcc6d35108954639fbfc9b8e1db57e1bb9e1f302160e0124b0bf43
+check_hash images/omarchy-ps4-rootfs.tar.zst 3eb68ee97c8533d515c18dd2ba620c569063764a5a2e6df27204f691f8ff7c5c
+
+[[ "$(< "$bundle_dir/boot/vram.txt")" == 1024 ]]
+cmp -s "$repo_dir/fpkg/CREDITS.md" "$bundle_dir/CREDITS.md"
+jq -e '.profile == "offline-private-lab" and .release_eligible == false and .contents.loader.license == "NOASSERTION"' "$inventory" >/dev/null
+
+for ignored_file in \
+  fpkg/vendor/bundle/boot/bzImage \
+  fpkg/vendor/bundle/images/omarchy-ps4-rootfs.tar.zst \
+  fpkg/vendor/provenance/offline-bundle.json; do
+  git -C "$repo_dir" check-ignore -q "$ignored_file"
+done
+
+printf 'fpkg-offline-bundle: OK (private lab; release eligible: no)\n'

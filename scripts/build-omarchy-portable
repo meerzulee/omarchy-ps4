@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+project_dir=$(cd -- "$script_dir/.." && pwd)
+upstream=$project_dir/cache/omarchy-quattro
+lock=$project_dir/upstream/omarchy.lock
+output_dir=$project_dir/output/portable
+
+install_file() {
+  local mode=$1 source=$2 destination=$3
+  mkdir -p -- "$(dirname -- "$destination")"
+  install -m "$mode" "$source" "$destination"
+}
+
+commit=$(sed -n 's/^OMARCHY_COMMIT=//p' "$lock")
+version=$(sed -n 's/^OMARCHY_RELEASE_VERSION=//p' "$lock")
+[[ $commit =~ ^[0-9a-f]{40}$ ]] || fail 'invalid pinned upstream commit'
+[[ -n $version ]] || fail 'missing pinned upstream release version'
+[[ $(git -C "$upstream" rev-parse HEAD) == "$commit" ]] || \
+  fail 'cached upstream checkout does not match the lock'
+command -v zstd >/dev/null 2>&1 || fail 'zstd is not installed'
+
+archive=$output_dir/omarchy-ps4-portable-${version}-${commit:0:7}.tar.zst
+[[ ! -e $archive ]] || fail "output already exists: $archive"
+mkdir -p "$output_dir"
+work=$(mktemp -d "${TMPDIR:-/tmp}/omarchy-ps4-portable.XXXXXX")
+trap 'rm -rf -- "$work"' EXIT
+bundle=$work/omarchy-ps4-portable
+install -d "$bundle/payload/omarchy" "$bundle/payload/config"
+
+git -C "$upstream" archive "$commit" | tar -xf - -C "$bundle/payload/omarchy"
+cp -a "$bundle/payload/omarchy/config/." "$bundle/payload/config/"
+
+install_file 0644 "$project_dir/packages/omarchy-ps4-settings/ps4-autostart.lua" \
+  "$bundle/payload/omarchy/default/hypr/autostart.lua"
+install_file 0644 "$project_dir/packages/omarchy-ps4-settings/ps4-autostart.lua" \
+  "$bundle/payload/config/hypr/autostart.lua"
+install_file 0644 "$project_dir/packages/omarchy-ps4-settings/ps4-hyprland.lua" \
+  "$bundle/payload/config/hypr/hyprland.lua"
+install_file 0644 "$project_dir/packages/omarchy-ps4-settings/ps4-shell.json" \
+  "$bundle/payload/config/omarchy/shell.json"
+install_file 0644 "$project_dir/packages/omarchy-ps4-settings/ps4-shell.toml" \
+  "$bundle/payload/config/omarchy/shell.toml"
+install_file 0644 "$project_dir/packages/omarchy-ps4-settings/ps4-menu.jsonc" \
+  "$bundle/payload/config/omarchy/extensions/omarchy-menu.jsonc"
+install_file 0644 "$project_dir/packages/omarchy-ps4-settings/ps4-fastfetch.jsonc" \
+  "$bundle/payload/config/fastfetch/config.jsonc"
+install_file 0644 "$bundle/payload/omarchy/icon.txt" \
+  "$bundle/payload/config/omarchy/branding/about.txt"
+install_file 0644 "$bundle/payload/omarchy/logo.txt" \
+  "$bundle/payload/config/omarchy/branding/screensaver.txt"
+install_file 0644 "$project_dir/portable/10-omarchy-ps4-portable" \
+  "$bundle/payload/config/uwsm/env.d/10-omarchy-ps4"
+install_file 0644 "$project_dir/profiles/quattro-beta/config/hypr/monitors.lua" \
+  "$bundle/payload/config/hypr/monitors.lua"
+install_file 0644 "$project_dir/profiles/quattro-beta/config/hypr/input.lua" \
+  "$bundle/payload/config/hypr/input.lua"
+install_file 0644 "$project_dir/profiles/quattro-beta/config/hypr/looknfeel.lua" \
+  "$bundle/payload/config/hypr/looknfeel.lua"
+install_file 0644 "$bundle/payload/omarchy/default/applications/mimeapps.list" \
+  "$bundle/payload/config/mimeapps.list"
+install_file 0644 \
+  "$bundle/payload/omarchy/default/xdg-terminal-exec/hyprland-xdg-terminals.list" \
+  "$bundle/payload/config/hyprland-xdg-terminals.list"
+sed -i.bak 's/org\.gnome\.Nautilus\.desktop/thunar.desktop/g' \
+  "$bundle/payload/config/mimeapps.list"
+rm -- "$bundle/payload/config/mimeapps.list.bak"
+
+install -d "$bundle/payload/omarchy/lib/omarchy-ps4/upstream-bin"
+for command in omarchy-launch-nautilus omarchy-launch-nautilus-cwd; do
+  source_command=$bundle/payload/omarchy/bin/$command
+  [[ -f $source_command ]] || fail "replaced command is absent upstream: $command"
+  mv "$source_command" "$bundle/payload/omarchy/lib/omarchy-ps4/upstream-bin/$command"
+  install_file 0755 "$project_dir/packages/omarchy-ps4/$command" "$source_command"
+done
+for command in omarchy-theme-bg-install omarchy-install-gaming-retroarch; do
+  source_command=$bundle/payload/omarchy/bin/$command
+  [[ -f $source_command ]] || fail "replaced command is absent upstream: $command"
+  cp "$source_command" "$bundle/payload/omarchy/lib/omarchy-ps4/upstream-bin/$command"
+  sed 's/nautilus/thunar/g' "$source_command" >"$source_command.ps4"
+  mv "$source_command.ps4" "$source_command"
+  chmod 0755 "$source_command"
+done
+while IFS= read -r command; do
+  [[ -z $command || $command == \#* ]] && continue
+  source_command=$bundle/payload/omarchy/bin/$command
+  [[ -f $source_command ]] || fail "disabled command is absent upstream: $command"
+  mv "$source_command" "$bundle/payload/omarchy/lib/omarchy-ps4/upstream-bin/$command"
+  install_file 0755 "$project_dir/packages/omarchy-ps4/omarchy-ps4-unsupported" "$source_command"
+done <"$project_dir/packages/omarchy-ps4/ps4-disabled-commands.txt"
+install_file 0755 "$project_dir/packages/omarchy-ps4/omarchy-ps4-status" \
+  "$bundle/payload/omarchy/bin/omarchy-ps4-status"
+install_file 0755 "$project_dir/bin/omarchy-ps4-probe" \
+  "$bundle/payload/omarchy/bin/omarchy-ps4-probe"
+
+install_file 0755 "$project_dir/portable/install" "$bundle/install"
+install_file 0755 "$project_dir/portable/check" "$bundle/check"
+install_file 0644 "$project_dir/profiles/omarchy-full/README.md" "$bundle/FULL-PROFILE.md"
+printf '%s\n' "$commit" >"$bundle/payload/UPSTREAM_COMMIT"
+
+(
+  cd "$bundle/payload"
+  find omarchy config -type f -print0 | sort -z | xargs -0 shasum -a 256 >MANIFEST.sha256
+)
+
+"$project_dir/tests/portable-bundle-test" "$bundle"
+
+COPYFILE_DISABLE=1 tar --no-xattrs -cf - -C "$work" omarchy-ps4-portable \
+  | zstd --threads=0 -10 --quiet -o "$archive"
+sha256=$(shasum -a 256 "$archive" | awk '{ print $1 }')
+printf '%s  %s\n' "$sha256" "${archive##*/}" >"$archive.sha256"
+
+printf 'Portable bundle: %s\n' "$archive"
+printf 'SHA-256: %s\n' "$sha256"

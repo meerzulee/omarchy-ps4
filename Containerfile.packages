@@ -1,0 +1,50 @@
+# syntax=docker/dockerfile:1.7
+
+ARG ARCHLINUX_IMAGE=archlinux@sha256:345a872f6c95e082d4b8c050af637eebb57402c6e2177b411c3acf7df84eb33b
+FROM --platform=linux/amd64 ${ARCHLINUX_IMAGE} AS build
+
+ARG SNAPSHOT_DATE=2026/08/09
+ARG OMARCHY_COMMIT
+
+RUN sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf \
+    && printf '%s\n' \
+      "Server = https://archive.archlinux.org/repos/${SNAPSHOT_DATE}/\$repo/os/\$arch" \
+      > /etc/pacman.d/mirrorlist \
+    && pacman -Syyu --noconfirm archlinux-keyring \
+    && pacman -Syu --noconfirm \
+    && pacman -S --needed --noconfirm base-devel git imagemagick jq \
+    && useradd --create-home --shell /bin/bash builder \
+    && install -d -o builder -g builder /build /out /sources
+
+COPY --chown=builder:builder packages/omarchy-ps4-settings/ /workspace/packages/omarchy-ps4-settings/
+COPY --chown=builder:builder packages/omarchy-ps4/ /workspace/packages/omarchy-ps4/
+COPY --chown=builder:builder bin/omarchy-ps4-probe /workspace/bin/omarchy-ps4-probe
+COPY --chown=builder:builder upstream/omarchy.git/ /seed/omarchy.git/
+
+USER builder
+ENV PKGDEST=/out \
+    SRCDEST=/sources
+
+ARG OMARCHY_COMMIT
+RUN git clone --mirror /seed/omarchy.git /sources/omarchy \
+    && git --git-dir=/sources/omarchy cat-file -e "${OMARCHY_COMMIT}^{commit}"
+
+WORKDIR /workspace/packages/omarchy-ps4-settings
+RUN makepkg --cleanbuild --clean --holdver --noconfirm --nodeps
+
+WORKDIR /workspace/packages/omarchy-ps4
+RUN makepkg --cleanbuild --clean --holdver --noconfirm --nodeps
+
+COPY --chown=builder:builder packages/omarchy-ps4-provisioning/ /workspace/packages/omarchy-ps4-provisioning/
+WORKDIR /workspace/packages/omarchy-ps4-provisioning
+RUN makepkg --cleanbuild --clean --holdver --noconfirm --nodeps
+
+COPY --chown=builder:builder tests/package-content-test /workspace/tests/package-content-test
+RUN /workspace/tests/package-content-test /out
+
+USER root
+COPY tests/prepare-for-owner-test /workspace/tests/prepare-for-owner-test
+RUN /workspace/tests/prepare-for-owner-test /out
+
+FROM scratch AS artifacts
+COPY --from=build /out/ /

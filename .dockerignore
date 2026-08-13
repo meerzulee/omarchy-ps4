@@ -1,0 +1,7 @@
+.git
+build
+cache
+experiments/*/raw
+output
+*.pkg.tar.*
+*.tar.zst

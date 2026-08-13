@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+manifest="$repo_dir/fpkg/manifest/release-manifest.example.json"
+
+"$repo_dir/fpkg/tools/validate-manifest" "$manifest"
+if "$repo_dir/fpkg/tools/validate-manifest" --production "$manifest" >/dev/null 2>&1; then
+  printf 'fpkg-draft: placeholder manifest unexpectedly passed production policy\n' >&2
+  exit 1
+fi
+
+make -C "$repo_dir/fpkg/app" test
+
+if ! git -C "$repo_dir" check-ignore -q fpkg/vendor/payloads/ps4-linux-loader.elf; then
+  printf 'fpkg-draft: vendored loader is not ignored\n' >&2
+  exit 1
+fi
+if ! git -C "$repo_dir" check-ignore -q fpkg/vendor/keys/release-key.private; then
+  printf 'fpkg-draft: private signing keys are not ignored\n' >&2
+  exit 1
+fi
+if ! git -C "$repo_dir" check-ignore -q fpkg/vendor/provenance/loader.json; then
+  printf 'fpkg-draft: generated loader provenance is not ignored\n' >&2
+  exit 1
+fi
+
+printf 'fpkg-draft: OK\n'

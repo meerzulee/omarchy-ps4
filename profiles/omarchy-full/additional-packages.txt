@@ -1,0 +1,19 @@
+# PS4 package and upstream conditional dependencies required by the complete
+# workstation profile. These are installed in addition to the safe subset of
+# upstream omarchy-base.packages.
+omarchy-ps4
+omarchy-ps4-provisioning
+base-devel
+firefox
+gst-plugin-pipewire
+libpulse
+mesa-utils
+pipewire
+pipewire-alsa
+pipewire-jack
+pipewire-pulse
+qt6-wayland
+thunar
+vulkan-radeon
+vulkan-tools
+webp-pixbuf-loader
