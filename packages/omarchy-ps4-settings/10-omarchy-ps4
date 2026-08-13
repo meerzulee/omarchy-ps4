@@ -1,0 +1,7 @@
+export OMARCHY_PATH=/usr/share/omarchy
+export AMD_DEBUG=notiling
+export TERMINAL=foot
+export EDITOR=nvim
+
+[ -r /usr/share/omarchy/default/bash/env-bootstrap ] && \
+  . /usr/share/omarchy/default/bash/env-bootstrap

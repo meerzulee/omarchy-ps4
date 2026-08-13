@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omarchy-ps4.invalid/schema/release-manifest-v1.json",
+  "title": "Omarchy PS4 release manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "release", "target", "first_boot", "loader", "artifacts"],
+  "properties": {
+    "schema": { "const": 1 },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "channel", "sequence", "published_at"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,63}$" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "channel": { "enum": ["edge", "stable"] },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "published_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["architecture", "models", "southbridges", "firmwares", "root_transport", "root_label"],
+      "properties": {
+        "architecture": { "const": "x86_64" },
+        "models": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+        "southbridges": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+        "firmwares": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[0-9]+\\.[0-9]{2}$" } },
+        "root_transport": { "const": "usb" },
+        "root_label": { "const": "OMARCHY-PS4" }
+      }
+    },
+    "first_boot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "pending_marker", "service", "default_password"],
+      "properties": {
+        "mode": { "const": "deferred-owner" },
+        "pending_marker": { "const": "/var/lib/omarchy-ps4/provisioning/pending" },
+        "service": { "const": "omarchy-ps4-provision-owner.service" },
+        "default_password": { "type": "boolean", "const": false }
+      }
+    },
+    "loader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["delivery", "app_path", "source_url", "source_commit", "version", "sha256", "license"],
+      "properties": {
+        "delivery": { "const": "embedded" },
+        "app_path": { "const": "/app0/payloads/ps4-linux-loader.elf" },
+        "source_url": { "type": "string", "format": "uri" },
+        "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "version": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "license": { "type": "string", "minLength": 1 }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "role", "url", "size", "sha256"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+          "role": { "enum": ["kernel", "initramfs", "bootargs", "rootfs"] },
+          "url": { "type": "string", "pattern": "^https://" },
+          "size": { "type": "integer", "minimum": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    }
+  }
+}

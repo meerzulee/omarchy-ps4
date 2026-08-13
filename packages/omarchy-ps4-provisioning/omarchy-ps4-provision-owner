@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+state_dir=/var/lib/omarchy-ps4/provisioning
+pending_file=$state_dir/pending
+setup_user_file=$state_dir/setup-user
+log_file=/var/log/omarchy-ps4-provision-owner.log
+omarchy_path=${OMARCHY_PATH:-/usr/share/omarchy}
+expected_root_label=OMARCHY-PS4
+logo_path=$omarchy_path/logo.txt
+
+fail() {
+  printf 'omarchy-ps4-provision-owner: %s\n' "$1" >&2
+  exit 1
+}
+
+log() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >>"$log_file"
+}
+
+[[ $EUID -eq 0 ]] || fail 'must run as root'
+[[ -f $pending_file ]] || exit 0
+[[ -r $omarchy_path/install/provisioning/setup-form.sh ]] || \
+  fail 'the pinned Omarchy setup form is missing'
+
+for command_name in blkid chpasswd findmnt getent git gum hostnamectl localectl \
+  lsblk runuser timedatectl useradd usermod; do
+  command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
+done
+
+root_source=$(findmnt -nro SOURCE --target /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source" 2>/dev/null || true)
+[[ -b $root_device ]] || fail "cannot resolve the root block device from $root_source"
+root_label=$(blkid -s LABEL -o value "$root_device" 2>/dev/null || true)
+[[ $root_label == "$expected_root_label" ]] || \
+  fail "root label is ${root_label:-unset}; expected $expected_root_label"
+
+root_transport=$(lsblk -s -nro TRAN "$root_device" 2>/dev/null | awk 'NF { print; exit }')
+[[ $root_transport == usb ]] || \
+  fail "root transport is ${root_transport:-unknown}; owner setup is currently external-USB only"
+
+mkdir -p "$state_dir"
+touch "$log_file"
+chmod 0600 "$log_file"
+
+# Shared prompt definitions and validation from the pinned Quattro source.
+keyboard=''
+keyboard_label=''
+username=''
+password=''
+# Written and read by the sourced form.
+# shellcheck disable=SC2034
+password_confirmation=''
+full_name=''
+email_address=''
+hostname=''
+timezone=''
+# shellcheck disable=SC1090,SC1091
+source "$omarchy_path/install/provisioning/setup-form.sh"
+
+notice() {
+  gum style --foreground 1 "$1"
+  sleep "${2:-1}"
+}
+
+render_header() {
+  clear
+  if [[ -r $logo_path ]]; then
+    gum style --foreground 2 "$(<"$logo_path")"
+  else
+    gum style --foreground 2 --bold 'OMARCHY PS4'
+  fi
+  echo
+}
+
+omarchy_username_taken() {
+  local candidate=$1 pinned=''
+  [[ -r $setup_user_file ]] && pinned=$(<"$setup_user_file")
+  [[ $candidate == "$pinned" ]] && return 1
+  getent passwd "$candidate" >/dev/null
+}
+
+prompt_form() {
+  local status
+
+  while true; do
+    render_header
+    gum style 'Make this PS4 Linux image yours.'
+    gum style --foreground 8 'Enter your credentials now; the desktop is already installed.'
+    echo
+
+    omarchy_prompt_keyboard || continue
+    omarchy_prompt_username || continue
+    omarchy_prompt_password || continue
+    omarchy_prompt_identity || continue
+    omarchy_prompt_hostname || continue
+    omarchy_prompt_timezone || continue
+
+    echo
+    printf 'Keyboard: %s\nUser:     %s\nHostname: %s\nTimezone: %s\n' \
+      "$keyboard_label" "$username" "$hostname" "$timezone"
+    gum confirm 'Create this owner?' && status=0 || status=$?
+    (( status == 0 )) && return 0
+  done
+}
+
+existing_setup_user=''
+[[ -r $setup_user_file ]] && existing_setup_user=$(<"$setup_user_file")
+prompt_form
+
+if [[ -n $existing_setup_user && $username != "$existing_setup_user" ]]; then
+  fail "an interrupted setup is pinned to user $existing_setup_user"
+fi
+
+printf '%s\n' "$username" >"$setup_user_file"
+chmod 0600 "$setup_user_file"
+log "creating or resuming owner $username"
+
+groups=(wheel)
+for group_name in audio video input; do
+  getent group "$group_name" >/dev/null && groups+=("$group_name")
+done
+group_csv=$(IFS=,; printf '%s' "${groups[*]}")
+
+account_args=(-G "$group_csv")
+[[ -n $full_name ]] && account_args+=(-c "$full_name")
+if getent passwd "$username" >/dev/null; then
+  usermod -a "${account_args[@]}" "$username"
+else
+  useradd -m "${account_args[@]}" -s /bin/bash "$username"
+fi
+printf '%s:%s\n' "$username" "$password" | chpasswd
+
+if localectl list-keymaps | grep -ix "$keyboard" >/dev/null; then
+  localectl set-keymap "$keyboard"
+else
+  log "keyboard map $keyboard is unavailable; keeping the current map"
+fi
+hostnamectl set-hostname "$hostname"
+timedatectl set-timezone "$timezone"
+
+home_dir=$(getent passwd "$username" | cut -d: -f6)
+[[ -d $home_dir ]] || fail "home directory was not created: $home_dir"
+
+if [[ -n $full_name ]]; then
+  runuser -u "$username" -- git config --global user.name "$full_name"
+fi
+if [[ -n $email_address ]]; then
+  runuser -u "$username" -- git config --global user.email "$email_address"
+fi
+
+install -d -o "$username" -g "$username" "$home_dir/.local/state/omarchy-ps4"
+printf 'release=4.0.0rc3\nupstream_commit=144f4d1e31d6ddc2cba5dfd69278cabf02bafd05\n' \
+  >"$home_dir/.local/state/omarchy-ps4/owner-provisioned"
+chown "$username:$username" "$home_dir/.local/state/omarchy-ps4/owner-provisioned"
+
+sync
+rm -f "$pending_file" "$setup_user_file"
+sync
+log "owner setup complete for $username"
+
+render_header
+gum style --foreground 2 --bold 'Owner setup complete'
+gum style 'Starting the login screen…'

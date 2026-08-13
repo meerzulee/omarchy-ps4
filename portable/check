@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+set -uo pipefail
+
+quiet=0
+if [[ ${1:-} == --quiet ]]; then
+  quiet=1
+elif (( $# > 0 )); then
+  printf 'usage: check [--quiet]\n' >&2
+  exit 2
+fi
+
+failures=0
+report() {
+  local label=$1 state=$2 detail=$3
+  (( quiet == 1 )) || printf '%-18s %-8s %s\n' "$label" "$state" "$detail"
+  [[ $state == ready ]] || failures=$((failures + 1))
+}
+
+[[ $(uname -m) == x86_64 ]] && \
+  report architecture ready x86_64 || report architecture missing "$(uname -m)"
+
+for command in hyprland qs foot uwsm jq thunar fc-cache fc-match; do
+  if command -v "$command" >/dev/null 2>&1; then
+    report "$command" ready "$(command -v "$command")"
+  else
+    report "$command" missing 'not found in PATH'
+  fi
+done
+
+root_source=$(findmnt -no SOURCE / 2>/dev/null || true)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source" 2>/dev/null || true)
+if [[ -n $root_device && -b $root_device ]]; then
+  root_label=$(lsblk -dnro LABEL "$root_device" 2>/dev/null || true)
+  parent_name=$(lsblk -dnro PKNAME "$root_device" 2>/dev/null || true)
+  transport=''
+  [[ -n $parent_name ]] && transport=$(lsblk -dnro TRAN "/dev/$parent_name" 2>/dev/null || true)
+  [[ $root_label == OMARCHY-PS4 ]] && \
+    report root-label ready "$root_device" || report root-label missing "${root_label:-unlabelled}"
+  [[ $transport == usb ]] && \
+    report root-transport ready usb || report root-transport missing "${transport:-unknown}"
+else
+  report root-device missing "${root_source:-unresolved}"
+fi
+
+if (( failures > 0 )); then
+  printf 'Portable preflight failed: %d requirement(s) are not ready.\n' "$failures" >&2
+  exit 1
+fi
+
+(( quiet == 1 )) || printf '%s\n' 'Portable preflight passed. No changes were made.'

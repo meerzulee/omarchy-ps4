@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+if [[ ${*: -1} == /dev/omarchy-test-root ]]; then
+  printf '%s\n' '/dev/omarchy-test-root'
+else
+  exec /usr/bin/readlink "$@"
+fi

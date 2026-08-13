@@ -1,0 +1,49 @@
+# Maintainer: Omarchy PS4 contributors
+
+pkgname=omarchy-ps4-provisioning
+pkgver=4.0.0rc3
+pkgrel=1
+pkgdesc='External-root first-boot owner setup for Omarchy PS4'
+arch=('any')
+url='https://github.com/meerzulee/omarchy-ps4'
+license=('MIT')
+
+depends=(
+  'git'
+  'gum'
+  'omarchy-ps4=4.0.0rc3-1'
+  'shadow'
+  'sudo'
+  'systemd'
+  'util-linux'
+)
+
+backup=('etc/sudoers.d/10-omarchy-ps4-wheel')
+
+source=(
+  'omarchy-ps4-prepare-for-owner'
+  'omarchy-ps4-provision-owner'
+  'omarchy-ps4-provision-owner.service'
+  '10-omarchy-ps4-wheel'
+  'README.md'
+)
+sha256sums=(
+  'b5c4ce8df94f1c60d3a141aaabd6e8eb1b4a996425f6279677e79c403aaedf31'
+  'cf43e6034d4c20f9344b19dd73e7ee033c7f69be3451e5e44418d69963ea0a4a'
+  '6db39f2e30d89703c770b49055d4848776a69e537fb6d6a3d2582225f194d51f'
+  '65ae53cdc6fd4d323e8bab7796c0f743744d181897a349bccdc2e4259cf60cfc'
+  '6ade5c9e88ba9c99c479b41c099ef7c79505c2c97176df4972e236e223ae4169'
+)
+
+package() {
+  install -Dm755 omarchy-ps4-prepare-for-owner \
+    "$pkgdir/usr/bin/omarchy-ps4-prepare-for-owner"
+  install -Dm755 omarchy-ps4-provision-owner \
+    "$pkgdir/usr/bin/omarchy-ps4-provision-owner"
+  install -Dm644 omarchy-ps4-provision-owner.service \
+    "$pkgdir/usr/lib/systemd/system/omarchy-ps4-provision-owner.service"
+  install -Dm440 10-omarchy-ps4-wheel \
+    "$pkgdir/etc/sudoers.d/10-omarchy-ps4-wheel"
+  install -Dm644 README.md \
+    "$pkgdir/usr/share/doc/omarchy-ps4-provisioning/README.md"
+}

@@ -1,0 +1,10 @@
+# Local package inputs and generated output. Keep provenance in Git, not blobs.
+/vendor/keys/*
+!/vendor/keys/.gitkeep
+/vendor/bundle/*
+!/vendor/bundle/.gitkeep
+/vendor/payloads/*
+!/vendor/payloads/.gitkeep
+/vendor/provenance/*
+!/vendor/provenance/.gitkeep
+/output/

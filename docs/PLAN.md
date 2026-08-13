@@ -1,6 +1,10 @@
 # Omarchy PS4 execution plan
 
-Status date: 2026-08-10
+Status date: 2026-08-13
+
+Current checkpoint: [`CHECKPOINT-2026-08-13.md`](CHECKPOINT-2026-08-13.md).
+The immediate next hardware action is A44's preflighted native RC3 foundation
+transaction. A45 is the following, separate splash boot experiment.
 
 This plan is the project sequence. Work moves forward by passing gates, not by
 installing the entire Omarchy stack and debugging all failures at once.
@@ -92,7 +96,9 @@ and a contributor can detect when those sources have moved.
 
 ## Phase 4 — Compatibility ladder
 
-Status: pending
+Status: active; XFCE, native Wayland, Hyprland, UWSM, Foot, and the Quattro
+shell have reached visible hardware results. Display stability, audio, Vulkan,
+video decode, capture, and remaining integrations are not accepted.
 
 Test in this order:
 
@@ -116,10 +122,15 @@ stops advancement only for its dependent branch; unrelated tests may continue.
 Exit gate: the ledger distinguishes proven, degraded, replaceable, blocked,
 and intentionally excluded Omarchy capabilities.
 
-## Phase 5 — PS4 compatibility packages
+## Phase 5 — Portable runtime and PS4 compatibility packages
 
-Status: pending
+Status: portable runtime and package recipes implemented; native package and
+real-hardware installation gates remain
 
+- Ship the pinned Quattro user layer first as a non-root, versioned portable
+  bundle with an exact rollback.
+- Keep XFCE, LightDM, `/etc`, boot assets, and system services outside the
+  portable transaction.
 - Package only the patches and overrides justified by Phase 4 evidence.
 - Keep kernel, modules, Mesa, libdrm, LLVM, and 32-bit graphics libraries in a
   tested compatibility set.
@@ -146,6 +157,41 @@ recovery path
 - Validate atomic modesetting and page flips before testing color management,
   DPMS, hotplug, additional modes, HDMI audio, or hardware video decoding.
 
+### Planned bounded experiment — G34WQC native ultrawide
+
+Keep this deferred until the current product work has passed its gates. Do not
+build, stage, or boot this candidate as part of an unrelated experiment.
+
+- Target **3440x1440 at 50 Hz**, not 30 Hz. Gigabyte documents a 48–144 Hz
+  operating range for the G34WQC, so 30 Hz is outside the monitor's specified
+  range. The supported-timing table lists native 60/100 Hz over HDMI, meaning
+  50 Hz remains a custom-timing acceptance test rather than a guaranteed mode.
+  Source: [G34WQC manual](https://download.gigabyte.com/FileList/Manual/GBT-G34WQC-UM-EN-20200616.pdf).
+- Use CVT reduced blanking: 265.310 MHz pixel clock; horizontal
+  `3440 3488 3520 3600`; vertical `1440 1443 1453 1474`; positive HSync,
+  negative VSync; effective refresh approximately 49.998 Hz.
+- Implement it as one removable experimental Liverpool patch after the proven
+  display chain. Expose only the test mode as preferred, admit it in bridge
+  mode validation, force the same adjusted GPU timing, and emit AVI VIC 0 for
+  the non-CEA raster. Preserve the firmware-trained DP transmitter and the
+  proven split MN864729 lane, HDMI-update, and PLL/finalize transactions.
+- Pair the kernel with test-only boot arguments requesting
+  `video=HDMI-A-1:3440x1440@50D`; do not reuse the forced 1080p EDID argument.
+- Treat GPU raster timing plus matching bridge metadata as one coherent changed
+  variable: changing only one side recreates the already-proven timing/VIC
+  mismatch and cannot answer the experiment question.
+- Before the console action, allocate a fresh `EXP-YYYYMMDD-NNN`, confirm UART
+  is continuously `READY`, record a 180-second display timeout and 420-second
+  userspace timeout, then start the bounded session. Required evidence is:
+  successful pixel-clock programming, retained bridge lane lock, successful
+  three-stage MN864729 completion without ICC timeout, monitor OSD reporting
+  3440x1440 near 50 Hz, and stable console/desktop scanout and page flips.
+- Roll back by booting the unchanged, known-good 1080p60 release kernel and its
+  boot arguments. Do not overwrite that artifact or console-internal storage.
+- If 50 Hz passes, test 3440x1440 at 60 Hz only in a new bounded experiment. If
+  it fails, close and conclude the 50 Hz session before changing anything; do
+  not fall back to 30 Hz, because it is below the monitor's specified range.
+
 Exit gate: Aquamarine acquires `DRM_CLIENT_CAP_ATOMIC` without its legacy
 fallback, HDMI and framebuffer output survive the defined cold-boot count, and
 `modetest` exposes the expected atomic CRTC and plane properties. CTM, gamma,
@@ -154,14 +200,34 @@ hardware gates pass.
 
 ## Phase 6 — Product integration
 
-Status: pending
+Status: active; Quattro RC3 source, deferred-owner design, package hosting
+architecture, and the Orbis manager protocol draft are pinned. Native FPKG,
+installer implementation, and real-hardware acceptance remain.
 
-- Produce the reduced Omarchy PS4 rootfs.
+- Produce the full Omarchy PS4 workstation profile on top of the proven base,
+  while keeping unsupported hardware services disabled by default.
 - Add first-boot setup designed for television and controller use.
 - Build installation, progress, diagnostics, repair, and removal flows.
 - Add signed A/B boot assets and last-known-good rollback.
+- Adapt Quattro's deferred-owner setup to the external PS4 root without SDDM,
+  Limine, LUKS re-keying, or Btrfs factory-reset assumptions.
+- Publish packages through a separate, signed `omarchy-ps4-pkgs` repository
+  with edge/stable promotion and mandatory trusted signatures.
 - Test interrupted downloads, power loss, full disks, invalid signatures, and
   failed boots as first-class user journeys.
+- Build the `fpkg/` manager as the single Install/Boot/Repair entry point. It
+  downloads signed image artifacts and carries the pinned Linux loader payload,
+  while GoldHEN remains an explicit prerequisite.
+- Keep owner/password entry in Linux first boot; the FPKG and downloadable
+  image must contain no default credential.
+- Resolve PS4 Linux Loader redistribution rights before any public FPKG embeds
+  its ELF.
+- Install only to a preformatted external USB root labelled `OMARCHY-PS4`;
+  keep formatting as a separate, explicit Linux-host preparation step.
+- Use the SATA-disabled product profile to avoid the internal-disk timeout,
+  with the visible-log/no-SATA-change debug profile retained as rollback.
+- Show the persistent native-brand framebuffer splash on HDMI while keeping
+  Baikal earlycon on UART; do not add Plymouth to the custom PS4 boot chain.
 
 Exit gate: installation and recovery are understandable without a development
 machine, SSH session, or undocumented shell command.

@@ -1,5 +1,11 @@
 # Omarchy PS4 Research and Architecture
 
+![Omarchy Quattro RC3 running on a Baikal B1 PS4](docs/assets/omarchy-ps4-quattro-rc3.png)
+
+*Omarchy Quattro RC3 running at 1920×1080 on the project’s Baikal B1 PS4,
+using Linux 6.18.44, Hyprland, the native package-owned Quickshell runtime and
+an external USB root.*
+
 > The active, gate-driven execution roadmap is in
 > [`docs/PLAN.md`](docs/PLAN.md). The existing XFCE evidence is recorded in
 > [`docs/BASELINE.md`](docs/BASELINE.md), and all support claims are tracked in
@@ -8,6 +14,19 @@
 > [`knowledge/2026-08-10/WORLD-STATE.md`](knowledge/2026-08-10/WORLD-STATE.md).
 > The prepared Linux 6.18/XFCE hardware runbook is
 > [`docs/FIRST-BOOT-6.18-XFCE.md`](docs/FIRST-BOOT-6.18-XFCE.md).
+> The non-root Quattro deployment is documented in
+> [`docs/PORTABLE.md`](docs/PORTABLE.md).
+> The source-mapped list of PS4-specific fixes that must be carried into the
+> final installation/image is [`docs/PS4-FIXES.md`](docs/PS4-FIXES.md).
+> Quattro RC3 and its deferred-owner flow are tracked in
+> [`docs/QUATTRO-RC3.md`](docs/QUATTRO-RC3.md), while the package publication
+> design is in [`docs/PACKAGE-REPOSITORY.md`](docs/PACKAGE-REPOSITORY.md).
+> The current implementation, evidence boundary and ordered resume plan are in
+> [`docs/CHECKPOINT-2026-08-13.md`](docs/CHECKPOINT-2026-08-13.md).
+> The single-app Install/Boot/Repair protocol and offline UX draft are in
+> [`fpkg/`](fpkg/README.md).
+> The end-to-end jailbreak, USB, FPKG, installer, splash and first-owner path is
+> [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md).
 > Hardware work follows [`docs/DEVELOPMENT-MODE.md`](docs/DEVELOPMENT-MODE.md),
 > and the durable resume point is
 > [`experiments/SESSIONS.md`](experiments/SESSIONS.md).
@@ -16,8 +35,10 @@ Architecture research date: 2026-08-09
 
 Ecosystem snapshot date: 2026-08-10
 
-Status: Linux 6.18/XFCE boots on Baikal B1; native Wayland passed; direct bare
-Hyprland is running with physical confirmation pending
+Status: Linux 6.18/XFCE, native Wayland, Hyprland, UWSM, and the pinned Quattro
+shell have rendered on the Baikal B1 console. The legacy DCE8 display path
+still requires `AMD_DEBUG=notiling` and has unresolved artifacting; XFCE stays
+the recovery desktop.
 
 ## Executive summary
 
@@ -40,9 +61,10 @@ Linux installations use a large file as a virtual disk, which avoids changing
 Sony's partition layout, but the current community guide does not consider
 that path reliable on Baikal. The MVP therefore stays external.
 
-The largest unresolved risk is whether current Hyprland and Quickshell work
-reliably on the PS4's patched AMD graphics stack. That must be proven before
-building the installer or full distribution.
+The largest unresolved risk is long-running compositor stability on the PS4's
+legacy DCE8 graphics path. A portable, non-root Omarchy layer now lets us test
+the complete UX without handing kernel, boot, disk, or service ownership to the
+upstream installer.
 
 Upstream has no safe bare installer for this root. See
 [`docs/OMARCHY-BASE.md`](docs/OMARCHY-BASE.md) for the exact stable/Quattro
@@ -71,7 +93,8 @@ evidence.
 
 ## What the Omarchy Quattro branch is
 
-The researched Quattro branch reports version `4.0.0.alpha`. Its repository is
+The pinned Quattro source reports version `4.0.0.alpha`, while the official
+package repository releases that exact commit as `4.0.0rc3`. Its repository is
 not a complete image installer. The branch's own contributor guide explains
 that a separate ISO owns installation orchestration, while the repository
 provides target-side setup commands, package lists, configuration, migrations,
@@ -194,31 +217,36 @@ installation or imported from USB.
 ### First-install flow
 
 1. Verify that the required jailbreak/homebrew environment is active.
-2. Detect firmware, PS4 model, southbridge, and available internal space.
+2. Detect firmware, PS4 model, southbridge, network, and external storage.
 3. Fetch a signed release manifest over HTTPS.
-4. Select a compatible kernel, initramfs, loader, and rootfs release.
-5. Let the user choose installation size and VRAM allocation.
+4. Select compatible kernel, initramfs, boot arguments, and rootfs artifacts.
+5. Confirm the exact external target by filesystem label and UUID.
 6. Download into a staging directory with resumable transfers.
 7. Verify file size, SHA-256 digest, and an offline release signature.
 8. Write boot assets through temporary filenames, `fsync`, and atomic rename.
-9. Write an install configuration consumed by the custom initramfs.
-10. Launch the embedded PS4 Linux loader.
-11. Let the initramfs create `root.img`, extract the rootfs, and boot it without
-    requiring a keyboard or rescue-shell commands.
-12. Record a successful boot before marking the new slot as trusted.
+9. Launch the PS4 Linux loader bundled inside the FPKG through GoldHEN's local
+   PayLoader.
+10. Let the installer initramfs write the verified rootfs to the confirmed USB
+    target; Orbis never edits ext4 or guesses a disk device.
+11. Create the owner and password inside Linux on first boot.
+12. Record successful boots before promoting the new boot set.
 
 ### Normal boot flow
 
 ```text
 FPKG manager
   -> select last-known-good boot slot
-  -> load kernel + initramfs + boot arguments
-  -> invoke PS4 Linux loader/kexec
-  -> decrypt and mount PS4 UFS in initramfs
-  -> attach root.img to loop device
-  -> mount Linux root
+  -> verify kernel + initramfs + boot arguments
+  -> send bundled PS4 Linux loader to GoldHEN PayLoader
+  -> loader invokes kexec
+  -> initramfs resolves external root label/UUID
   -> switch_root into Omarchy PS4
 ```
+
+The current executable protocol model, signed-manifest contract, local loader
+vendor tool, license boundary, and controller-style preview live together in
+[`fpkg/`](fpkg/README.md). Internal loop-image installation remains a separate
+future backend; it is not the first product target.
 
 ### Online and offline installation
 
@@ -249,8 +277,9 @@ The builder should:
 3. Install a PS4-specific package profile.
 4. Install Quattro desktop files and PS4 overrides.
 5. Remove PC bootloader and hardware-specific packages.
-6. Create the default user and controller-friendly first-run configuration.
-7. Enable networking, HDMI audio, SDDM, UWSM, Hyprland, and Quickshell.
+6. Leave the deferred-owner marker without creating a default credential.
+7. Enable only the tested networking and desktop services; retain XFCE as the
+   recovery session.
 8. Run validation in a chroot/container where possible.
 9. Produce a deterministic `rootfs.tar.zst` plus a signed manifest.
 
@@ -465,11 +494,16 @@ Exit condition: failed updates recover without reinstalling the distro.
 
 - Build an Omarchy derivative rather than patching the stock installer at
   runtime.
-- Target Aeolia/Belize first.
-- Use an internal loopback image, not a physical partition.
+- Target the tested PS4 Slim Baikal B1 first; expand only with hardware
+  evidence.
+- Use external USB for the first product; keep internal loopback images as a
+  later backend and never physically repartition Sony storage.
 - Use ext4 for the MVP.
 - Build packages off-console and distribute a signed binary repository.
 - Keep the FPKG small and download/import the rootfs separately.
+- Bundle the pinned Linux loader payload inside the FPKG so Install, Boot and
+  Repair use one application; GoldHEN remains a prerequisite.
+- Create the owner and password only during Linux first boot.
 - Manage kernel/initramfs separately from routine Pacman updates.
 - Require A/B boot assets and last-known-good rollback before public release.
 - Treat Hyprland plus Quickshell compatibility as the first hard gate.

@@ -7,6 +7,13 @@ readonly REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly WORKSPACE_DIR="$(cd "${REPO_DIR}/.." && pwd)"
 readonly SOURCE_INITRAMFS="${PS4_SOURCE_INITRAMFS:-${WORKSPACE_DIR}/linux-ps4-kernel/checkpoint/initramfs/initramfs-v26-with-edid.cpio.gz}"
 readonly INIT_SOURCE="${REPO_DIR}/rootfs/initramfs/init"
+readonly INSTALL_SOURCE="${REPO_DIR}/rootfs/initramfs/install-rootfs"
+readonly TOOLS_DIR="${REPO_DIR}/output/initramfs-tools"
+readonly SPLASH_BIN="${TOOLS_DIR}/omarchy-splash"
+readonly SPLASH_LOGO="${TOOLS_DIR}/omarchy-logo.pgm"
+readonly ZSTD_BIN="${TOOLS_DIR}/zstd"
+readonly MUSL_LOADER="${TOOLS_DIR}/ld-musl-x86_64.so.1"
+readonly LIBZSTD="${TOOLS_DIR}/libzstd.so.1"
 readonly OUTPUT_DIR="${REPO_DIR}/output/xfce-baseline"
 readonly OUTPUT_INITRAMFS="${OUTPUT_DIR}/initramfs.cpio.gz"
 
@@ -24,6 +31,16 @@ if [[ ! -x "${INIT_SOURCE}" ]]; then
   printf 'error: init script is missing or not executable: %s\n' "${INIT_SOURCE}" >&2
   exit 1
 fi
+if [[ ! -x "${INSTALL_SOURCE}" ]]; then
+  printf 'error: installer script is missing or not executable: %s\n' "${INSTALL_SOURCE}" >&2
+  exit 1
+fi
+for tool_input in "${SPLASH_BIN}" "${SPLASH_LOGO}" "${ZSTD_BIN}" "${MUSL_LOADER}" "${LIBZSTD}"; do
+  if [[ ! -f "${tool_input}" ]]; then
+    printf 'error: missing initramfs tool: %s (run scripts/build-initramfs-tools)\n' "${tool_input}" >&2
+    exit 1
+  fi
+done
 
 mkdir -p "${OUTPUT_DIR}"
 readonly WORK_DIR="$(mktemp -d "${OUTPUT_DIR}/.initramfs-work.XXXXXX")"
@@ -32,14 +49,18 @@ trap 'rm -rf "${WORK_DIR}"' EXIT
 orb -m ubuntu -u root bash -s -- \
   "${SOURCE_INITRAMFS}" \
   "${INIT_SOURCE}" \
+  "${INSTALL_SOURCE}" \
+  "${TOOLS_DIR}" \
   "${OUTPUT_INITRAMFS}" \
   "${WORK_DIR}" <<'BUILD'
 set -euo pipefail
 
 source_initramfs=$1
 init_source=$2
-output_initramfs=$3
-work_dir=$4
+install_source=$3
+tools_dir=$4
+output_initramfs=$5
+work_dir=$6
 source_dir="${work_dir}/source"
 root_dir="${work_dir}/root"
 
@@ -57,6 +78,7 @@ mkdir -p \
   "${root_dir}/etc" \
   "${root_dir}/lib/firmware/amdgpu" \
   "${root_dir}/lib/firmware/edid" \
+  "${root_dir}/lib" \
   "${root_dir}/newroot" \
   "${root_dir}/proc" \
   "${root_dir}/run" \
@@ -64,10 +86,17 @@ mkdir -p \
   "${root_dir}/sys" \
   "${root_dir}/tmp" \
   "${root_dir}/usr/bin" \
+  "${root_dir}/usr/lib" \
   "${root_dir}/usr/sbin"
 
 install -m 0755 "${source_dir}/bin/busybox" "${root_dir}/bin/busybox"
 install -m 0755 "${init_source}" "${root_dir}/init"
+install -m 0755 "${install_source}" "${root_dir}/install-rootfs"
+install -m 0755 "${tools_dir}/omarchy-splash" "${root_dir}/bin/omarchy-splash"
+install -m 0644 "${tools_dir}/omarchy-logo.pgm" "${root_dir}/etc/omarchy-logo.pgm"
+install -m 0755 "${tools_dir}/zstd" "${root_dir}/bin/zstd"
+install -m 0755 "${tools_dir}/ld-musl-x86_64.so.1" "${root_dir}/lib/ld-musl-x86_64.so.1"
+install -m 0644 "${tools_dir}/libzstd.so.1" "${root_dir}/usr/lib/libzstd.so.1"
 cp -a "${source_dir}/lib/firmware/amdgpu/." "${root_dir}/lib/firmware/amdgpu/"
 cp -a "${source_dir}/lib/firmware/edid/." "${root_dir}/lib/firmware/edid/"
 

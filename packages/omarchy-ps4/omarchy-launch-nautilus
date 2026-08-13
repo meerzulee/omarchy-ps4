@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Launch Files using the PS4-safe XFCE file manager
+
+exec setsid uwsm-app -- thunar "$HOME"

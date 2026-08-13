@@ -1,0 +1,24 @@
+{
+  // Preserve the full Omarchy menu while hiding operations that are unsafe or
+  // meaningless on the PS4 loader, legacy DCE8 display path, and external root.
+  "system.suspend": {"when":"false"},
+  "system.hibernate": {"when":"false"},
+  "system.reboot": {"when":"false"},
+  "trigger.toggle.nightlight": {"when":"false"},
+  "style.unlock": {"when":"false"},
+  "update.channel": {"when":"false"},
+  "update.firmware": {"when":"false"},
+  "update.config.hyprsunset": {"when":"false"},
+  "update.config.plymouth": {"when":"false"},
+  "update.process.hyprsunset": {"when":"false"},
+  "update.password.drive": {"when":"false"},
+  "install.gaming.xbox-controllers": {"when":"false"},
+
+  "ps4": {"icon":"󰊴","label":"PS4"},
+  "ps4.about": {
+    "icon":"",
+    "label":"Compatibility status",
+    "description":"Kernel, display, storage, network, audio, and media support",
+    "action":"xdg-terminal-exec --app-id=TUI.float -e omarchy-ps4-status"
+  }
+}

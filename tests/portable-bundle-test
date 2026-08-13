@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+[[ $# -eq 1 ]] || fail 'usage: portable-bundle-test BUNDLE_DIRECTORY'
+bundle=$1
+payload=$bundle/payload
+[[ -x $bundle/install ]] || fail 'portable installer is missing'
+[[ -x $bundle/check ]] || fail 'portable preflight is missing'
+[[ -f $payload/UPSTREAM_COMMIT ]] || fail 'upstream commit marker is missing'
+appledouble=$(find "$bundle" -type f -name '._*' -print -quit)
+[[ -z $appledouble ]] || fail "portable bundle contains macOS AppleDouble metadata: $appledouble"
+
+(
+  cd "$payload"
+  shasum -a 256 -c MANIFEST.sha256
+) >/dev/null
+
+for required in \
+  omarchy/bin/omarchy-menu \
+  omarchy/bin/omarchy-update \
+  omarchy/bin/omarchy-ps4-probe \
+  omarchy/bin/omarchy-ps4-status \
+  omarchy/lib/omarchy-ps4/upstream-bin/omarchy-update \
+  omarchy/shell/shell.qml \
+  config/hypr/hyprland.lua \
+  config/hyprland-xdg-terminals.list \
+  config/fastfetch/config.jsonc \
+  config/foot/foot.ini \
+  config/mimeapps.list \
+  config/omarchy/branding/about.txt \
+  config/omarchy/shell.json \
+  config/omarchy/shell.toml \
+  config/uwsm/env.d/10-omarchy-ps4; do
+  [[ -e $payload/$required ]] || fail "portable bundle is missing $required"
+done
+
+jq -e '.version == 1 and .bar.position == "top" and (.disabledPlugins | index("omarchy.idle"))' \
+  "$payload/config/omarchy/shell.json" >/dev/null || fail 'portable bar config is invalid'
+grep -Eq '^[[:space:]]*border-width[[:space:]]*=[[:space:]]*0[[:space:]]*$' \
+  "$payload/config/omarchy/shell.toml" || fail 'portable menu border workaround is missing'
+grep -Eq '^[[:space:]]*base-size[[:space:]]*=[[:space:]]*14[[:space:]]*$' \
+  "$payload/config/omarchy/shell.toml" || fail 'portable 1080p text preset is missing'
+grep -Eq '^[[:space:]]*scale-with-font[[:space:]]*=[[:space:]]*false[[:space:]]*$' \
+  "$payload/config/omarchy/shell.toml" || fail 'portable PS4 bar icon scale guard is missing'
+jq -e '
+  .logo.source == "~/.config/omarchy/branding/about.txt" and
+  any(.modules[]; type == "object" and .format == "Omarchy PS4 Quattro RC3") and
+  any(.modules[]; type == "object" and .type == "command" and .text == "omarchy-theme-current")
+' "$payload/config/fastfetch/config.jsonc" >/dev/null || \
+  fail 'portable PS4 Fastfetch config is invalid'
+cmp -s "$payload/omarchy/icon.txt" "$payload/config/omarchy/branding/about.txt" || \
+  fail 'portable About branding does not match the pinned Omarchy icon'
+portable_uwsm_env=$payload/config/uwsm/env.d/10-omarchy-ps4
+grep -Fqx 'export OMARCHY_PATH="$HOME/.local/share/omarchy-ps4/portable/current"' \
+  "$portable_uwsm_env" || fail 'portable UWSM environment does not select its versioned runtime'
+! grep -Fq 'env-bootstrap' "$portable_uwsm_env" || \
+  fail 'portable UWSM environment sources upstream bootstrap that resets OMARCHY_PATH'
+! grep -Fq 'require("hypr.autostart")' "$payload/config/hypr/hyprland.lua" || \
+  fail 'portable Hyprland config registers the PS4 autostart twice'
+grep -Fq 'omarchy-launch-shell' "$payload/omarchy/default/hypr/autostart.lua" || \
+  fail 'portable default autostart does not launch the Omarchy shell'
+grep -Fq 'default/fonts/omarchy/omarchy.ttf' "$bundle/install" || \
+  fail 'portable installer does not register the Omarchy icon font'
+grep -Fq 'fc-cache -f "$HOME/.local/share/fonts"' "$bundle/install" || \
+  fail 'portable installer does not refresh the user font cache'
+grep -Fq 'Unsupported on Omarchy PS4' "$payload/omarchy/bin/omarchy-update" || \
+  fail 'portable update command is not guarded'
+grep -Fq 'thunar' "$payload/omarchy/bin/omarchy-launch-nautilus" || \
+  fail 'portable file-manager command does not use Thunar'
+grep -Fq 'nautilus' "$payload/omarchy/lib/omarchy-ps4/upstream-bin/omarchy-launch-nautilus" || \
+  fail 'portable bundle did not preserve the upstream file-manager command'
+grep -Fq 'inode/directory=thunar.desktop' "$payload/config/mimeapps.list" || \
+  fail 'portable directory MIME handler does not use Thunar'
+[[ $(sed -E '/^[[:space:]]*(#|$)/d' "$payload/config/hyprland-xdg-terminals.list" | head -n1) == foot.desktop ]] || \
+  fail 'portable terminal preference does not select Foot first'
+grep -Fq 'hyprland-xdg-terminals.list' "$bundle/install" || \
+  fail 'portable installer does not activate the Hyprland terminal preference'
+grep -Fq 'config/current/foot' "$bundle/install" || \
+  fail 'portable installer does not activate the managed Foot configuration'
+grep -Fq 'omarchy-launch-shell' "$payload/omarchy/default/hypr/autostart.lua" || \
+  fail 'portable autostart does not launch the shell'
+! grep -Eq 'udiskie|powerprofiles|monitor-watch|provision-first-run' \
+  "$payload/omarchy/default/hypr/autostart.lua" || fail 'unsafe autostart leaked into portable bundle'
+! grep -Eq '(^|[[:space:]])(sudo|pacman|systemctl)([[:space:]]|$)' "$bundle/install" || \
+  fail 'portable installer contains a privileged system mutation command'
+
+printf '%s\n' 'Portable bundle policy passed.'

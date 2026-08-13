@@ -1,0 +1,12 @@
+pkgname=ttf-jetbrains-mono-nerd-basic
+pkgver=3.5.0
+pkgrel=1
+pkgdesc='OrbStack test-only compatibility name for the current JetBrains Mono Nerd package'
+arch=('any')
+license=('OFL-1.1-no-RFN')
+depends=('ttf-jetbrains-mono-nerd=3.5.0-1')
+
+package() {
+  install -Dm644 /dev/null \
+    "$pkgdir/usr/share/omarchy-ps4-test/ttf-jetbrains-mono-nerd-basic"
+}

@@ -3,6 +3,7 @@
 /build/
 /cache/
 /output/
+/upstream/omarchy.git/
 *.img
 *.iso
 *.pkg.tar.*
@@ -16,3 +17,4 @@
 # Editors and operating systems
 .DS_Store
 *.swp
+.gstack/

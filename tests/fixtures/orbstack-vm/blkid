@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $* == '-s LABEL -o value /tmp/fake-root' ||
+      $* == '-s LABEL -o value /dev/omarchy-test-root' ]]; then
+  printf '%s\n' 'OMARCHY-PS4'
+else
+  exec /usr/bin/blkid "$@"
+fi

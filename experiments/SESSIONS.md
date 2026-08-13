@@ -3237,6 +3237,2211 @@ but they are not evidence of a Linux 6.18 boot.
   constraint; do not force AMD DC until the PS4 HDMI bridge path is ported or a
   separately bounded boot experiment has a recovery plan
 
+### EXP-20260813-001-A1 — stage quiet splash boot set on existing USB
+
+- state: complete — pass
+- question: can the new installer-capable initramfs and quiet product command
+  line replace visible HDMI boot logs without changing the accepted kernel,
+  root filesystem, VRAM allocation, SATA selector, or desktop?
+- changed variable: boot presentation stack only — replace
+  `initramfs.cpio.gz` and `bootargs.txt` as one matched set; keep the exact
+  accepted `bzImage`, `vram.txt=1024`, `root=LABEL=OMARCHY-PS4`,
+  `libata.force=1.00:disable`, and existing ext4 root unchanged
+- preflight evidence: external Kingston DataTraveler is `/dev/disk12`, MBR,
+  FAT32 `disk12s1` (1 GiB, label `NO NAME`) plus Linux `disk12s2` (122.9 GB);
+  active kernel SHA-256 is
+  `b54490ed1f5d12432bf4ead11f27f1cf8aed008f0b76787c0060141b97414614`;
+  FAT has 1,046,556,672 bytes free. Existing `SHA256SUMS` is stale for the
+  SATA-disabled `bootargs.txt`
+- expected evidence: bounded logger continuity completes; old boot files are
+  preserved under one timestamped recovery directory; staged initramfs and
+  product bootargs match their pinned hashes; kernel and VRAM hashes do not
+  change; filesystem sync and unmount succeed
+- timeout: 5 minutes
+- rollback: restore the exact pre-A1 `initramfs.cpio.gz`, `bootargs.txt`, and
+  `SHA256SUMS` from the timestamped recovery directory; keep the existing 5.4
+  recovery directory untouched
+- bounded UART context:
+  [`20260813_195838_203631-exp-20260813-001-a1-stage-quiet-splash-boot-set-on-existing-usb-faa8f04e.md`](../../ps4-uart/sessions/20260813_195838_203631-exp-20260813-001-a1-stage-quiet-splash-boot-set-on-existing-usb-faa8f04e.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. The accepted kernel and `vram.txt=1024` were unchanged. The
+  active initramfs is now
+  `307fcce4d3a4893fb9a729c9c43dec886979afe088e7d6f44e430e1132709264`
+  and the quiet splash boot arguments are
+  `3c023f27188299545d4929adfa9c2738f01f6a5108a706135516b23a9d27ee2c`.
+  The prior initramfs, boot arguments and manifest are preserved under
+  `recovery/EXP-20260813-001-A1-before-splash/`; every active manifest entry
+  passed `shasum -a 256 -c SHA256SUMS`
+- UART conclusion: continuity completed. The compact context contains only
+  routine Orbis RNPS update failures while GoldHEN was idle; no logger restart,
+  serial reconnect, storage error or console-state change occurred
+- rollback: not applied; the exact pre-A1 initramfs SHA-256 is
+  `d4585d1533de7ceb798a3e4464e1d1eb29e167d9ee22a2841e5d5d3abecb446e`
+  and the exact pre-A1 boot-argument SHA-256 is
+  `aa406f0c017b1c6bed7a4755754c3c869d4185c6273b39e34bd8f8f2b39865ae`
+- next action: perform read-only FAT32 and ext4 checks and eject the USB as
+  `EXP-20260813-001-A2`; boot validation remains a later operator action
+
+### EXP-20260813-001-A2 — verify USB filesystems and eject
+
+- state: complete — fail; device intentionally left unmounted and not ejected
+- question: are both partitions on the prepared Kingston USB internally clean
+  after staging, so the device can be ejected without risking the Arch rootfs?
+- changed variable: no filesystem content; unmount `/dev/disk12`, run read-only
+  FAT32 and ext4 checks, then eject the exact external Kingston device only if
+  both checks pass
+- expected evidence: `fsck_msdos -n` reports the FAT32 boot volume clean;
+  `e2fsck -f -n` reports the ext4 root filesystem clean; `/dev/disk12`
+  disappears after a successful `diskutil eject`
+- timeout: 10 minutes
+- rollback: if either check fails or the device identity changes, do not repair
+  or eject; stop the session and leave the device unmounted for review. If the
+  checks abort cleanly, remount only the FAT partition with `diskutil mount`
+- bounded UART context:
+  [`20260813_200151_985425-exp-20260813-001-a2-verify-usb-filesystems-and-eject-edc6ebe9.md`](../../ps4-uart/sessions/20260813_200151_985425-exp-20260813-001-a2-verify-usb-filesystems-and-eject-edc6ebe9.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: fail. `diskutil verifyVolume` ran `fsck_msdos -n` and returned exit
+  code 0 for FAT32. Homebrew e2fsprogs 1.47.4 ran `e2fsck -f -n` against the
+  unmounted ext4 partition and returned exit code 4. It found deleted inode
+  `6292591` with zero deletion time, block- and inode-bitmap differences, and
+  free-block/free-inode count mismatches. Because `-n` suppresses journal
+  recovery and all repairs, the exact amount requiring repair remains unknown
+- UART conclusion: continuity completed with routine idle Orbis shell status
+  only; no logger restart, serial reconnect or PS4 storage action occurred
+- rollback: applied by stop condition. No repair-mode tool ran. Both partitions
+  remain unmounted and `/dev/disk12` remains attached; eject was withheld
+- next action: with explicit approval, run one unmounted ext4 repair as
+  `EXP-20260813-001-A3`, repeat the read-only check, and eject only after FAT32
+  and ext4 both pass
+
+### EXP-20260813-001-A3 — rebuild and restore the Kingston USB in OrbStack
+
+- state: complete — pass
+- question: can the damaged USB filesystem structure be rebuilt from zero
+  while preserving the exact working Arch/XFCE/Hyprland/Quattro development
+  root and the accepted 6.18.44 Baikal boot set?
+- changed variable: USB storage structure as one atomic rebuild — repair the
+  old ext4 only to make a private snapshot, replace the old 1 GiB FAT32 plus
+  ext4 layout with the product 2 GiB `PS4BOOT` plus remaining
+  `OMARCHY-PS4` layout, then restore the snapshot and accepted boot artifacts
+- resolved target: Kingston DataTraveler 3.0, USB 3.0, 123,983,626,240 bytes,
+  vendor/product `0951:1666`, serial `E0D55EA573F0194049CD0236`; macOS node is
+  `/dev/disk12`, OrbStack USB ID is `00210000`. No Linux block-device name is
+  assumed before dedicated passthrough
+- pinned boot evidence: kernel
+  `b54490ed1f5d12432bf4ead11f27f1cf8aed008f0b76787c0060141b97414614`,
+  initramfs
+  `307fcce4d3a4893fb9a729c9c43dec886979afe088e7d6f44e430e1132709264`,
+  product boot arguments
+  `3c023f27188299545d4929adfa9c2738f01f6a5108a706135516b23a9d27ee2c`,
+  and `vram.txt=1024`
+- expected evidence: OrbStack resolves the attached disk by Kingston model,
+  serial and 124 GB size; repair-mode `e2fsck` completes; a local snapshot and
+  SHA-256 are preserved before erasure; the repository USB preparation tool
+  creates only `PS4BOOT` FAT32 and `OMARCHY-PS4` ext4; restored root content
+  includes the existing owner, XFCE recovery, Hyprland, Quattro and Firefox;
+  both filesystems pass final read-only checks; boot artifacts match pinned
+  hashes; OrbStack detaches and macOS ejects the exact Kingston device
+- timeout: 90 minutes
+- rollback: after the destructive boundary, recreate the same two-partition
+  layout and restore the local pre-wipe snapshot. The repository XFCE archive
+  remains an independent baseline fallback. Do not touch PS4 internal storage
+- stop conditions: abort before `wipefs` if USB transport, model, serial, size,
+  partition count or UART continuity differs; abort after snapshot creation if
+  its archive test or SHA-256 fails; do not eject unless both final filesystem
+  checks pass
+- bounded UART context:
+  [`20260813_201155_610289-exp-20260813-001-a3-rebuild-and-restore-the-kingston-usb-in-orbs-2ae2efcf.md`](../../ps4-uart/sessions/20260813_201155_610289-exp-20260813-001-a3-rebuild-and-restore-the-kingston-usb-in-orbs-2ae2efcf.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. OrbStack dedicated USB passthrough resolved only the expected
+  Kingston as `/dev/sda` by model, serial and exact byte size. Repair-mode
+  e2fsck replayed the old journal, cleared six orphaned inodes and corrected
+  the free-block/free-inode counters; a second no-write check returned 0
+- pre-wipe recovery: the repaired live root is preserved locally as
+  `backups/EXP-20260813-001-A3-prewipe/omarchy-ps4-rootfs.tar.zst`, SHA-256
+  `11bee76882cf5aa7e3c5fbfe79ba6255ffedde5e4f4b11886a2c9468dafff4f0`;
+  its FAT companion is `ps4boot-fat.tar.zst`, SHA-256
+  `653088cb500608a1ad0a2d9d2a5c48d6120091ecadfacd61996a0de62fdb0389`.
+  Both zstd streams tested clean and required root/boot paths were enumerated
+  before erasure
+- rebuilt layout: DOS/MBR disk identifier `0x81dc94fb`; 2 GiB FAT32
+  `PS4BOOT` UUID `1A86-7AB8`; remaining 113.5 GiB ext4 `OMARCHY-PS4` UUID
+  `c465e199-07f3-49e0-8c0d-4da20feb29a2`. The repaired live snapshot was
+  restored with numeric ownership, ACLs and extended attributes
+- restored-content evidence: FAT `SHA256SUMS` validates the accepted kernel,
+  splash initramfs, product boot arguments and `vram.txt=1024`; the product
+  command line retains `libata.force=1.00:disable`. The root retains user
+  `ps4`, label-based fstab, XFCE recovery, Firefox `153.0.3-2`, Hyprland
+  `0.56.2-1`, Quickshell `0.3.0.r20.g28771c7-1`, and the existing Omarchy
+  user state
+- final integrity: after a full sync and unmount, `fsck.fat -n -v` returned 0
+  for `PS4BOOT` and `e2fsck -f -n` returned 0 for `OMARCHY-PS4`. OrbStack then
+  detached USB ID `00210000`; it reports `Machine: Not attached`. macOS did
+  not re-enumerate the Kingston as a block disk, so no guessed `diskutil`
+  target was used; the physical device entered a safe-removal state. The
+  operator then unplugged it, and `orb usb list` confirmed the Kingston is no
+  longer present while continuous CH340 UART capture remains READY
+- UART conclusion: continuity completed with routine idle Orbis shell, RNPS,
+  NetEv and heap messages only; no logger restart, serial reconnect or PS4
+  storage action occurred
+- rollback: not applied. The two validated local pre-wipe archives are the
+  exact restore path; the pinned repository XFCE rootfs remains the baseline
+  fallback
+- next action: physically move the safely detached Kingston to the PS4, then
+  define a separate bounded cold-boot experiment to validate splash, SATA-off,
+  USB root, HDMI, XFCE recovery and Omarchy login
+
+### EXP-20260813-001-A4 — connect rebuilt Kingston to GoldHEN PS4
+
+- state: complete — pass
+- question: does the GoldHEN-running PS4 remain stable when the freshly rebuilt
+  Kingston USB is connected before any Linux payload is launched?
+- changed variable: USB presence only — connect the serial-matched rebuilt
+  Kingston to the PS4; do not open a payload menu or launch Linux
+- precondition: operator reports GoldHEN is running; the Kingston was cleanly
+  detached after FAT32 and ext4 checks returned 0 in A3; continuous CH340 UART
+  must remain READY before the physical action
+- expected evidence: Orbis remains responsive; no error dialog, reboot or
+  kernel panic occurs; UART continuity completes without a USB/storage fault
+- timeout: 1 minute after insertion
+- rollback: if Orbis freezes, reboots or shows a storage error, do not launch
+  Linux; unplug only the rebuilt Kingston after reporting the visible outcome
+- stop condition: no Linux payload action belongs to A4. Close and review this
+  bounded session before defining the separate boot experiment
+- bounded UART context:
+  [`20260813_202940_749891-exp-20260813-001-a4-connect-rebuilt-kingston-to-goldhen-ps4-deba4912.md`](../../ps4-uart/sessions/20260813_202940_749891-exp-20260813-001-a4-connect-rebuilt-kingston-to-goldhen-ps4-deba4912.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. The operator reported completion with no error outcome. Orbis
+  identified the exact Kingston serial as `/dev/da1`, 242,155,520 sectors,
+  mounted partition 1 at `/mnt/usb0`, and left partition 2 unmounted because
+  ext4 is intentionally unknown to Orbis. No payload was launched
+- UART conclusion: routine whole-disk and partition automounter diagnostics
+  only. The expected external-HDD metadata checks failed because this is not a
+  Sony-encrypted extended-storage device; they were followed by a successful
+  partition-1 mount. No kernel panic, reboot, disconnect or storage I/O fault
+  occurred
+- rollback: not applied; the rebuilt Kingston remains connected to the PS4
+- next action: do not install an Omarchy manager FPKG because no native `.pkg`
+  is produced yet. Define a separate bounded boot experiment and launch the
+  already tested PS4 Linux Loader path against the staged USB boot set
+
+### EXP-20260813-001-A5 — cold boot rebuilt USB with 1024 MiB Linux loader
+
+- state: complete — degraded; boot passed, graphical scanout corrupted
+- question: does one launch of the previously successful 1024 MiB PS4 Linux
+  Loader boot the rebuilt USB through the splash initramfs into the restored
+  Linux desktop without the former ext4 corruption or internal-SATA delay?
+- changed variable: boot from the rebuilt USB once — use the same Vue After v2
+  1024 MiB Linux Loader path that previously reached the working HDMI desktop;
+  do not send a second payload or change loader, VRAM, boot files or ports
+- precondition: GoldHEN is running; A4 proved the exact Kingston is connected
+  as Orbis `/dev/da1`; FAT32 and ext4 passed host checks; continuous CH340 UART
+  must remain READY before payload launch
+- expected evidence: loader hands off to Linux 6.18.44-ps4-baikal; initramfs
+  resolves `PS4BOOT` and `OMARCHY-PS4`; no filesystem repair is requested;
+  SATA `1.00` does not cause the prior long timeout; HDMI shows splash then the
+  restored LightDM/XFCE or Omarchy session; keyboard and mouse remain usable
+- timeout: 4 minutes from payload launch
+- rollback: if boot stalls, HDMI remains black, or a filesystem/GPU fault
+  appears, do not resend the payload. Report HDMI, LED, controller and visible
+  state; stop/review UART, then power-cycle only in a separately declared action
+- stop condition: one payload launch only. A successful desktop appearance is
+  evidence for this boot, not yet multi-boot support promotion
+- bounded UART context:
+  [`20260813_204337_332929-exp-20260813-001-a5-cold-boot-rebuilt-usb-with-1024-mib-linux-lo-4556fc57.md`](../../ps4-uart/sessions/20260813_204337_332929-exp-20260813-001-a5-cold-boot-rebuilt-usb-with-1024-mib-linux-lo-4556fc57.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- payload evidence: the primary agent sent the pinned 313 KiB x86-64 loader
+  exactly once to GoldHEN PayLoader `192.168.50.215:9090`; SHA-256
+  `c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef0846d67fa9d1e5ce65`;
+  the TCP transfer returned 0 and the loader entered `sys_kexec`
+- boot result: pass through the graphical target. Linux
+  `6.18.44-ps4-baikal` initialized Liverpool/DCE8 with 1024 MiB VRAM; ATA
+  `1.00` was explicitly disabled; initramfs resolved `OMARCHY-PS4` to
+  `/dev/sda2` at 11.55 seconds and mounted the new ext4 UUID read/write without
+  fsck or repair. systemd reached SSH at 22.63 seconds and the graphical target
+  at 22.67 seconds, eliminating the former missing-root and long internal-SATA
+  paths
+- operator outcome: degraded. HDMI displayed severe full-screen blue/grey
+  tiled scanout corruption with a visible mouse pointer rather than a usable
+  desktop. This matches the class of prior Liverpool legacy-display corruption
+  but is materially worse than the accepted no-tiling desktop state
+- UART conclusion: the bridge completed its forced 1920x1080@60 sequences and
+  repeated the expected mode programming at graphical startup. No amdgpu page
+  fault, ring timeout, GPU reset, kernel panic, ext4 error or USB I/O error was
+  logged. The renamed systemd journal was an old unclean-shutdown journal file,
+  not an ext4 integrity failure
+- rollback: no live rollback attempted; no second payload was sent. Linux
+  remains running from the external USB with corrupted HDMI output
+- next action: inspect the restored root snapshot locally for the accepted
+  Mesa/Xorg no-tiling and session-selection state. If the cause is not proven
+  locally, define a separate bounded read-only SSH diagnostic before changing
+  one display variable
+
+### EXP-20260813-001-A6 — identify live corrupted graphical session
+
+- state: complete — pass; Xorg/XFCE path confirmed
+- question: is the corrupted boot running the configured XFCE/Xorg session,
+  where Xorg starts before the user `.xprofile` exports `AMD_DEBUG=notiling`,
+  rather than the previously accepted no-tiling Hyprland session?
+- changed variable: none; read-only SSH inspection of login sessions, graphical
+  processes, command lines, selected environment variables and recent display
+  service status. Do not restart or reconfigure the display stack
+- local preflight evidence: the restored root has LightDM
+  `autologin-session=xfce` and Xorg modesetting with default acceleration;
+  `/home/ps4/.xprofile` exports `AMD_DEBUG=notiling`, but LightDM launches Xorg
+  before its Xsession wrapper sources that user file. The A91 accepted result
+  specifically proved the variable inside LightDM-owned Hyprland and Quattro
+- expected evidence: live process/session inventory identifies Xorg plus XFCE;
+  XFCE clients may contain `AMD_DEBUG=notiling` while the Xorg server does not;
+  no GPU reset, page fault, filesystem error or service crash is introduced
+- timeout: 2 minutes
+- rollback: none for read-only inspection; close SSH and bounded UART session
+- stop condition: do not restart LightDM, terminate Xorg, launch Hyprland or
+  modify any file in A6
+- bounded UART context:
+  [`20260813_204938_900944-exp-20260813-001-a6-identify-live-corrupted-graphical-session-67cf918b.md`](../../ps4-uart/sessions/20260813_204938_900944-exp-20260813-001-a6-identify-live-corrupted-graphical-session-67cf918b.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. Batch-mode SSH at `192.168.50.125` found root-owned Xorg PID
+  369 on `:0`, `xfce4-session` PID 433 and `xfwm4` PID 498. No Hyprland or
+  Quickshell process exists. XFCE and xfwm4 contain `AMD_DEBUG=notiling`,
+  `DESKTOP_SESSION=xfce` and `XDG_SESSION_TYPE=x11`
+- conclusion: LightDM launches Xorg before its Xsession wrapper sources the
+  user's `.xprofile`; therefore the environment fixes Mesa clients but cannot
+  change Xorg glamor's already-created tiled buffers. This explains why A91's
+  no-tiling Hyprland restart improved HDMI while the restored default XFCE/Xorg
+  boot immediately reproduces macro-tile scanout corruption
+- UART conclusion: completed continuity with only the bounded SSH user session
+  lifecycle; no GPU, display, filesystem or USB fault appeared
+- rollback: none required; inspection was read-only
+- next action: test one Xorg variable in A7 — set the modesetting driver's
+  `AccelMethod` to `none`, restart only LightDM, and retain XFCE, kernel, mode,
+  boot files and all other state
+
+### EXP-20260813-001-A7 — disable Xorg glamor acceleration
+
+- state: complete — pass; clear XFCE scanout with degraded 2D performance
+- question: does setting only Xorg modesetting `AccelMethod` to `none` remove
+  the severe tiled scanout corruption while preserving the XFCE recovery
+  desktop at 1920x1080/60?
+- changed variable: add only `Option "AccelMethod" "none"` to the existing
+  `20-omarchy-ps4-modesetting.conf`, then restart LightDM once; retain XFCE,
+  autologin, kernel, Mesa no-tiling user environment, mode and boot state
+- expected evidence: a new Xorg/XFCE session starts without glamor-accelerated
+  buffers; HDMI becomes geometrically stable with a usable cursor, panel and
+  desktop; SSH remains available; UART has no GPU reset, page fault or ext4
+  error. Lower 2D performance is acceptable for this recovery baseline
+- timeout: 3 minutes after the LightDM restart
+- rollback: preserve the exact pre-A7 Xorg file remotely; if HDMI becomes black
+  or the display manager fails, restore it over SSH and restart LightDM once
+- stop condition: do not launch Hyprland, Quickshell or a second payload; do
+  not change damage tracking, cursor, mode or kernel in A7
+- bounded UART context:
+  [`20260813_205117_605290-exp-20260813-001-a7-disable-xorg-glamor-acceleration-4d0b1ebe.md`](../../ps4-uart/sessions/20260813_205117_605290-exp-20260813-001-a7-disable-xorg-glamor-acceleration-4d0b1ebe.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- candidate evidence: the staged configuration SHA-256 was
+  `0a95a7e7e60013d5e3b5f87e589d5f17b807c1efc20a8308680bd94c48e21983`.
+  The exact pre-A7 file is preserved on the console under
+  `/var/lib/omarchy-ps4/experiments/EXP-20260813-001-A7/`
+- result: pass. After exactly one LightDM restart, Xorg PID 1199 selected
+  1920x1080 and logged `glamor disabled` plus `ShadowFB: preferred YES,
+  enabled YES`; LightDM, XFCE and xfwm4 all restarted successfully. The
+  operator reported that HDMI loaded clear, removing A5's full-screen
+  macro-tile corruption
+- conclusion: the corruption came from Xorg modesetting glamor buffers whose
+  tiled layout is incompatible with Liverpool/DCE8 scanout on this legacy PS4
+  display path. The XFCE recovery baseline must use `AccelMethod none`; the
+  resulting software-rendered 2D desktop is intentionally classified degraded
+- UART conclusion: completed continuity. UART contained the expected LightDM
+  stop/start and display-bridge mode programming only; no GPU page fault, ring
+  timeout, reset, kernel panic, ext4 error or USB I/O error appeared
+- rollback: not applied because the display passed. The accepted setting is
+  installed on the live USB and promoted to the XFCE image overlay
+- next action: verify this recovery profile in a separate unchanged cold-boot
+  experiment before promotion beyond degraded; test Hyprland/Omarchy as an
+  independent path rather than changing the accepted XFCE baseline
+
+### EXP-20260813-001-A8 — activate the Omarchy Quattro session
+
+- state: complete — blocked by missing portable activation; no session change
+- question: can the restored, previously proven UWSM/Hyprland/Quattro profile
+  replace the currently clear XFCE session without reintroducing severe tiled
+  scanout corruption?
+- changed variable: graphical session profile only — synchronize LightDM and
+  the user session selector from `xfce` to `hyprland-uwsm`, retaining the
+  installed Quattro RC2 configuration and session-boundary
+  `AMD_DEBUG=notiling`, then restart LightDM exactly once. Keep kernel, HDMI
+  mode, boot files, VRAM, storage, network and user packages unchanged
+- precondition: A7 is closed with completed UART continuity and the operator
+  reports clear XFCE HDMI; continuous CH340 UART must remain READY before any
+  live SSH action
+- expected evidence: LightDM starts a UWSM-owned Wayland session; Hyprland and
+  Quickshell remain alive; the Quattro bar appears only at the top;
+  `Super+Space` opens the Omarchy menu; Foot, Thunar, keyboard and mouse work;
+  HDMI has no severe macro-tile corruption; SSH remains reachable; UART has no
+  GPU reset, page fault, kernel panic, ext4 error or USB I/O error
+- timeout: 5 minutes after the single LightDM restart
+- rollback: use the guarded session selector to synchronize both persistent
+  selectors back to `xfce`, then restart LightDM once in a separately declared
+  rollback action. The accepted A7 Xorg `AccelMethod none` recovery profile
+  remains installed and unchanged
+- stop condition: do not reboot, resend a payload, change Mesa, Quattro,
+  Hyprland, display mode, damage tracking, cursor, kernel or boot files in A8.
+  Stop and review A8 before any rollback or repair
+- bounded UART context:
+  [`20260813_210418_063824-exp-20260813-001-a8-activate-omarchy-quattro-session-4659bb88.md`](../../ps4-uart/sessions/20260813_210418_063824-exp-20260813-001-a8-activate-omarchy-quattro-session-4659bb88.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: stopped safely before the changed variable. SSH proved LightDM still
+  selects `xfce` and `.xprofile` contains `AMD_DEBUG=notiling`; Hyprland,
+  UWSM, Quickshell, Foot and Thunar are installed. The user still has the old
+  direct-Hyprland test configuration, however, and neither
+  `omarchy-launch-shell` nor the portable Quattro autostart is active. A8 would
+  therefore have launched bare Hyprland rather than Omarchy
+- UART conclusion: completed continuity with only two short SSH session
+  lifecycles; no display restart, GPU error, filesystem error or USB fault
+- rollback: none required. No selector, configuration, service or running
+  process was changed; clear A7 XFCE remains active
+- next action: install the locally validated RC2 portable user layer without
+  restarting the current session as A9, close/review it, then activate the
+  complete Omarchy profile in a separately bounded A10
+
+### EXP-20260813-001-A9 — install portable Omarchy Quattro RC2 user layer
+
+- state: complete — pass
+- question: can the pinned Quattro RC2 portable bundle atomically replace the
+  old test user configuration with its complete Omarchy command, theme, menu,
+  bar and Hyprland configuration while leaving clear XFCE running?
+- changed variable: user-owned portable Omarchy layer only — transfer and run
+  `omarchy-ps4-portable-4.0.0rc2-38542a1.tar.zst`, SHA-256
+  `f43b0e0a4d91ca6c75a0ad15a31c3c854829da5caa0b01e5861a0c8c87e4daf7`,
+  as user `ps4`. Do not run Pacman, write `/etc`, select a session, or restart
+  any service
+- expected evidence: bundle preflight validates x86-64, USB root label and
+  transport plus all runtime commands; payload manifest passes; the pinned
+  commit `38542a1f513740559660a468ffbf68ed082b2381` becomes the active portable
+  release; user config symlinks resolve inside the versioned install;
+  `omarchy-launch-shell` and `omarchy-menu` resolve through the session PATH;
+  XFCE, HDMI, SSH and UART remain healthy
+- timeout: 5 minutes
+- rollback: run the exact user-owned `ROLLBACK.sh` created by the installer;
+  it restores the old direct-Hyprland test config and removes only this pinned
+  portable release. Do not restart LightDM during A9
+- stop condition: stop and review immediately after installation and read-only
+  validation. Session activation belongs only to A10
+- bounded UART context:
+  [`20260813_210558_447508-exp-20260813-001-a9-install-portable-omarchy-quattro-rc2-user-la-4ab0f4c5.md`](../../ps4-uart/sessions/20260813_210558_447508-exp-20260813-001-a9-install-portable-omarchy-quattro-rc2-user-la-4ab0f4c5.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. The transferred archive matched its pinned SHA-256. Preflight
+  resolved x86-64, every required runtime command, `/dev/sda2` label
+  `OMARCHY-PS4`, and USB transport. The payload manifest passed and commit
+  `38542a1f513740559660a468ffbf68ed082b2381` is active under the versioned
+  user-owned runtime and configuration roots
+- activation evidence: `~/.config/hypr`, `~/.config/omarchy`,
+  `~/.config/mimeapps.list`, and the UWSM environment resolve into the pinned
+  configuration release. That environment exports the portable command path
+  and `AMD_DEBUG=notiling`; Hyprland autostart invokes
+  `omarchy-launch-shell`. The executable rollback is
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A9-20260813T150647Z/ROLLBACK.sh`
+- runtime preservation: XFCE PID 1235 remained active; Hyprland and Quickshell
+  were absent as required; LightDM, NetworkManager and sshd remained active
+- UART conclusion: completed continuity with expected SSH sessions and routine
+  MT7668 P2P diagnostics only; no display restart, GPU error, filesystem error
+  or USB fault appeared
+- rollback: not applied because installation and validation passed
+- next action: activate the complete portable profile as A10 by synchronizing
+  both LightDM selectors to `hyprland-uwsm` and restarting LightDM once
+
+### EXP-20260813-001-A10 — start UWSM Hyprland with Omarchy Quattro RC2
+
+- state: complete — fail; Hyprland started but portable path was reset
+- question: does the complete pinned portable profile start as a usable
+  Omarchy Quattro desktop on physical HDMI with the no-tiling adaptation?
+- changed variable: active graphical session only — synchronize LightDM and
+  `.dmrc` from `xfce` to `hyprland-uwsm`, then restart LightDM exactly once.
+  Retain the A9 portable files, `AMD_DEBUG=notiling`, kernel, HDMI mode, VRAM,
+  boot files, packages, network and storage unchanged
+- expected evidence: a UWSM-owned Wayland session starts Hyprland and
+  Quickshell from pinned commit `38542a1`; the Quattro bar is present only on
+  the top edge; `Super+Space` opens the Omarchy menu; Foot opens; keyboard,
+  mouse and HDMI remain usable; SSH survives; UART has no GPU reset, page
+  fault, kernel panic, ext4 error or USB I/O error
+- timeout: 5 minutes after the single LightDM restart
+- rollback: after closing A10, synchronize the selectors to `xfce` and restart
+  LightDM once in a separate bounded action. This returns to A7's clear Xorg
+  ShadowFB recovery desktop without uninstalling the portable layer
+- stop condition: no reboot, payload, package transaction, config edit,
+  display tuning, damage-tracking change or retry in A10. If activation fails,
+  record the visible state and close/review before rollback
+- operator action: after the Omarchy desktop appears, move the mouse, press
+  `Super+Space` once, then press `Super+Enter` once. Report whether the top bar,
+  Omarchy menu and Foot terminal are visible and whether any corruption or
+  stutter appears
+- bounded UART context:
+  [`20260813_210757_902706-exp-20260813-001-a10-start-uwsm-hyprland-with-omarchy-quattro-rc-01d04939.md`](../../ps4-uart/sessions/20260813_210757_902706-exp-20260813-001-a10-start-uwsm-hyprland-with-omarchy-quattro-rc-01d04939.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- selector evidence: the guarded helper synchronized LightDM and `.dmrc` to
+  `hyprland-uwsm`, preserving the exact prior selectors under
+  `/var/lib/omarchy-ps4/experiments/EXP-20260813-001-A10-20260813T150823Z`.
+  Exactly one LightDM restart completed successfully
+- result: fail at portable configuration, not at the compositor or hardware
+  layer. UWSM started Hyprland PID 2096 on a Wayland seat with
+  `AMD_DEBUG=notiling`; the operator confirmed visible Hyprland but reported
+  errors. Quickshell did not start and no layer surfaces were present
+- exact error: `hyprctl configerrors` reported
+  `cannot open /usr/share/omarchy/default/hypr/bootstrap.lua`. The portable
+  UWSM environment first selected the versioned runtime, then sourced upstream
+  `default/bash/env-bootstrap`; that upstream production helper deliberately
+  reset `OMARCHY_PATH` to `/usr/share/omarchy`. Hyprland therefore loaded the
+  portable user config against a nonexistent system-package runtime
+- UART conclusion: completed continuity across the single planned display
+  restart. The legacy bridge ran its expected 1920x1080 split mode sequence;
+  there was no GPU page fault, ring timeout, reset, kernel panic, ext4 error or
+  USB I/O fault
+- rollback: not yet applied. The failed Hyprland session remains running and
+  reachable by SSH; no retry or config change occurred within A10
+- next action: as A11, remove only the upstream `env-bootstrap` sourcing from
+  the portable UWSM environment, validate the resolved path without restarting
+  the active failed session, then close/review before A12
+
+### EXP-20260813-001-A11 — preserve portable OMARCHY_PATH in UWSM
+
+- state: complete — pass
+- question: does removing the inappropriate upstream production bootstrap keep
+  `OMARCHY_PATH` pinned to the user-owned portable release for the next UWSM
+  session?
+- changed variable: one installed user environment file only — replace
+  `~/.local/share/omarchy-ps4/portable/config/38542a1f513740559660a468ffbf68ed082b2381/uwsm/env.d/10-omarchy-ps4`
+  with the corrected candidate, SHA-256
+  `9514700eb7f5eb23eda72074a2012ca7f5f3e7290bf1e53fb6b0a78cb1ee411d`.
+  It retains the portable path, no-tiling, terminal and editor exports but no
+  longer sources `default/bash/env-bootstrap`
+- source evidence: the repository portable source is corrected, the bundle
+  policy test now rejects `env-bootstrap`, and rebuilt RC2 archive SHA-256 is
+  `f6cb86b168a9edf93309446773de8e9c176ccb99d8bf5dc90eb8c087a1dc74e5`.
+  The exact A9 archive is preserved under
+  `output/superseded/2026-08-13-portable-omarchy-path-reset/`
+- expected evidence: the installed file matches the candidate hash; evaluating
+  it in a clean shell resolves `OMARCHY_PATH` to the versioned portable
+  `current` symlink and keeps the portable `bin` first in PATH; its manifest
+  targets exist; the active failed Hyprland PID and LightDM session are not
+  restarted; SSH and UART remain healthy
+- timeout: 3 minutes
+- rollback: preserve and restore the exact pre-A11 environment file. No
+  LightDM restart or selector change belongs to A11
+- stop condition: close and review after file and offline-environment
+  validation. Do not reload Hyprland, start Quickshell or retry activation
+- bounded UART context:
+  [`20260813_211200_007233-exp-20260813-001-a11-preserve-portable-omarchy-path-in-uwsm-7651c403.md`](../../ps4-uart/sessions/20260813_211200_007233-exp-20260813-001-a11-preserve-portable-omarchy-path-in-uwsm-7651c403.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. The installed UWSM file matches candidate SHA-256
+  `9514700eb7f5eb23eda72074a2012ca7f5f3e7290bf1e53fb6b0a78cb1ee411d`.
+  A clean-shell evaluation resolves `OMARCHY_PATH` to the versioned portable
+  `current` symlink, prepends its `bin`, retains `AMD_DEBUG=notiling`, and finds
+  both `default/hypr/bootstrap.lua` and `omarchy-launch-shell`
+- preservation evidence: active failed Hyprland PID 2096 remained unchanged;
+  Quickshell remained absent; no service, selector or session was restarted.
+  The exact pre-A11 file and restoration command are stored under
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A11-20260813T151200Z/`
+- UART conclusion: completed continuity with three short SSH session
+  lifecycles only; no display, GPU, filesystem or USB fault appeared
+- rollback: not applied because offline validation passed
+- next action: restart LightDM exactly once as A12, keeping the already selected
+  `hyprland-uwsm` profile, then validate Quattro and collect the operator result
+
+### EXP-20260813-001-A12 — restart corrected Omarchy Quattro session
+
+- state: complete — degraded fail; Quattro runs but Hyprland config is incomplete
+- question: does one fresh UWSM/Hyprland login with the corrected portable path
+  load the complete Quattro shell without the A10 configuration error?
+- changed variable: consume the corrected A11 environment in a fresh graphical
+  session by restarting LightDM exactly once. Keep both selectors at
+  `hyprland-uwsm` and retain every config, package, kernel, display, storage,
+  network and boot value unchanged
+- expected evidence: new Hyprland environment contains the portable
+  `OMARCHY_PATH` and `AMD_DEBUG=notiling`; `hyprctl configerrors` is empty;
+  Quickshell is alive and `omarchy-shell shell ping` returns `ok`; the bar is
+  only on top; `Super+Space` opens the menu and `Super+Enter` opens Foot;
+  keyboard, mouse and HDMI remain usable without severe corruption; UART has
+  no GPU reset, page fault, kernel panic, ext4 error or USB I/O error
+- timeout: 5 minutes after the single restart
+- rollback: after closing A12, use the guarded selector helper to select
+  `xfce`, then restart LightDM once in a separate bounded recovery action
+- stop condition: no second restart, config edit, shell relaunch, package
+  transaction, reboot, payload or display tuning in A12. Report the visible
+  result and close/review before any recovery
+- operator action: when the desktop settles, move the mouse, press
+  `Super+Space` once, close the menu if necessary, then press `Super+Enter`
+  once. Report top bar, menu, terminal, responsiveness and any visual artifact
+- bounded UART context:
+  [`20260813_211316_155171-exp-20260813-001-a12-restart-corrected-omarchy-quattro-session-480363d7.md`](../../ps4-uart/sessions/20260813_211316_155171-exp-20260813-001-a12-restart-corrected-omarchy-quattro-session-480363d7.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- environment result: pass. One LightDM restart started Hyprland PID 2562 with
+  the corrected portable `OMARCHY_PATH`, portable-first PATH,
+  `AMD_DEBUG=notiling`, and a Wayland session
+- shell result: degraded pass. Two `omarchy-launch-shell` supervisors and two
+  Quickshell processes appeared; `omarchy-shell shell ping` returned `ok`, and
+  Hyprland exposed `omarchy-background` plus `omarchy-bar` layers. This proves
+  the RC2 shell is running but duplicate startup is not accepted
+- configuration result: fail. `hyprctl configerrors` reports module
+  `default.hypr.apps.._1password` missing while `require_all.lua` processes the
+  applications directory. Configuration evaluation stops before the complete
+  bindings can be accepted, so the operator key test was deliberately withheld
+- UART conclusion: completed continuity across exactly one restart with the
+  expected 1920x1080 legacy bridge sequence. No GPU page fault, ring timeout,
+  reset, kernel panic, ext4 error or USB I/O error appeared
+- rollback: not applied. The running degraded Omarchy session remains reachable
+  through SSH; no second restart, shell relaunch or config edit occurred
+- next action: inspect only the live pinned application directory and startup
+  registration as A13 to identify the exact unexpected filename and duplicate
+  launch source before changing either
+
+### EXP-20260813-001-A13 — identify Quattro Lua filename and duplicate startup
+
+- state: complete — pass; AppleDouble contamination proven
+- question: what exact live file produces module
+  `default.hypr.apps.._1password`, and why are two Quickshell supervisors alive
+  after one corrected session start?
+- changed variable: none; read-only SSH inspection of the pinned portable
+  application filenames, inode/type metadata, relevant manifest entries,
+  Hyprland event/autostart registrations, process parents and user units
+- expected evidence: identify the exact unexpected path and its provenance;
+  identify whether duplicate launch comes from two config registrations, an
+  XDG autostart unit, or a surviving process; keep Hyprland PID 2562 and both
+  Quickshell processes unchanged; UART remains healthy
+- timeout: 3 minutes
+- rollback: none for read-only inspection
+- stop condition: do not remove a file, stop a process, reload config, restart
+  LightDM, press bindings or change any package/configuration in A13
+- bounded UART context:
+  [`20260813_211518_114848-exp-20260813-001-a13-identify-quattro-lua-filename-and-duplicate-3a39782b.md`](../../ps4-uart/sessions/20260813_211518_114848-exp-20260813-001-a13-identify-quattro-lua-filename-and-duplicate-3a39782b.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. The live pinned runtime contains 1,796 macOS AppleDouble
+  `._*` files and the pinned configuration contains 77. In
+  `default/hypr/apps`, every real Lua file has a 163-byte `._` companion,
+  including the exact `._1password.lua` that `require_all.lua` converted to
+  invalid module `default.hypr.apps.._1password`
+- duplicate evidence: only `~/.config/hypr/autostart.lua` registers
+  `omarchy-launch-shell`; there is no matching XDG autostart or user service.
+  Both launcher supervisors are direct children of Hyprland PID 2562 and each
+  owns one Quickshell child in the compositor cgroup. With configuration
+  evaluation already failing, remove archive contamination before deciding
+  whether the duplicate callback needs an independent fix
+- source correction: portable archives are now created with macOS metadata
+  disabled; the installer and bundle test reject any `._*` payload file. New
+  archive SHA-256 is
+  `34b389a6a713dcd25726d330056aee0adafaae842f545b75399e72cb6953c1e8`.
+  An OrbStack Ubuntu extraction contained zero AppleDouble files and its
+  payload manifest passed
+- UART conclusion: completed continuity with two read-only SSH sessions only;
+  no process, file, display or hardware state changed and no fault appeared
+- rollback: none required
+- next action: quarantine only the 1,873 live `._*` files into a reversible
+  user-owned A14 backup without reloading or restarting the running session
+
+### EXP-20260813-001-A14 — quarantine live AppleDouble metadata
+
+- state: complete — pass
+- question: can all archive-generated `._*` metadata be removed from the
+  active pinned runtime/config while preserving every real Omarchy file and
+  the running degraded session?
+- changed variable: AppleDouble metadata presence only — move the 1,796 runtime
+  and 77 configuration `._*` files, preserving relative paths, into
+  `~/.local/state/omarchy-ps4/portable/EXP-20260813-001-A14-appledouble/`.
+  Do not remove or rewrite any non-`._*` path
+- expected evidence: active runtime and config contain zero `._*` files;
+  exactly 1,873 files exist in the quarantine tree; real `1password.lua`,
+  portable bootstrap, launcher and configs retain their pre-A14 hashes;
+  Hyprland PID 2562 and the current Quickshell processes remain unchanged;
+  SSH and UART stay healthy
+- timeout: 4 minutes
+- rollback: move each quarantined file back to its recorded relative path. No
+  config reload or LightDM restart belongs to A14
+- stop condition: do not stop duplicate processes, reload Hyprland, restart a
+  service or test bindings in A14. Clean evaluation belongs to A15
+- bounded UART context:
+  [`20260813_211804_701146-exp-20260813-001-a14-quarantine-live-appledouble-metadata-948b0328.md`](../../ps4-uart/sessions/20260813_211804_701146-exp-20260813-001-a14-quarantine-live-appledouble-metadata-948b0328.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. Exactly 1,796 runtime and 77 configuration AppleDouble files
+  moved into the user-owned quarantine, for 1,873 total. Zero `._*` files
+  remain under either active pinned tree
+- preservation evidence: SHA-256 controls for real `1password.lua`, Hyprland
+  bootstrap, shell launcher, top-level PS4 Hyprland/autostart configuration and
+  UWSM environment all passed after the move. Hyprland PID 2562 and both
+  pre-existing launcher/Quickshell pairs remained unchanged; LightDM,
+  NetworkManager and sshd remained active
+- rollback: the exact relative path lists, files and control hashes are under
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A14-appledouble/`;
+  rollback was not applied
+- UART conclusion: completed continuity with two short SSH sessions only; no
+  display, process or hardware transition and no fault appeared
+- next action: restart LightDM exactly once as A15 and require clean Hyprland
+  configuration plus exactly one Quattro shell before the physical key test
+
+### EXP-20260813-001-A15 — start metadata-clean Omarchy Quattro session
+
+- state: complete — degraded fail; config clean, shell duplicated
+- question: does one fresh session after AppleDouble quarantine fully evaluate
+  the Omarchy Lua configuration and start exactly one usable Quattro shell?
+- changed variable: consume the metadata-clean A14 runtime in a fresh session
+  by restarting LightDM exactly once. Keep selectors, portable path, no-tiling,
+  every real file, package, kernel, mode, storage, network and boot value fixed
+- expected evidence: `hyprctl configerrors` is empty; one Hyprland and exactly
+  one `omarchy-launch-shell` plus Quickshell pair run; shell IPC returns `ok`;
+  only top bar/background layers exist; `Super+Space` opens the Omarchy menu;
+  `Super+Enter` opens Foot; mouse/keyboard and HDMI are responsive without
+  severe corruption; UART has no GPU reset, page fault, panic, ext4 or USB error
+- timeout: 5 minutes after the single restart
+- rollback: after closing A15, synchronize selectors to `xfce` and restart
+  LightDM once in a separate bounded recovery action if the session is unusable
+- stop condition: no retry, config edit, process kill, shell relaunch, package
+  transaction, reboot, payload or display tuning in A15
+- operator action: after the desktop settles, move the mouse; press
+  `Super+Space` once; close the menu if needed; press `Super+Enter` once. Report
+  the top bar, menu, terminal, responsiveness and any visual artifact
+- bounded UART context:
+  [`20260813_211925_392491-exp-20260813-001-a15-start-metadata-clean-omarchy-quattro-sessio-151dc027.md`](../../ps4-uart/sessions/20260813_211925_392491-exp-20260813-001-a15-start-metadata-clean-omarchy-quattro-sessio-151dc027.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- configuration result: pass. One LightDM restart produced Hyprland PID 10241
+  with portable `OMARCHY_PATH`, `AMD_DEBUG=notiling`, and no output from
+  `hyprctl configerrors`. AppleDouble quarantine therefore resolved the Lua
+  module failure
+- shell result: degraded fail. Shell IPC returned `ok` and bar/background
+  layers exist, but Hyprland started two launcher supervisors and two
+  Quickshell children again. The physical key test was withheld because the
+  acceptance criterion requires one shell owner
+- cause: pinned `default.hypr.omarchy` already requires the PS4-overridden
+  `default.hypr.autostart`; the PS4 top-level config also required the same file
+  through module name `hypr.autostart`, registering its callback a second time
+- UART conclusion: completed continuity across exactly one display restart,
+  with the expected legacy bridge sequence and no GPU page fault, ring timeout,
+  reset, kernel panic, ext4 error or USB fault
+- rollback: not applied. The clean but duplicate-shell session remains active;
+  no process was stopped and no retry occurred
+- next action: remove only the redundant top-level `require("hypr.autostart")`
+  as A16 without reloading, then restart once as A17
+
+### EXP-20260813-001-A16 — remove duplicate PS4 autostart registration
+
+- state: complete — pass
+- question: does removing the redundant top-level autostart import leave
+  exactly one PS4-safe shell launch registration for the next session?
+- changed variable: one installed user config file only — replace the pinned
+  `config/.../hypr/hyprland.lua` with candidate SHA-256
+  `ad14354d524a24c74ac590a6143b0f53b88792474dbb5dce5badb5fdc0176fc6`,
+  removing only `require("hypr.autostart")`. The PS4-overridden upstream
+  default autostart remains unchanged and still launches the shell once
+- source evidence: repository source and bundle regression test now reject the
+  redundant import; rebuilt archive SHA-256 is
+  `f270f2933791ddc04fe29ccca845f943448becdbe80e1981cbd281968d1f00ef`
+- expected evidence: installed hash matches; the top-level config has no local
+  autostart import; default autostart contains one shell launch; current
+  Hyprland PID 10241 and its two existing shells remain untouched; UART/SSH are
+  healthy
+- timeout: 3 minutes
+- rollback: preserve and restore the exact pre-A16 `hyprland.lua`; no reload,
+  process stop or LightDM restart belongs to A16
+- stop condition: close/review after offline validation. A fresh session and
+  process-count test belong only to A17
+- bounded UART context:
+  [`20260813_212132_538031-exp-20260813-001-a16-remove-duplicate-ps4-autostart-registration-112a8859.md`](../../ps4-uart/sessions/20260813_212132_538031-exp-20260813-001-a16-remove-duplicate-ps4-autostart-registration-112a8859.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. Installed `hyprland.lua` matches candidate SHA-256
+  `ad14354d524a24c74ac590a6143b0f53b88792474dbb5dce5badb5fdc0176fc6`,
+  contains no `require("hypr.autostart")`, and the PS4-overridden default
+  autostart contains exactly one `omarchy-launch-shell` invocation
+- preservation evidence: Hyprland PID 10241 and the two already-running shell
+  pairs remained unchanged. The exact previous file and restoration command
+  are stored under
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A16-20260813T152132Z/`
+- UART conclusion: completed continuity with one SSH lifecycle only; no
+  display, process or hardware transition and no fault appeared
+- rollback: not applied because offline validation passed
+- next action: restart LightDM once as A17 and require one clean shell owner
+  plus successful physical Omarchy keybindings
+
+### EXP-20260813-001-A17 — launch single-shell Omarchy Quattro desktop
+
+- state: complete — degraded pass; usable Omarchy Quattro POC
+- question: does one fresh session with the corrected portable path,
+  metadata-clean payload and single autostart registration deliver the usable
+  Omarchy Quattro POC?
+- changed variable: consume the accepted A11/A14/A16 corrections in a new
+  session by restarting LightDM exactly once. Keep selectors, all files,
+  no-tiling, packages, kernel, mode, storage, network and boot values unchanged
+- expected evidence: one Hyprland, one shell supervisor and one Quickshell;
+  empty `hyprctl configerrors`; shell IPC `ok`; top-only bar and background;
+  `Super+Space` opens the Omarchy menu; `Super+Enter` opens Foot; input and HDMI
+  are responsive without severe corruption; UART contains no GPU reset, page
+  fault, panic, ext4 or USB error
+- timeout: 5 minutes after the single restart
+- rollback: after closing A17, synchronize selectors to `xfce` and restart
+  LightDM once in a separately bounded recovery action if required
+- stop condition: no retry, config edit, process manipulation, package action,
+  reboot, payload or display tuning in A17
+- operator action: after I confirm clean remote state, move the mouse, press
+  `Super+Space` once, close the menu if necessary, then press `Super+Enter`
+  once. Report bar, menu, Foot, responsiveness and any visible artifact
+- bounded UART context:
+  [`20260813_212230_112029-exp-20260813-001-a17-launch-single-shell-omarchy-quattro-desktop-781a48a2.md`](../../ps4-uart/sessions/20260813_212230_112029-exp-20260813-001-a17-launch-single-shell-omarchy-quattro-desktop-781a48a2.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- remote result: pass. Exactly one Hyprland PID 12035, one
+  `omarchy-launch-shell`, and one Quickshell run. `hyprctl configerrors` is
+  empty; shell IPC returns `ok`; `omarchy-background` and `omarchy-bar` are the
+  active shell layers; portable path, Wayland and `AMD_DEBUG=notiling` are
+  present; LightDM, NetworkManager and sshd remain active
+- operator result: degraded pass. Mouse input works, `Super+Space` opens the
+  Omarchy menu, and `Super+Enter` opens the terminal. The operator reports a
+  little stutter on the menu border, the leftmost Omarchy bar icon is missing,
+  and the 1080p UI should be scaled slightly larger
+- UART conclusion: completed continuity across exactly one display restart and
+  the physical input test. The expected legacy bridge sequence appeared with
+  no GPU page fault, ring timeout, reset, kernel panic, ext4 error or USB fault
+- rollback: not applied. The accepted degraded Omarchy POC remains running
+- next action: perform read-only A18 inspection of actual monitor scale,
+  Omarchy icon-font availability, shell logs and terminal resolution before
+  changing one UX variable at a time
+
+### EXP-20260813-001-A18 — diagnose scale, missing bar icon and terminal choice
+
+- state: complete — pass; all three UX causes identified
+- question: are the small UI and missing leftmost icon explained by scale 1.0
+  and the portable install not registering `omarchy.ttf`, and what terminal
+  does pinned Quattro RC2 resolve on this root?
+- changed variable: none; read-only SSH inspection of Hyprland monitor JSON,
+  fontconfig matches and files, Quickshell warnings, `xdg-terminal-exec`
+  preference/resolution, installed terminal commands and current processes
+- expected evidence: exact active scale and logical size; whether font family
+  `omarchy` and private glyph U+E900 resolve; exact missing/present font path;
+  exact pinned/default terminal resolution; no process, config or service
+  changes; UART remains healthy
+- timeout: 3 minutes
+- rollback: none for read-only inspection
+- stop condition: do not install a font or terminal, rebuild font cache, change
+  scale, restart/reload Quickshell or Hyprland, or open another application
+- bounded UART context:
+  [`20260813_212741_924505-exp-20260813-001-a18-diagnose-scale-missing-bar-icon-and-termina-761bc488.md`](../../ps4-uart/sessions/20260813_212741_924505-exp-20260813-001-a18-diagnose-scale-missing-bar-icon-and-termina-761bc488.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- scale result: Hyprland reports HDMI-A-1 at 1920x1080/60 with scale exactly
+  `1.0`, explaining the requested larger UI
+- font result: `/usr/share/fonts/omarchy/omarchy.ttf` and the user font path are
+  absent. The portable runtime contains the valid font family `omarchy` with
+  charset U+E900–E905, but fontconfig does not index it and maps family
+  `omarchy` to Noto Sans. The bar requests U+E900 from family `omarchy`, exactly
+  explaining the blank leftmost logo
+- terminal result: pinned Quattro RC2 uses `xdg-terminal-exec` and ships
+  `foot.desktop` first in its Hyprland preference list. Only Foot is installed
+  among Foot/Ghostty/Kitty/Alacritty. The portable installer did not activate
+  that list, however, so live `xdg-terminal-exec --print-id` resolves the older
+  XFCE fallback while the session `TERMINAL` separately reads `foot`
+- menu result: no GPU/reset/render failure was logged during the physical menu
+  test. The slight border stutter remains a degraded legacy-rendering symptom
+  to measure after icon and scale are corrected
+- UART conclusion: completed continuity with two read-only SSH sessions only;
+  no display, process, configuration or hardware state changed
+- rollback: none required
+- next action: register the portable Omarchy font in the user font hierarchy as
+  A19 without restarting the shell, then restart only Quickshell as A20
+
+### EXP-20260813-001-A19 — register portable Omarchy icon font
+
+- state: complete — pass
+- question: does registering the pinned `omarchy.ttf` in the user font
+  hierarchy make family `omarchy` and glyph U+E900 resolvable without changing
+  the running shell?
+- changed variable: user font registration only — create
+  `~/.local/share/fonts/omarchy-ps4/omarchy.ttf` as a symlink to the pinned
+  portable runtime font, then refresh only the user font cache. Do not restart
+  or signal Quickshell/Hyprland
+- source evidence: the portable installer, rollback and preflight now own font
+  registration/cache handling; bundle tests enforce it. Rebuilt portable RC2
+  archive SHA-256 is
+  `7121ad73038e9b737264fc6dfc94254ded606b59a3bcdb3aa9ba30962672c4b1`
+- expected evidence: symlink resolves to the pinned font; `fc-match omarchy`
+  selects it; `fc-query` contains U+E900–E905; Hyprland PID 12035 and
+  Quickshell remain unchanged; UART/SSH stay healthy
+- timeout: 3 minutes
+- rollback: remove the new symlink, restore any pre-existing path captured by
+  A19, and refresh the user font cache. No shell restart belongs to rollback
+- stop condition: do not restart/reload a process, change scale or terminal, or
+  test the visible icon in A19. Visibility belongs to A20
+- bounded UART context:
+  [`20260813_213108_340982-exp-20260813-001-a19-register-portable-omarchy-icon-font-adfbbda8.md`](../../ps4-uart/sessions/20260813_213108_340982-exp-20260813-001-a19-register-portable-omarchy-icon-font-adfbbda8.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. The user font path now symlinks to the pinned Quattro runtime
+  font. `fc-match omarchy` selects that user path and reports family
+  `omarchy`; `fc-query` reports charset U+E900–E905
+- preservation evidence: Hyprland PID 12035 and Quickshell PID 12117 remained
+  unchanged. No process or service was restarted. Exact pre-A19 path state and
+  rollback data are preserved under
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A19-20260813T153108Z/`
+- UART conclusion: completed continuity with two short SSH sessions only; no
+  display transition or hardware fault appeared
+- rollback: not applied because font registration and resolution passed
+- next action: restart only the Omarchy Quickshell process as A20 and require
+  the leftmost bar icon to render while Hyprland stays unchanged
+
+### EXP-20260813-001-A20 — reload Quattro shell with registered icon font
+
+- state: complete — degraded pass
+- question: does one Quattro shell-only restart consume the registered
+  `omarchy.ttf` and render the missing leftmost bar icon without disturbing
+  Hyprland or HDMI?
+- changed variable: Quickshell process generation only — invoke the pinned
+  `omarchy-restart-shell` once. Do not reload/restart Hyprland or LightDM,
+  change monitor scale, terminal preference, package state or configuration
+- expected evidence: Hyprland PID 12035 remains; Quickshell PID 12117 is
+  replaced by exactly one new process; shell IPC returns `ok`; Hyprland
+  config errors remain empty; top bar/background layers return; the operator
+  sees the Omarchy icon at the far left and `Super+Space` still opens the menu;
+  UART has no GPU reset, page fault, panic, ext4 or USB error
+- timeout: 3 minutes
+- rollback: if the shell does not return, close A20 and launch one pinned shell
+  in a separate bounded recovery action. Do not repeat the restart in A20
+- stop condition: no scale, terminal, package, config or display-manager change
+  belongs to A20
+- operator action: after I confirm the replacement shell is healthy, inspect
+  the far-left bar icon and press `Super+Space` once; report icon, menu and any
+  visible corruption or stutter
+- bounded UART context:
+  [`20260813_213401_454905-exp-20260813-001-a20-reload-quattro-shell-with-registered-icon-f-60b7f12f.md`](../../ps4-uart/sessions/20260813_213401_454905-exp-20260813-001-a20-reload-quattro-shell-with-registered-icon-f-60b7f12f.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- remote result: pass. Hyprland remained PID 12035; the old Quickshell PID
+  12117 was replaced by PID 16310; exactly one Quickshell runs; shell IPC
+  returns `ok`; config errors are empty; and only the expected
+  `omarchy-background` and `omarchy-bar` layers returned
+- operator result: degraded pass. The far-left Omarchy icon now renders,
+  proving the registered font fix. The menu border still stutters, so that
+  rendering symptom is independent of the missing font
+- UART conclusion: completed continuity across one shell-only restart and the
+  physical menu test. No GPU reset, page fault, kernel panic, ext4 or USB fault
+  appeared
+- rollback: not applied because the shell and icon are healthy
+- next action: perform read-only A21 inspection of the actual terminal process,
+  terminal decoration path and installed-versus-portable Quattro/theme surface
+  before changing terminal or display configuration
+
+### EXP-20260813-001-A21 — inspect terminal chrome and portable theme coverage
+
+- state: complete — pass
+- question: which terminal is actually open, what creates its top pane/title
+  chrome, and how much of pinned Quattro RC2—including themes—is present in the
+  portable POC versus a full Omarchy system install?
+- changed variable: none; read-only source and SSH inspection of terminal
+  processes, desktop-terminal resolution, Foot configuration, active clients,
+  portable theme assets and full-profile/package manifests
+- expected evidence: exact running terminal executable/app class; exact
+  terminal preference and relevant decoration setting; counts/names of bundled
+  themes; explicit list of full-system parts not installed by the portable POC;
+  Hyprland PID 12035 and Quickshell PID 16310 unchanged
+- timeout: 4 minutes
+- rollback: none for read-only inspection
+- stop condition: do not close/open a terminal, edit a preference, hide a
+  titlebar, change theme/scale, restart a process or install a package in A21
+- bounded UART context:
+  [`20260813_213714_797444-exp-20260813-001-a21-inspect-terminal-chrome-and-portable-theme--78077b9e.md`](../../ps4-uart/sessions/20260813_213714_797444-exp-20260813-001-a21-inspect-terminal-chrome-and-portable-theme--78077b9e.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- terminal result: the only terminal client/process is PID 17255
+  `xfce4-terminal`; live `xdg-terminal-exec --print-id` resolves
+  `xfce4-terminal.desktop`. The user has no XDG terminal preference file and
+  no Foot config. The visible top pane is therefore XFCE Terminal's GTK
+  header/chrome, not Foot
+- theme result: all 22 pinned Quattro RC2 theme asset directories exist in the
+  portable runtime, but `~/.local/state/omarchy/current/theme.name` is absent,
+  so no managed Omarchy theme has been initialized on this root
+- installation result: this is the complete portable Quattro UX, not the full
+  workstation. Of the generated 153-package PS4-safe full profile, 100 package
+  names remain absent. The missing surface includes compilers/editor tools,
+  Chromium, LibreOffice, OBS, Kdenlive, Obsidian, Docker and other optional
+  workstation applications/services
+- rendering clue: pinned Quattro enables an animated Hyprland border at speed
+  5.39. This is a source-backed candidate for the remaining border-only
+  stutter, but A21 did not change or test it
+- preservation evidence: Hyprland PID 12035 and Quickshell PID 16310 remained
+  unchanged; no window, configuration, package or service changed
+- UART conclusion: completed continuity with two read-only SSH sessions only;
+  no hardware transition or fault appeared
+- rollback: none required
+- next action: activate only Quattro's XDG terminal preference as A22 so the
+  next explicit terminal launch resolves Foot; theme initialization and border
+  animation remain separate experiments
+
+### EXP-20260813-001-A22 — select Foot through Quattro terminal preference
+
+- state: complete — pass
+- question: does activating pinned Quattro's Hyprland XDG terminal preference
+  make terminal launches resolve Foot without closing the current XFCE
+  Terminal or changing the compositor?
+- changed variable: one user preference path only — create
+  `~/.config/hyprland-xdg-terminals.list` as a symlink to the pinned portable
+  runtime's list, whose first executable entry is `foot.desktop`. Do not alter
+  Foot configuration, current theme, bindings, windows or processes
+- source evidence: the portable installer/build/test now own and validate this
+  preference path. Rebuilt portable RC2 archive SHA-256 is
+  `08b6f07a6c1137bc1fe9a8a60cba444a819bd06aec8bb3791b70b6a69ac2e856`
+- expected evidence: the symlink resolves into commit
+  `38542a1f513740559660a468ffbf68ed082b2381`; its first executable entry is
+  `foot.desktop`; `xdg-terminal-exec --print-id` returns `foot.desktop`;
+  XFCE Terminal PID 17255, Hyprland PID 12035 and Quickshell PID 16310 remain
+  unchanged
+- timeout: 3 minutes
+- rollback: remove the symlink and restore any pre-existing path recorded by
+  A22. No process restart or terminal launch belongs to rollback
+- stop condition: do not launch/close a terminal, initialize a theme, edit Foot
+  config, tune borders/scale or restart a process in A22
+- bounded UART context:
+  [`20260813_213939_318812-exp-20260813-001-a22-select-foot-through-quattro-terminal-prefer-34be4218.md`](../../ps4-uart/sessions/20260813_213939_318812-exp-20260813-001-a22-select-foot-through-quattro-terminal-prefer-34be4218.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. The new preference symlink resolves into the pinned commit and
+  selects `foot.desktop` first. SSH has no desktop identity and therefore still
+  reports the legacy fallback, but the authoritative user-manager environment
+  is `XDG_CURRENT_DESKTOP=Hyprland`, `XDG_SESSION_TYPE=wayland`; under that
+  exact environment `xdg-terminal-exec --print-id` returns `foot.desktop`
+- preservation evidence: the existing XFCE Terminal PID 17255, Hyprland PID
+  12035 and Quickshell PID 16310 remained unchanged. Pre-A22 path state and
+  rollback data are under
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A22-20260813T154200Z/`
+- UART conclusion: completed continuity with two SSH sessions only; no window,
+  process or hardware transition and no fault appeared
+- rollback: not applied because session-context terminal resolution passed
+- next action: launch exactly one terminal with `Super+Enter` as A23 and verify
+  Foot plus removal of XFCE's top chrome
+
+### EXP-20260813-001-A23 — accept Foot terminal launch
+
+- state: complete — degraded pass
+- question: does one `Super+Enter` launch create a native Foot window without
+  XFCE Terminal's GTK top pane while preserving the running Quattro session?
+- changed variable: one new terminal window only — the operator presses
+  `Super+Enter` once. Do not close the existing XFCE Terminal or change any
+  config, theme, scale, border or process manually
+- expected evidence: one `foot` client/process appears; no second XFCE Terminal
+  process appears; Hyprland PID 12035 and Quickshell PID 16310 remain; the
+  operator sees a usable terminal without the unwanted top pane and reports
+  any artifact/stutter
+- timeout: 3 minutes
+- rollback: close the new Foot window after A23 if it is unusable. The existing
+  XFCE Terminal remains available throughout
+- stop condition: no second launch, terminal config edit, theme selection,
+  border/scale tuning or process restart belongs to A23
+- operator action: press `Super+Enter` exactly once, then report whether Foot
+  opens and whether the top pane is gone
+- bounded UART context:
+  [`20260813_214039_347341-exp-20260813-001-a23-accept-foot-terminal-launch-e92d837d.md`](../../ps4-uart/sessions/20260813_214039_347341-exp-20260813-001-a23-accept-foot-terminal-launch-e92d837d.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- terminal result: pass. One native Wayland Foot process/client appeared as PID
+  17587 with class and initial class `foot`. The original XFCE Terminal remains
+  PID 17255; no second XFCE Terminal appeared. Hyprland PID 12035 and
+  Quickshell PID 16310 remain unchanged; config errors are empty
+- operator result: degraded pass. The operator recognized a different terminal
+  application and additionally reported that `Super+Space` still produces a
+  border artifact. The new application is confirmed remotely as Foot. Exact
+  removal of the former top pane was not explicitly classified by the operator
+- correction to A21 hypothesis: the PS4 profile loads after upstream
+  look-and-feel and sets global animations disabled. The upstream animated
+  border declaration alone is therefore not sufficient to explain the live
+  artifact; effective live options and Quickshell menu styling must be checked
+- UART conclusion: completed continuity across the terminal launch and menu
+  observation; only a short SSH lifecycle appeared, with no hardware fault
+- rollback: not applied. Foot and the original XFCE Terminal remain open
+- next action: inspect effective animation/border options and Quickshell menu
+  styling read-only as A24 before changing one rendering variable
+
+### EXP-20260813-001-A24 — diagnose remaining menu-border artifact
+
+- state: complete — pass; one live candidate isolated
+- question: is the `Super+Space` artifact produced by an effective Hyprland
+  animation/gradient window border or by the Quickshell menu's own border and
+  transition styling?
+- changed variable: none; read-only SSH inspection of effective Hyprland
+  options, active clients/layers, Quickshell logs and pinned menu QML/style
+- expected evidence: effective global/border animation state and active border
+  color; exact menu border/transition implementation; relevant shell warnings;
+  Hyprland PID 12035, Quickshell PID 16310 and Foot PID 17587 unchanged
+- timeout: 4 minutes
+- rollback: none for read-only inspection
+- stop condition: do not open/close the menu or a terminal, change theme,
+  border, animation, scale or config, or restart any process in A24
+- bounded UART context:
+  [`20260813_214224_217032-exp-20260813-001-a24-diagnose-remaining-menu-border-artifact-576c143a.md`](../../ps4-uart/sessions/20260813_214224_217032-exp-20260813-001-a24-diagnose-remaining-menu-border-artifact-576c143a.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- effective compositor result: global animations are false; blur and shadows
+  are false; border width is 2. The active border remains the two-color
+  gradient `ee33ccff ee00ff99 45deg`; the inactive border is solid
+- shell result: the open `omarchy-menu` is a layer surface. Because no managed
+  theme has been initialized, its current menu border falls back to a uniform
+  color/width and takes Quickshell's native `Rectangle.border` path, not its
+  gradient `QtQuick.Shapes` overlay. The journal contains no rendering failure
+- conclusion: the live two-color Hyprland active-window gradient is the only
+  remaining gradient border effect established around the focused terminal
+  during the observed menu state. Replacing it temporarily with one of its
+  existing colors is the smallest evidence-backed comparison
+- preservation evidence: Hyprland PID 12035, Quickshell PID 16310 and Foot PID
+  17587 remained unchanged. No live option, config, window or process changed
+- UART conclusion: completed continuity with one read-only SSH session only;
+  no hardware fault appeared
+- rollback: none required
+- next action: replace only the live active-border gradient with its first
+  solid color as A25, then ask for one `Super+Space` comparison
+
+### EXP-20260813-001-A25 — test solid active border
+
+- state: complete — fail for hypothesis; diagnostic pass
+- question: does replacing the active-window two-color gradient with its first
+  solid color remove the `Super+Space` border artifact on the PS4 display path?
+- changed variable: effective `general:col.active_border` only — set it live
+  from `rgba(33ccffee) rgba(00ff99ee) 45deg` to `rgba(33ccffee)` with one
+  `hyprctl keyword`. Do not reload Hyprland or change width, animation, shell,
+  theme, scale, terminal or any file
+- expected evidence: effective active border becomes the single color;
+  Hyprland PID 12035, Quickshell PID 16310 and Foot PID 17587 remain; the
+  operator opens/closes `Super+Space` once and reports whether the border
+  artifact is gone, reduced or unchanged; UART has no GPU or kernel fault
+- timeout: 3 minutes
+- rollback: restore the exact two-color 45-degree gradient with one
+  `hyprctl keyword` after closing A25 if the comparison fails. Durable source
+  changes belong only after acceptance
+- stop condition: no retry, second option, config edit, reload, restart, theme
+  selection or scale change belongs to A25
+- operator action: after I confirm the single-color live option, press
+  `Super+Space` once, observe the border, then close it once and report
+- bounded UART context:
+  [`20260813_214339_392630-exp-20260813-001-a25-test-solid-active-border-20408df7.md`](../../ps4-uart/sessions/20260813_214339_392630-exp-20260813-001-a25-test-solid-active-border-20408df7.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- setter evidence: legacy `hyprctl keyword` was rejected by the Lua parser and
+  changed nothing. The required `hyprctl eval` then changed only the effective
+  active border from `ee33ccff ee00ff99 45deg` to solid `ee33ccff 0deg`;
+  Hyprland PID 12035, Quickshell PID 16310 and Foot PID 17587 remained
+- operator result: the supplied photograph shows a clean cyan Hyprland window
+  border behind the menu, while the broken/stuttering white rectangle is the
+  Quickshell menu card border. The artifact therefore remains and is not caused
+  by the Hyprland active-border gradient
+- conclusion: fail for the gradient hypothesis, pass for isolating the affected
+  surface as Quickshell's menu card. Do not carry the solid active border into
+  the image
+- UART conclusion: completed continuity across one effective border change and
+  physical menu observation; no GPU reset, page fault or kernel fault appeared
+- rollback: required. Restore the exact original gradient as A26 before testing
+  a menu-only change
+- next action: restore the original gradient as A26, then inspect/test only the
+  Quickshell menu card border path
+
+### EXP-20260813-001-A26 — restore accepted Hyprland gradient
+
+- state: complete — pass
+- question: can the rejected A25 comparison be rolled back exactly without
+  changing the shell or display session?
+- changed variable: effective `general:col.active_border` only — restore
+  `rgba(33ccffee) rgba(00ff99ee) 45deg` with one Lua `hyprctl eval`
+- expected evidence: effective gradient returns to
+  `ee33ccff ee00ff99 45deg`; Hyprland PID 12035, Quickshell PID 16310 and Foot
+  PID 17587 remain; config errors stay empty
+- timeout: 2 minutes
+- rollback: if the exact value cannot be restored, stop and keep the current
+  session unchanged; do not reload Hyprland
+- stop condition: no menu action, shell/style/config edit, restart, theme or
+  scale change belongs to A26
+- bounded UART context:
+  [`20260813_214717_329740-exp-20260813-001-a26-restore-accepted-hyprland-gradient-52ee823c.md`](../../ps4-uart/sessions/20260813_214717_329740-exp-20260813-001-a26-restore-accepted-hyprland-gradient-52ee823c.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. The parser rejected a gradient string and changed nothing; the
+  source-form Lua table then restored the effective value exactly to
+  `ee33ccff ee00ff99 45deg`
+- preservation evidence: Hyprland PID 12035, Quickshell PID 16310 and Foot PID
+  17587 remained unchanged; config errors are empty
+- UART conclusion: completed continuity across the exact rollback with no
+  display restart or hardware fault
+- rollback: complete; A25's solid comparison value is no longer active
+- next action: isolate a menu-card-only style override without touching the
+  accepted Hyprland border
+
+### EXP-20260813-001-A27 — disable only the PS4 menu-card border
+
+- state: complete — degraded pass; affected renderer isolated
+- question: does setting only Quickshell `[menu] border-width = 0` remove the
+  photographed broken white rectangle while leaving menu content and the
+  accepted Hyprland window border intact?
+- changed variable: one watched user shell-style file only — create
+  `~/.config/omarchy/shell.toml` containing only the `[menu]` section and
+  `border-width = 0`. Do not restart/reload Quickshell or Hyprland and do not
+  change theme, other surface borders, scale, terminal or packages
+- source evidence: `packages/omarchy-ps4-settings/ps4-shell.toml` now owns the
+  candidate for both the native settings package and portable bundle; tests
+  require it. Rebuilt portable RC2 archive SHA-256 is
+  `8757cdcc35e3a4d88d5501b6df4afa2e6b1bc2e7217dd47e0e7fe9dba2ace359`
+- expected evidence: the exact file is present and Quickshell remains PID
+  16310 with IPC `ok`; Hyprland remains PID 12035 with the original gradient;
+  Foot remains PID 17587; the operator toggles `Super+Space` once and reports
+  whether the white broken menu border is gone while content remains usable
+- timeout: 3 minutes
+- rollback: remove the new file or restore its exact pre-A27 copy; the watched
+  path should revert live. Do not restart a process
+- stop condition: no retry, second style token, theme initialization, scale,
+  config reload or process restart belongs to A27
+- operator action: after I confirm the override was consumed, press
+  `Super+Space` once, inspect the menu card, close it once and report
+- bounded UART context:
+  [`20260813_214936_454435-exp-20260813-001-a27-disable-only-the-ps4-menu-card-border-6abe281b.md`](../../ps4-uart/sessions/20260813_214936_454435-exp-20260813-001-a27-disable-only-the-ps4-menu-card-border-6abe281b.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- remote result: pass. The exact candidate SHA-256
+  `17bbef67e36d1c444194526fbd13044ef5d5159aad0410e0cddc98b612b40a46`
+  was consumed through Quickshell's watched user style path without restart.
+  Hyprland PID 12035 kept the original gradient, Quickshell PID 16310 and Foot
+  PID 17587 remained, shell IPC returned `ok`, and config errors stayed empty
+- operator result: degraded pass. The broken menu rectangle disappeared when
+  the menu border was disabled, proving the affected renderer/surface. The
+  menu consequently has no visible outer outline, so width zero is diagnostic
+  evidence rather than the final UX
+- unrelated interruption: the operator accidentally enabled FreeSync in the
+  monitor and reported display loss. Post-A27 Linux inspection reports
+  `vrr=false`, `misc:vrr=0`, HDMI connected/enabled, DPMS on and the sole
+  1920x1080@60 mode still active. This points to the monitor OSD setting rather
+  than a Linux VRR transition
+- UART conclusion: completed continuity. No GPU reset, page fault, kernel,
+  ext4 or USB fault appeared
+- rollback: the original Hyprland gradient is intact. The menu width-zero
+  candidate remains active for later refinement; display recovery takes
+  priority
+- next action: turn off monitor-side FreeSync/Adaptive Sync only as A28
+
+### EXP-20260813-001-A28 — disable monitor-side FreeSync
+
+- state: complete — inconclusive
+- question: does returning the monitor's own FreeSync/Adaptive Sync setting to
+  off restore the already-active fixed 1920x1080@60 PS4 Linux signal?
+- changed variable: monitor OSD FreeSync/Adaptive Sync only — operator uses the
+  monitor's physical controls to set it off. Do not change a Linux option,
+  toggle DPMS, unplug HDMI, restart Hyprland/LightDM or power-cycle the PS4
+- expected evidence: picture returns or remains stable; Linux continues to
+  report `vrr=false`, HDMI connected/enabled, DPMS on and 1920x1080@60;
+  operator reports the monitor OSD result; UART has no GPU or kernel fault
+- timeout: 3 minutes
+- rollback: none; VRR is unsupported on this PS4 legacy display path and must
+  stay off. If the picture does not return, close A28 and test a monitor-only
+  power cycle as a separate recovery action
+- stop condition: no Linux display command, gamma, brightness, menu-border,
+  scale, cable or process change belongs to A28
+- operator action: open the monitor's physical OSD, find Gaming/FreeSync or
+  Adaptive Sync, set it to Off, exit the OSD, and report whether HDMI returns
+- bounded UART context:
+  [`20260813_215832_904718-exp-20260813-001-a28-disable-monitor-side-freesync-a9ac5139.md`](../../ps4-uart/sessions/20260813_215832_904718-exp-20260813-001-a28-disable-monitor-side-freesync-a9ac5139.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: inconclusive. No operator report confirmed the final OSD value or
+  picture state before a reboot was requested. The bounded UART slice contains
+  only Wi-Fi roaming/key traffic and no DRM, GPU or kernel fault
+- post-session evidence: SSH remains reachable, systemd reports `running`, and
+  `/` is still external `/dev/sda2` labelled `OMARCHY-PS4`
+- rollback: none; Linux already reported VRR false before A28
+- next action: perform one requested clean Linux reboot as A29; this is new
+  evidence, not a repetition of the monitor-only A28 action
+
+### EXP-20260813-001-A29 — clean Linux reboot after monitor VRR incident
+
+- state: complete — pass; returned cleanly to Orbis boundary
+- question: does one clean systemd reboot return this accepted external-root
+  session and fixed 1080p60 display after the monitor FreeSync incident?
+- changed variable: one `sudo systemctl reboot` over SSH only. Keep USB, HDMI,
+  boot files, monitor settings and PS4 power state untouched
+- expected evidence: orderly shutdown on UART followed by either a new Linux
+  boot or a clear stop at the PS4 loader boundary; if Linux returns, external
+  `OMARCHY-PS4` root, network, HDMI 1920x1080@60, VRR false and session state
+  can be revalidated; operator reports the visible display result
+- timeout: 5 minutes
+- rollback: no second reboot. If PS4 Linux cannot self-return through its loader
+  boundary, close A29 and request the exact GoldHEN/payload action in a new
+  bounded session
+- stop condition: no payload, power cycle, cable, OSD, gamma, border or config
+  change belongs to A29
+- operator action: none until UART establishes whether the reboot returns to
+  Linux or to the Orbis/loader boundary
+- bounded UART context:
+  [`20260813_220701_857603-exp-20260813-001-a29-clean-linux-reboot-after-monitor-vrr-incide-b300cdf4.md`](../../ps4-uart/sessions/20260813_220701_857603-exp-20260813-001-a29-clean-linux-reboot-after-monitor-vrr-incide-b300cdf4.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. The requested reboot stopped the graphical/user services,
+  synchronized and unmounted every filesystem, detached device-mapper/loop
+  state, reached `System Reboot`, and emitted `reboot: Restarting system`
+- boundary result: the PS4 returned to Orbis rather than automatically loading
+  Linux, as expected for this payload/kexec boot chain. SSH did not return in
+  the bounded window; the operator then reported GoldHEN loaded
+- UART conclusion: completed continuity across orderly Linux shutdown and the
+  Orbis return. No unmount failure, ext4 fault or GPU reset appeared
+- rollback: none required; external USB was cleanly unmounted
+- next action: after source-owning the PS4 no-idle default, send the unchanged
+  pinned Linux loader once through the newly loaded GoldHEN PayLoader as A30
+
+### EXP-20260813-001-A30 — boot Linux after clean Orbis return
+
+- state: complete — pass
+- question: does one unchanged pinned loader send return the accepted external
+  USB Linux/Quattro root after the clean A29 reboot?
+- changed variable: one complete send of pinned v25 `linux-1024mb.elf` to
+  GoldHEN PayLoader `192.168.50.215:9090`, with no prior connection/probe. Do
+  not change the USB, boot files, VRAM, monitor, payload or PS4 power state
+- expected evidence: PayLoader accepts exactly one ELF, loader/kexec enters
+  Linux 6.18.44, initramfs finds `LABEL=OMARCHY-PS4`, systemd reaches the
+  graphical root, network/SSH returns at `192.168.50.125`, and the operator
+  reports fixed 1080p60 picture state; UART has no ext4, USB, GPU reset or panic
+- timeout: 5 minutes
+- rollback: no second payload. If PayLoader refuses before acceptance, close
+  A30 and restore PayLoader in a separate action; if Linux fails after
+  acceptance, preserve the exact UART result and return to Orbis separately
+- stop condition: exactly one payload connection; no readiness probe, reboot,
+  OSD, gamma, border, config or package change belongs to A30
+- operator action: none until remote/UART establishes Linux state; then report
+  the visible HDMI result
+- bounded UART context:
+  [`20260813_221230_596648-exp-20260813-001-a30-boot-linux-after-clean-orbis-return-cf42d0c6.md`](../../ps4-uart/sessions/20260813_221230_596648-exp-20260813-001-a30-boot-linux-after-clean-orbis-return-cf42d0c6.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- payload result: pass. One connection sent exactly 320,936 bytes of the pinned
+  v25 ELF with SHA-256
+  `c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef0846d67fa9d1e5ce65`;
+  no readiness probe or second send occurred
+- Linux result: pass. SSH returned after about 35 seconds. `/` is external
+  `/dev/sda2` ext4 labelled `OMARCHY-PS4`; systemd is `running`; LightDM,
+  NetworkManager and sshd are active; one Hyprland PID 439 and one Quickshell
+  PID 524 run with empty config errors
+- display result: pass remotely. HDMI-A-1 is connected/enabled at the sole
+  1920x1080@60 mode, scale 1, DPMS on, VRR false, XRGB8888 and sRGB. No GPU
+  reset/ring/page-fault, kernel panic, ext4, USB or root I/O fault appeared
+- UART conclusion: completed continuity from the single PayLoader send through
+  the accepted Linux desktop
+- rollback: none required
+- next action: deploy the PS4 no-idle profile as A31, then initialize one pinned
+  Quattro theme plus its wallpaper as A32
+
+### EXP-20260813-001-A32 — initialize Tokyo Night theme and wallpaper
+
+- state: complete — pass
+- question: does the pinned upstream theme engine initialize Tokyo Night and
+  its wallpaper on the accepted PS4 Quattro session without destabilizing the
+  legacy display path?
+- changed variable: managed Omarchy theme only — run one
+  `omarchy-theme-set tokyo-night`. Keep HDMI mode, VRR, gamma, monitor, scale,
+  compositor options, packages and PS4 overrides unchanged
+- expected evidence: current theme name becomes `tokyo-night`; current theme
+  and background symlinks resolve inside the pinned runtime/state; shell IPC
+  remains `ok`; exactly one Hyprland and Quickshell run; menu/bar/wallpaper use
+  the new palette; operator reports visible theme/wallpaper and artifacts;
+  UART has no GPU or kernel fault
+- timeout: 5 minutes
+- rollback: preserve current theme/background state before A32. If unusable,
+  restore that exact state or select the prior known theme in a separate
+  bounded action; no second theme selection in A32
+- stop condition: exactly one theme set; no theme carousel, gamma, VRR, scale,
+  package, config edit or restart belongs to A31
+- operator action: after remote validation, inspect wallpaper, bar/menu and
+  terminal colors; report visibility, stutter and corruption
+- bounded UART context:
+  [`20260813_221827_786059-exp-20260813-001-a32-initialize-tokyo-night-theme-and-wallpaper-5b5a06b0.md`](../../ps4-uart/sessions/20260813_221827_786059-exp-20260813-001-a32-initialize-tokyo-night-theme-and-wallpaper-5b5a06b0.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. The upstream engine selected `tokyo-night`, generated managed
+  colors/shell state and selected the first bundled wallpaper
+  `backgrounds/0-swirl-buck.jpg` (SHA-256
+  `4a4ce5ba6c228771c89439710bfa81005791d3c4f76a62481e4d00939b702e3c`)
+- preservation evidence: one Hyprland PID 439 and one Quickshell PID 524 remain;
+  IPC is `ok`; automatic idle stays disabled; the PS4 menu-border override
+  remains; animations, blur, shadows and VRR remain off; HDMI stays fixed
+  1920x1080@60 with empty config errors
+- operator result: pass — `nice`, confirming the visible theme and wallpaper
+- UART conclusion: completed continuity across one managed theme change with
+  no GPU, kernel, ext4 or USB fault
+- rollback: not applied. Pre-theme path state is preserved under
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A32-20260813T162100Z/`
+- next action: inspect and activate pinned Omarchy Fastfetch branding as A33
+
+### EXP-20260813-001-A33 — inspect Omarchy Fastfetch branding
+
+- state: complete — pass
+- question: is Fastfetch installed and which pinned Omarchy config/logo pieces
+  are absent from the live portable root?
+- changed variable: none; read-only SSH and pinned-source inspection of the
+  Fastfetch executable, system/user config, logo, shell startup hooks and one
+  explicit non-interactive Fastfetch render
+- expected evidence: exact installed version; resolution path for config/logo;
+  whether the current shell invokes it automatically; a bounded output sample;
+  Hyprland PID 439 and Quickshell PID 524 unchanged
+- timeout: 3 minutes
+- rollback: none for read-only inspection
+- stop condition: do not install a package, edit shell startup/config/logo,
+  launch another terminal, change theme or restart a process in A33
+- bounded UART context:
+  [`20260813_222029_389407-exp-20260813-001-a33-inspect-omarchy-fastfetch-branding-a9df5b57.md`](../../ps4-uart/sessions/20260813_222029_389407-exp-20260813-001-a33-inspect-omarchy-fastfetch-branding-a9df5b57.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. Fastfetch 2.67.0 is installed. Neither
+  `/etc/fastfetch/config.jsonc` nor `~/.config/fastfetch/config.jsonc` existed,
+  and `~/.config/omarchy/branding/about.txt` was absent. The pinned portable
+  runtime contains Omarchy's `logo.txt` and `icon.txt`; the shell startup does
+  not invoke Fastfetch automatically
+- render result: one explicit generic Arch render completed and reported the
+  running PS4 kernel, GPU and local IP. Hyprland PID 439 and Quickshell PID 524
+  remained unchanged
+- UART conclusion: completed continuity; the slice contains only the bounded
+  SSH session opening and closing, with no display, GPU or kernel fault
+- rollback: none; A33 was read-only
+- next action: activate the source-owned PS4 Fastfetch config and pinned About
+  icon without restarting the desktop as A34
+
+### EXP-20260813-001-A34 — activate PS4 Fastfetch branding
+
+- state: complete — pass
+- question: does the source-owned compact Fastfetch profile render the pinned
+  Omarchy About icon and useful PS4 diagnostics without disturbing the accepted
+  Quattro desktop?
+- changed variable: Fastfetch user branding only — install the candidate
+  `config/fastfetch/config.jsonc`, install pinned `icon.txt` as
+  `config/omarchy/branding/about.txt`, and activate the missing
+  `~/.config/fastfetch` symlink. Do not change shell startup, theme, wallpaper,
+  HDMI, compositor, packages or running processes
+- source evidence: portable RC2 archive SHA-256 is
+  `b8a3cb0b011f9a2d57684b44570644d2cc5ba2a28a741c4ba1b5b7093e29049e`;
+  the separate native candidate package set passed package-content policy
+- expected evidence: installed profile SHA-256 is
+  `e4d85deef993de4f59422372075cd8b6bf601678c0f0ea000b3da376208a8f95`;
+  one explicit `fastfetch --pipe` render reports Omarchy PS4 Quattro RC2,
+  PS4 Slim/Baikal, kernel, GPU, display and Tokyo Night; Hyprland PID 439 and
+  Quickshell PID 524 remain; UART has no GPU or kernel fault
+- timeout: 3 minutes
+- rollback: preserve any existing Fastfetch path and About icon, remove the
+  candidate files/symlink, and restore the exact prior state. No process restart
+- stop condition: no About window, terminal launch, automatic shell hook,
+  package install, config reload, theme or display change belongs to A34
+- operator action: none; a visible About-window acceptance test will be a
+  separate bounded experiment after A34 closes
+- bounded UART context:
+  [`20260813_222930_877891-exp-20260813-001-a34-activate-ps4-fastfetch-branding-d383abb6.md`](../../ps4-uart/sessions/20260813_222930_877891-exp-20260813-001-a34-activate-ps4-fastfetch-branding-d383abb6.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. The active config matches expected SHA-256
+  `e4d85deef993de4f59422372075cd8b6bf601678c0f0ea000b3da376208a8f95`
+  and the pinned About icon matches SHA-256
+  `5fe8adced2fe67e410e177477a7272d1807b3fedc81fbc3f030dd479bc046b76`
+- render evidence: one explicit pipe render showed Omarchy PS4 Quattro RC2,
+  PS4 Slim/Baikal B1, Linux 6.18.44-ps4-baikal, AMD Liverpool with amdgpu,
+  1920x1080@60, external ext4 root, Tokyo Night, package count, local IP and
+  uptime. Fastfetch's generic PCI name `Kingston/Clayton` was rejected as
+  misleading and replaced in the same branding candidate with the accurate
+  platform label `AMD Liverpool · amdgpu`
+- preservation evidence: systemd remains `running`; Hyprland PID 439 and
+  Quickshell PID 524 are unchanged. No process or desktop configuration was
+  reloaded
+- UART conclusion: completed continuity. The slice contains only bounded SSH
+  session lifecycle lines; no display, GPU, kernel, ext4 or USB fault
+- rollback: not applied; both paths were absent before A34. A dedicated state
+  directory was reserved at
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A34-20260813T162930Z/`
+- next action: launch the existing Omarchy About action once and collect the
+  operator's visible acceptance as A35
+
+### EXP-20260813-001-A35 — show the PS4 Fastfetch About window
+
+- state: complete — fail; launcher integration gap isolated
+- question: does the existing Quattro About action display the accepted compact
+  PS4 Fastfetch profile legibly at fixed 1080p60?
+- changed variable: one About window only — dispatch `omarchy-launch-about`
+  once through the running Hyprland session. Do not change Fastfetch, terminal,
+  theme, shell, display, compositor or package configuration
+- expected evidence: exactly one floating `org.omarchy.about` client appears;
+  its Foot terminal renders the Omarchy icon and PS4 diagnostics; the operator
+  reports legibility and any corruption; Hyprland PID 439 and Quickshell PID
+  524 remain; UART has no GPU or kernel fault
+- timeout: 3 minutes
+- rollback: close only the About client with `hyprctl dispatch closewindow` if
+  it is unreadable or does not exit normally
+- stop condition: no second About launch, terminal/theme/config change or
+  desktop restart belongs to A35
+- operator action: after I open it remotely, inspect the visible About card and
+  report whether the logo/text are readable and whether any pixels stutter
+- bounded UART context:
+  [`20260813_223658_035300-exp-20260813-001-a35-show-the-ps4-fastfetch-about-window-bc4b6e24.md`](../../ps4-uart/sessions/20260813_223658_035300-exp-20260813-001-a35-show-the-ps4-fastfetch-about-window-bc4b6e24.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: fail without display regression. The one About dispatch created no
+  `org.omarchy.about` client. Its UWSM scope selected `xfce4-terminal`, which
+  exited with `cannot open display`, even though an interactive desktop-shell
+  query selects `foot.desktop`
+- isolation evidence: the activated Hyprland terminal preference is valid and
+  `xdg-terminal-exec --print-id` returns Foot when `XDG_CURRENT_DESKTOP` is
+  present. The failing UWSM app daemon did not retain that desktop selection,
+  falling through to the system terminal list. This is launcher environment
+  integration, not a Fastfetch render failure
+- preservation evidence: About client count stayed zero; no Foot client or
+  process remained; Hyprland PID 439 and Quickshell PID 524 were unchanged
+- UART conclusion: completed continuity. Only bounded SSH session lifecycle
+  appeared; no display, GPU, kernel, ext4 or USB fault
+- rollback: none required because no window or persistent change was created
+- next action: repin and rebuild Quattro RC3, then verify whether upstream RC3
+  changes this launcher path before designing a PS4-specific correction
+
+### EXP-20260813-001-A36 — activate portable Omarchy Quattro RC3
+
+- state: complete — degraded; activation passed, validation command contaminated the slice
+- question: can the verified RC3 portable bundle replace only the active
+  versioned Omarchy user layer while the accepted graphical session remains
+  stable?
+- changed variable: portable release version only — install bundle
+  `omarchy-ps4-portable-4.0.0rc3-144f4d1.tar.zst` and activate its managed
+  runtime/config symlinks. Do not install native packages, restart/reload a
+  process, log out, reboot, change theme, display or PS4 hardware state
+- source evidence: official `omacom-io/omarchy-pkgs` release commit
+  `84b86195cdeb0ddc71b58810b208df18f6907ffb` assigns `4.0.0rc3-1` to upstream
+  Omarchy commit `144f4d1e31d6ddc2cba5dfd69278cabf02bafd05`; portable archive SHA-256
+  is `6b1d155f54cb2fe2288778f6e9be223f6d55e85d45d8bdc0e0f957446bf56246`
+- expected evidence: installer preflight and manifest verification pass; active
+  runtime/config resolve to commit `144f4d1e...`; PS4 Fastfetch title is RC3;
+  Hyprland PID 439 and Quickshell PID 524 remain; shell IPC/config errors and
+  system state remain healthy; UART has no GPU, kernel, ext4 or USB fault
+- timeout: 5 minutes
+- rollback: run the exact installer-generated `ROLLBACK.sh`, which restores the
+  pre-A36 runtime/config/user-path symlinks and removes the RC3 release trees.
+  Do not improvise a partial symlink rollback
+- stop condition: no desktop restart, login test, About launch, launcher fix,
+  theme selection, package install or second activation belongs to A36
+- operator action: none; visible RC3 session acceptance requires a separate
+  bounded logout/login experiment after A36 closes
+- bounded UART context:
+  [`20260813_225217_419064-exp-20260813-001-a36-activate-portable-omarchy-quattro-rc3-9e31cbd7.md`](../../ps4-uart/sessions/20260813_225217_419064-exp-20260813-001-a36-activate-portable-omarchy-quattro-rc3-9e31cbd7.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- activation result: pass. Preflight and payload manifest verification passed;
+  active runtime, config, Hyprland, Omarchy and Fastfetch symlinks all resolve
+  to `144f4d1e31d6ddc2cba5dfd69278cabf02bafd05`. The explicit Fastfetch render
+  reports RC3, Liverpool/amdgpu, fixed 1080p60 and Tokyo Night. Systemd remained
+  `running`; original Hyprland PID 439 and Quickshell PID 524 remained
+- contamination: the final validation incorrectly called
+  `omarchy-launch-shell --ipc call ping`. That launcher does not accept IPC
+  arguments; it started competing Quickshell processes, producing eight core
+  dumps before their scopes exited. This was not part of the declared variable
+  and prevents a clean A36 pass
+- UART conclusion: completed continuity, but degraded by the eight coredumps.
+  No GPU, kernel, ext4 or USB fault appeared
+- rollback: not applied. The exact generated rollback remains executable at
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A36-20260813T165253Z/ROLLBACK.sh`
+- next action: identify the coredumps and verify the original shell plus all
+  supervisor/process counts read-only as A37 before any runtime restart
+
+### EXP-20260813-001-A37 — audit post-RC3 activation coredumps
+
+- state: complete — pass; contamination contained
+- question: were all A36 coredumps only the accidentally competing Quickshell
+  launches, and is the original accepted desktop still the sole live instance?
+- changed variable: none; read-only SSH inspection of `coredumpctl`, process
+  trees, user units, Hyprland clients, config errors and display state
+- expected evidence: all eight dumps identify the accidental Quickshell starts;
+  exactly one original Hyprland PID 439 and Quickshell PID 524 remain; no extra
+  shell launcher/supervisor remains; HDMI stays 1920x1080@60 with VRR off;
+  systemd stays running and config errors remain empty
+- timeout: 3 minutes
+- rollback: none for read-only inspection. If a stray process exists, close
+  A37 and remove it in a separately declared cleanup action
+- stop condition: do not kill/restart a process, reload config, launch About,
+  change symlinks or roll back RC3 in A37
+- operator action: none
+- bounded UART context:
+  [`20260813_225434_165269-exp-20260813-001-a37-audit-post-rc3-activation-coredumps-325434ba.md`](../../ps4-uart/sessions/20260813_225434_165269-exp-20260813-001-a37-audit-post-rc3-activation-coredumps-325434ba.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. `coredumpctl` identifies all eight A36 dumps as SIGABRT from
+  `/usr/bin/quickshell` at the single contaminated validation timestamp. No
+  other executable dumped
+- containment evidence: exactly one original Hyprland PID 439, one shell
+  supervisor PID 520 and one Quickshell PID 524 remain; no extra app scope or
+  competing launcher remains. HDMI-A-1 is still 1920x1080@60, DPMS on, VRR
+  false; config errors are empty and systemd remains `running`
+- UART conclusion: completed continuity. Only the bounded SSH session lifecycle
+  appeared; no GPU, kernel, ext4 or USB fault
+- rollback: none; A37 was read-only
+- next action: use the pinned RC3 `omarchy-restart-shell` command exactly once
+  to hand the bar/menu runtime from the old loaded code to RC3 as A38
+
+### EXP-20260813-001-A38 — restart only the Quattro shell onto RC3
+
+- state: complete — degraded pass; RC3 loaded, 1080p UI is underscaled
+- question: does one intended shell-only restart load the active RC3 Quickshell
+  tree while preserving Hyprland and the fixed PS4 display path?
+- changed variable: Quickshell runtime generation only — execute the pinned RC3
+  `omarchy-restart-shell` once with the accepted desktop environment. Do not
+  restart/reload Hyprland, log out, reboot, change config/theme/display or
+  launch About
+- expected evidence: the old supervisor PID 520 and Quickshell PID 524 exit;
+  exactly one new RC3 supervisor and Quickshell appear; shell IPC is ready;
+  Hyprland PID 439 remains; top bar/menu remain visible; HDMI stays 1080p60,
+  VRR false and UART has no coredump, GPU or kernel fault
+- timeout: 3 minutes
+- rollback: if the shell does not return, run the generated A36 rollback and
+  start the restored RC2 shell in a separately declared recovery action. Do not
+  start a second competing shell inside A38
+- stop condition: exactly one restart command; no retry or manual `quickshell`
+  launch belongs to A38
+- operator action: after remote readiness, inspect the bar and open/close
+  `Super+Space` once; report whether the menu is responsive and whether pixels
+  remain stable
+- bounded UART context:
+  [`20260813_225531_780652-exp-20260813-001-a38-restart-only-the-quattro-shell-onto-rc3-1741439d.md`](../../ps4-uart/sessions/20260813_225531_780652-exp-20260813-001-a38-restart-only-the-quattro-shell-onto-rc3-1741439d.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- runtime result: pass. The supported restart replaced supervisor PID 520 and
+  Quickshell PID 524 with exactly one RC3 supervisor PID 5616 and Quickshell
+  PID 5621. Hyprland PID 439 remained; HDMI stayed 1920x1080@60, DPMS on, VRR
+  false; config errors stayed empty and no new coredump appeared
+- operator result: degraded — the 1080p UI/font presentation is visibly too
+  small. This is a sizing issue, not a failed RC3 runtime handoff
+- UART conclusion: completed continuity; only bounded SSH session lifecycle
+  appeared, with no GPU, kernel, ext4 or USB fault
+- rollback: not applied
+- next action: inspect the current RC3 typography controls and package delta
+  read-only as A39, then tune only typography before considering monitor scale
+
+### EXP-20260813-001-A39 — inspect 1080p typography and full-profile delta
+
+- state: complete — pass
+- question: which user-owned RC3 controls determine bar/menu/terminal/app font
+  sizing at scale 1, and exactly which PS4-curated full-profile packages are
+  still absent from the live root?
+- changed variable: none; read-only source and SSH inspection of shell style,
+  fontconfig, Foot/GTK settings, monitor geometry, installed packages, disk
+  capacity and the generated 153-package PS4 profile
+- expected evidence: one smallest safe typography override candidate; exact
+  present/missing profile counts and package names; free disk and download-size
+  feasibility; no process or display change
+- timeout: 4 minutes
+- rollback: none for read-only inspection
+- stop condition: do not install a package, edit font/display config, restart a
+  process, launch an app or run Pacman sync/upgrade in A39
+- operator action: none
+- result: pass. HDMI is fixed 1920x1080@60 at compositor scale 1. RC3 defaults
+  the shell to 12px and Foot to 9pt; GTK scaling is 1.0. The supported
+  `omarchy-display-text-size` command changes shell, GTK and terminal sizing in
+  lockstep while keeping compositor scale 1; 16px maps to about 1.36x GTK and
+  12pt terminal text
+- portable gap: the RC3 config contains `config/foot/foot.ini`, but the
+  portable installer did not activate `~/.config/foot`; that live path is
+  absent. The source installer and tests now own this missing symlink before a
+  typography preset is applied
+- package result: 53 of the generated 153-package PS4 profile are installed;
+  100 are missing. Eighty missing names exist in the configured Arch `core` and
+  `extra` databases; twenty do not, including the three local PS4 packages and
+  17 Omarchy/AUR packages. `/` has 108,561,211,392 bytes available and Pacman
+  currently has 736 MiB cached
+- UART conclusion: completed continuity; read-only inspection caused no GPU,
+  kernel, ext4 or USB fault
+- rollback: none; A39 was read-only
+- next action: activate managed Foot config and apply the supported 16px
+  desktop typography preset as A40
+
+### EXP-20260813-001-A40 — apply coherent 1080p typography preset
+
+- state: complete — fail for bar icon rendering
+- question: does RC3's supported 16px text-size preset make the 1080p shell,
+  GTK applications and new Foot windows comfortably readable without changing
+  compositor scale or destabilizing DCE8?
+- changed variable: desktop typography preset only — activate the missing
+  managed `~/.config/foot` symlink, then execute exactly one
+  `omarchy-display-text-size 16`. Keep HDMI/compositor scale 1, theme, shell
+  process, packages and all other configuration unchanged
+- expected evidence: `shell.toml` preserves the PS4 menu workaround and gains
+  `[font] base-size = 16`; GTK text scale becomes about 1.36; Foot becomes
+  12pt; Quickshell PID 5621 and Hyprland PID 439 remain; display stays
+  1080p60/VRR off; operator reports improved legibility without clipping or
+  corruption
+- timeout: 4 minutes
+- rollback: preserve exact `shell.toml`, GSettings value and prior absent Foot
+  path; restore those values and remove the symlink. Do not change monitor scale
+- stop condition: no second font size, compositor scale, shell restart, package
+  install or app launch belongs to A40
+- operator action: after remote validation, inspect the bar and menu at normal
+  viewing distance and report whether 16px is comfortable or too large
+- bounded UART context:
+  [`20260813_230322_279600-exp-20260813-001-a40-apply-coherent-1080p-typography-preset-62c00592.md`](../../ps4-uart/sessions/20260813_230322_279600-exp-20260813-001-a40-apply-coherent-1080p-typography-preset-62c00592.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- remote result: the supported command set shell base to 16px, GTK text scale
+  to 1.3 and Foot to 12pt while preserving the menu border override. Hyprland
+  PID 439 and Quickshell PID 5621 remained; HDMI stayed 1080p60 at scale 1,
+  VRR false, with zero new coredumps or config errors
+- operator result: fail — top-bar icons rendered incorrectly after the size
+  change. Typography cannot be accepted until glyph resolution versus icon
+  scaling is isolated
+- UART conclusion: completed continuity with no GPU, kernel, ext4 or USB fault
+- rollback: not yet applied; exact pre-A40 shell/GTK/Foot state is preserved at
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A40-20260813T170300Z/`
+- next action: inspect the resolved Omarchy/Nerd fonts and bar token sizes
+  read-only as A41, then restore or decouple icon sizing in a separate action
+
+### EXP-20260813-001-A41 — audit broken top-bar icon fonts
+
+- state: complete — pass
+- question: are the broken 16px top-bar icons caused by missing font assets,
+  wrong fontconfig resolution, or RC3 icon tokens scaling beyond the DCE8-safe
+  rendering size?
+- changed variable: none; read-only SSH/source inspection of installed font
+  files and hashes, `fc-list`/`fc-match`, Quickshell journal/config errors,
+  `shell.toml`, resolved bar tokens and process/display state
+- expected evidence: exact font presence and family resolution; whether a
+  Quickshell glyph/font error exists; smallest rollback or per-icon-token fix
+- timeout: 3 minutes
+- rollback: none for read-only audit
+- stop condition: do not change text size, font, config, process, package or
+  display state in A41
+- operator action: none
+- bounded UART context:
+  [`20260813_230638_424081-exp-20260813-001-a41-audit-broken-top-bar-icon-fonts-3a3e1790.md`](../../ps4-uart/sessions/20260813_230638_424081-exp-20260813-001-a41-audit-broken-top-bar-icon-fonts-3a3e1790.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. `omarchy.ttf` is installed in the portable user font hierarchy
+  and resolves as `omarchy Regular`. Four JetBrains Mono Nerd Font faces are
+  installed under `/usr/share/fonts/TTF`; the requested family resolves to its
+  regular Nerd Font face. The shell emitted no missing glyph/font-family error
+- cause: RC3 defaults `bar.scale-with-font = true`. Raising base size from 12
+  to 16 multiplies bar size, icon slot, icon canvas and icon font by 1.333.
+  The operator-visible corruption therefore follows enlarged bar glyph/canvas
+  rendering on DCE8, not absent Omarchy fonts
+- preservation evidence: Hyprland PID 439, Quickshell PID 5621, 1080p60 scale
+  1 and VRR false remained unchanged
+- UART conclusion: completed continuity with no hardware fault
+- rollback: none; A41 was read-only
+- next action: retain 16px desktop text but set only `[bar]
+  scale-with-font = false` as A42
+
+### EXP-20260813-001-A42 — decouple top-bar icons from 16px text
+
+- state: complete — fail; fixed icons still do not fit at 16px
+- question: does pinning RC3 bar geometry/icon canvases to their known-good
+  default pixel sizes restore top-bar icons while retaining readable 16px shell,
+  1.3x GTK and 12pt Foot text?
+- changed variable: one shell style key only — append `[bar]
+  scale-with-font = false` to the active PS4 `shell.toml`. Keep base-size 16,
+  font families, menu border, theme, compositor scale, processes and packages
+  unchanged
+- expected evidence: the watched style file is consumed without restart;
+  Hyprland PID 439 and Quickshell PID 5621 remain; bar icons return to their
+  default 13/16/27px font/canvas/slot geometry; operator reports normal icons
+  and readable text; no coredump or display fault
+- timeout: 3 minutes
+- rollback: restore exact pre-A42 `shell.toml`, retaining the A40 rollback if
+  the complete 16px preset must later be removed
+- stop condition: no font reinstall, second style key, process restart, package
+  install or display change belongs to A42
+- operator action: inspect the top-bar icons after the watched file updates and
+  report whether they are normal
+- bounded UART context:
+  [`20260813_230815_309631-exp-20260813-001-a42-decouple-top-bar-icons-from-16px-text-62b1773e.md`](../../ps4-uart/sessions/20260813_230815_309631-exp-20260813-001-a42-decouple-top-bar-icons-from-16px-text-62b1773e.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- remote result: the watched style file applied `[bar] scale-with-font = false`
+  without restart; Hyprland PID 439 and Quickshell PID 5621 remained and no
+  coredump appeared
+- operator result: fail — the bar contents still cannot fit at 16px even with
+  default-size icon geometry. This rules out 16px as the 1080p product preset
+- UART conclusion: completed continuity; no GPU, kernel, ext4 or USB fault
+- rollback: exact pre-A42 file remains at
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A42-20260813T170900Z/shell.toml.before`
+- next action: reduce the coordinated desktop typography preset to 14px while
+  retaining fixed bar geometry as A43
+
+### EXP-20260813-001-A43 — set the 1080p typography preset to 14px
+
+- state: complete — pass
+- question: does a coordinated 14px preset fit the complete 1080p top bar while
+  remaining more readable than the 12px default?
+- changed variable: typography preset size only — execute exactly one
+  `omarchy-display-text-size 14` while retaining `[bar]
+  scale-with-font = false`. Keep fonts, menu workaround, compositor scale,
+  processes, packages and display unchanged
+- expected evidence: shell base becomes 14px, GTK text scale about 1.2 and Foot
+  11pt; fixed bar geometry remains; PIDs remain; operator confirms the complete
+  bar fits and icons/text are readable; no coredump or display fault
+- timeout: 3 minutes
+- rollback: restore the exact A40 pre-state if 14px also fails; do not test a
+  second size inside A43
+- stop condition: exactly one 14px application; no package install, restart or
+  display change belongs to A43
+- operator action: inspect the full top bar and `Super+Space` menu, then report
+  fit, readability and corruption
+- bounded UART context:
+  [`20260813_231934_834495-exp-20260813-001-a43-set-the-1080p-typography-preset-to-14px-fed01ff5.md`](../../ps4-uart/sessions/20260813_231934_834495-exp-20260813-001-a43-set-the-1080p-typography-preset-to-14px-fed01ff5.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. The supported command set shell base to 14px, GTK text scale
+  to 1.2 and Foot to 11pt while retaining fixed bar icon geometry and the menu
+  border workaround. Hyprland PID 439 and Quickshell PID 5621 remained; no
+  coredump appeared
+- operator result: pass — `yes nice`, confirming the complete top bar fits and
+  the 1080p presentation is readable
+- UART conclusion: completed continuity with no GPU, kernel, ext4 or USB fault
+- rollback: not applied. Exact pre-A43 state remains under
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A43-20260813T171200Z/`
+- next action: install the three locally built RC3 PS4 packages as A44 without
+  restarting the active portable session
+
+### EXP-20260814-001-A1 — arm temporary RC3 recovery access
+
+- state: complete — pass
+- question: can a second, key-only recovery account survive the native package
+  test and invoke only status or the exact RC3 package rollback while the
+  existing `ps4` login, desktop and boot state remain unchanged?
+- changed variable: development recovery access only — create human account
+  `omarchy-recovery`, copy the already-pinned operator ED25519 public key,
+  install a user-specific public-key-only SSH policy, install two exact
+  command-specific sudo rules, and keep the already-enabled system
+  `sshd.service` persistent. Do not install the RC3 packages in this action
+- source evidence: the isolated OrbStack/Arch fixture created the account,
+  exercised restricted status and rollback, rejected general sudo, and
+  confirmed `PasswordAuthentication no`, public-key-only authentication and
+  disabled TCP/agent/X11 forwarding for this user. The owner-finalization
+  fixture refuses both the extra human account and its temporary `NOPASSWD`
+  rule. Booted OrbStack machine `omarchy-gift-rc3-test` additionally passed a
+  real network SSH login, real systemd sshd enablement, exact RC3 install,
+  reboot persistence and remote restricted rollback; see
+  `docs/GIFT-DEV-VM-TEST-2026-08-14.md`. USB/label guards were simulated and
+  the VM was arm64, so neither replaces PS4 acceptance
+- expected evidence: account UID is in the human range and its SSH key has
+  fingerprint `SHA256:N64LAFp/1IpDOVOrMNVY3Bd6JHn2qxAyvT0/8FZ3T0M`;
+  `sshd.service` remains enabled and active; a fresh remote key login as
+  `omarchy-recovery` succeeds; restricted status succeeds; arbitrary sudo is
+  denied; `ps4`, Hyprland and Quickshell remain healthy
+- timeout: 5 minutes
+- rollback: from the still-working `ps4` administration path, remove only the
+  recovery account/home, `/etc/sudoers.d/91-omarchy-ps4-recovery`,
+  `/etc/ssh/sshd_config.d/30-omarchy-ps4-recovery.conf`,
+  `/usr/local/sbin/omarchy-ps4-dev-recovery`, and
+  `/var/lib/omarchy-ps4/recovery`, validate `sshd -t`, then reload sshd
+- stop condition: no native package transaction, owner provisioning, desktop
+  reload, boot-file change, restart or payload belongs to this experiment. A
+  failed real SSH login closes the action without beginning A44
+- operator action: none
+- staged bundle: developer gift archive SHA-256
+  `2eb7a02d047314db215c6d059368aa89b88f2989a11f5131905b536672767e1b`
+  was copied to the `ps4` development home, verified in place and extracted;
+  its internal policy check passed
+- in-progress hardware evidence: continuous UART generation
+  `f9d6fea5361b45449a0948ab0457f00c` is valid and ready. The unmodified root
+  resolved to USB `/dev/sda2`, ext4 label `OMARCHY-PS4`; `sshd.service` was
+  already enabled and active; Hyprland PID 439 and Quickshell PID 5621 were
+  healthy before the change. Guarded check and apply created
+  `omarchy-recovery` with the pinned fingerprint. A fresh network login passed,
+  restricted status passed, arbitrary sudo was denied, provisioning remained
+  unarmed, sshd remained enabled/active and both desktop PIDs remained
+  unchanged
+- bounded UART context:
+  [`20260814_022120_506838-exp-20260814-001-a1-arm-temporary-rc3-recovery-access-95ea71b5.md`](../../ps4-uart/sessions/20260814_022120_506838-exp-20260814-001-a1-arm-temporary-rc3-recovery-access-95ea71b5.md),
+  with exact 4,039-byte `.raw` slice and empty logger-event sidecar
+- operator result: pass — Omarchy remained visible and responsive; no visible
+  regression was reported
+- UART conclusion: completed continuity on capture generation
+  `f9d6fea5361b45449a0948ab0457f00c`. UART shows the expected systemd manager
+  reload, successful OpenSSH reload and clean UID 1001 recovery login session
+  lifecycle. No GPU, kernel, ext4, USB or service failure appeared. Periodic
+  MT7668 P2P trace messages were unchanged background behavior
+- rollback: not applied. Recovery account `omarchy-recovery`, its restricted
+  command and persistent key-only SSH remain intentionally armed as the A44
+  safety path. Gift finalization must continue to refuse this development state
+- next action: A44 may begin in a new bounded session; resolve the full Pacman
+  transaction first and do not proceed if it contains a forbidden or unreviewed
+  dependency
+
+### EXP-20260813-001-A44 — install native RC3 PS4 package foundation
+
+- state: complete — inconclusive; no package transaction began and the root
+  package set remained unchanged
+- question: do the three verified local RC3 packages install cleanly on the
+  external root without enabling provisioning or disturbing the active portable
+  desktop?
+- changed variable: native PS4 package foundation only — first resolve and
+  record Pacman's complete transaction, then install the locally built
+  `omarchy-ps4`, `omarchy-ps4-settings` and `omarchy-ps4-provisioning` RC3
+  package files plus only their explicitly reviewed missing dependencies in one
+  Pacman transaction. Do not enable services, activate provisioning, switch
+  user symlinks or restart/reload the desktop
+- source evidence: the rebuilt package SHA-256 values are runtime
+  `1d02e1799e825ebd6fe275ac9bd483c53b62e8d50b5df6c3073470266339c025`,
+  settings
+  `e1fa55f97605ac403c1bf7d1d3b0c60fedd93637afe524a47033ff404907190a`
+  and provisioning
+  `295afa9789ca770471dc11238dc2710e57dcf3068a8747ad889d3696675e87cf`;
+  package content and prepare-for-owner fixture tests passed in the pinned
+  OrbStack/Arch build. The private developer gift archive is
+  `omarchy-ps4-gift-dev-rc3.tar.zst`, SHA-256
+  `2eb7a02d047314db215c6d059368aa89b88f2989a11f5131905b536672767e1b`;
+  its extracted manifest passed, a clean rebuild produced the same content
+  manifest, and Pacman listed exactly the three expected `4.0.0rc3-1` entries
+  from its normalized local database
+- expected evidence: Pacman reports all three at `4.0.0rc3-1`; no provisioning
+  service or pending marker is enabled/created; active runtime stays portable
+  commit `144f4d1e`; Hyprland PID 439 and Quickshell PID 5621 remain; display and
+  system stay healthy; `sshd.service` and the independently verified
+  `omarchy-recovery` status command remain available
+- preflight rejection: abort before installation if the resolved transaction
+  includes a kernel, bootloader, Plymouth, UDisks, display-manager takeover,
+  graphics-stack replacement or any package outside the reviewed closure
+- timeout: 6 minutes
+- rollback: uninstall only the three local packages with `pacman -Rns` if the
+  transaction succeeds but violates the gates; the portable runtime remains the
+  desktop fallback
+- stop condition: no full Pacman upgrade, service enablement, config
+  activation, restart or second transaction belongs to A44. A rejected
+  dependency closure closes A44 without modifying the root
+- operator action: none
+- bounded UART context:
+  [`20260814_023335_582257-exp-20260813-001-a44-install-native-rc3-ps4-package-foundation-902ce3e2.md`](../../ps4-uart/sessions/20260814_023335_582257-exp-20260813-001-a44-install-native-rc3-ps4-package-foundation-902ce3e2.md),
+  with exact 1,725-byte `.raw` slice and empty logger-event sidecar
+- result: inconclusive before transaction resolution. Attempt 1 exposed that
+  the PS4 baseline lacks optional `cmp`; the comparison was replaced with a
+  Bash built-in. Attempt 2 proved Pacman's `alpm` download sandbox cannot
+  traverse a root-only temporary ancestor; the ancestor was changed to mode
+  0755 without disabling sandboxing. Attempt 3 proved `alpm` also cannot
+  traverse the private `ps4` home to read the local repository. All three
+  attempts stopped during guarded setup or database synchronization before a
+  dependency closure or package transaction existed
+- UART conclusion: completed continuity on generation
+  `f9d6fea5361b45449a0948ab0457f00c`. Only clean `ps4` SSH session lifecycle
+  and unchanged MT7668 background warnings appeared; there was no GPU, kernel,
+  ext4, USB, display-manager, service or package-transaction fault
+- rollback: not required because Pacman never began a transaction. The
+  temporary recovery account and persistent SSH from A1 remain healthy. The
+  staged development bundle remains under the `ps4` development home
+- next action: copy the checksum-verified local repository into a temporary
+  0755/0644 sandbox-readable directory, prove preflight from a private bundle
+  path in the booted OrbStack VM, rebuild the bundle, then use fresh bounded
+  experiment `EXP-20260814-001-A2`. Do not repeat A44 without that new evidence
+
+### EXP-20260814-001-A2 — install native RC3 foundation after sandbox fixes
+
+- state: complete — pass
+- question: with the verified local repository copied to an ephemeral
+  sandbox-readable directory, do the three RC3 packages resolve and install on
+  the external PS4 root without changing the portable desktop or recovery SSH?
+- changed variable: native RC3 package foundation only, identical to A44. The
+  installer implementation changes only how already-checksummed local package
+  files are exposed to Pacman's unprivileged download sandbox. Do not disable
+  Pacman sandboxing or add a test-only dependency
+- source evidence: developer gift archive SHA-256
+  `abf563b0a23dc0978a1aa37247d1c81877bd909bb2f10b931aaa913e352ed931`;
+  archive extraction, package policy, shell checks, recovery fixture and clean
+  rebuild manifest comparison passed. On booted OrbStack machine
+  `omarchy-gift-rc3-test`, the bundle was copied beneath mode-0700 `/root`, all
+  cached Omarchy PS4 package files were moved aside temporarily, and Pacman
+  still resolved exactly the three `4.0.0rc3-1` package URLs from the copied
+  `/tmp/.../repository` while retaining its download sandbox. This directly
+  reproduces and closes A44's private-parent traversal failure
+- expected evidence: isolated and live transaction name/version sets match;
+  the reviewed closure contains no forbidden component; exact three project
+  packages report `4.0.0rc3-1`; provisioning remains unarmed; sshd and
+  `omarchy-recovery` remain healthy; Hyprland PID 439, Quickshell PID 5621 and
+  the visible responsive desktop remain unchanged
+- timeout: 6 minutes
+- rollback: from the independently verified recovery login, run only
+  `sudo /usr/local/sbin/omarchy-ps4-dev-recovery rollback-foundation`; retain
+  dependencies and portable runtime
+- stop condition: no full upgrade, service activation, desktop reload, restart,
+  boot-file change, splash or payload. Any transaction mismatch or unreviewed
+  dependency closes A2 before installation
+- operator action: none
+- reviewed transaction: exact three project packages plus `fakeroot`, `git`,
+  `pacman-contrib`, `perl-error`, `perl-timedate`, `perl-mailtools` and
+  `zlib-ng`; 123.52 MiB downloaded and 155.58 MiB installed. No kernel,
+  bootloader, Plymouth, UDisks, display manager, Mesa, libdrm, Vulkan, Xorg
+  driver or service package was present
+- result: Pacman installed `omarchy-ps4`, `omarchy-ps4-settings` and
+  `omarchy-ps4-provisioning` at exactly `4.0.0rc3-1`. The transaction created
+  only the standard locked `git` system account through its package hook; no
+  service was enabled. Existing `/etc/sudoers.d` mode 0750 was retained despite
+  the package archive declaring 0755
+- postcheck: the package transaction completed, then the first evidence pass
+  stopped because `comm` used the host locale against byte-sorted package
+  lists. No second transaction ran. Package versions, recovery status,
+  provisioning markers, services, portable release and desktop PIDs were
+  checked read-only. The evidence directory
+  `/var/lib/omarchy-ps4/experiments/EXP-20260814-001-A2-20260813T204418Z`
+  was completed with correctly byte-sorted before/after lists,
+  `new-packages.txt`, final Pacman log, recovery status and rollback command.
+  The source installer now sorts and compares all three operations with
+  `LC_ALL=C`. The post-A2 canonical archive containing that evidence fix is
+  SHA-256
+  `1a24445cf1409d3b523586e528b63157779aa0df6b79e09f6ca1cd6636aae28a`;
+  clean-rebuild manifest, package policy and recovery fixture passed. Its three
+  package payloads are unchanged from the hardware-tested archive
+- expected-state evidence: provisioning marker and service are absent;
+  LightDM and sshd are active; sshd is enabled; a fresh
+  `omarchy-recovery` login reports all three versions and restricted rollback
+  remains available; portable release still resolves to upstream commit
+  `144f4d1e`; Hyprland PID 439 and Quickshell PID 5621 are unchanged
+- bounded UART context:
+  [`20260814_024213_769517-exp-20260814-001-a2-install-native-rc3-foundation-after-sandbox--0b7c0ed6.md`](../../ps4-uart/sessions/20260814_024213_769517-exp-20260814-001-a2-install-native-rc3-foundation-after-sandbox--0b7c0ed6.md),
+  with exact 2,513-byte `.raw` slice and empty logger-event sidecar
+- operator result: pass — the Omarchy desktop remained visible and responsive;
+  nothing changed on the monitor, which is the expected foundation-only result
+- UART conclusion: completed continuity on generation
+  `f9d6fea5361b45449a0948ab0457f00c`. UART shows expected system and user
+  manager reloads plus a clean UID 1001 recovery SSH session. No GPU, kernel,
+  USB, ext4, display-manager, service or package fault appeared. The isolated
+  MT7668 warning was unchanged background behavior
+- rollback: not applied. The three RC3 packages remain installed, the portable
+  desktop remains active and the restricted recovery rollback stays armed
+- next action: stop for owner direction. Installing and launching the UI-only
+  FPKG from Orbis is a separate hardware experiment and requires returning to
+  the PS4 system software; persistent native splash A45 also remains separate
+
+### EXP-20260814-001-A3 — stage native RC3 session with remote rollback
+
+- state: complete — inconclusive before privileged staging; active desktop and
+  native package foundation unchanged
+- question: can the already-installed native RC3 profile be staged for the
+  existing `ps4` user, together with an exact recovery-account rollback,
+  without changing or reloading the active portable desktop?
+- changed variable: inactive native-session staging and its restricted rollback
+  control only. Copy the package-owned `/usr/share/omarchy/config` into a
+  versioned user-owned candidate, preserve the current portable path map, and
+  authorize `omarchy-recovery` for only the exact native-session status and
+  rollback commands. Do not switch a live symlink, reload Hyprland or
+  Quickshell, restart LightDM, change packages, services, boot files, storage,
+  display settings or owner provisioning
+- expected evidence: all three project packages remain exactly `4.0.0rc3-1`;
+  the candidate is derived from the installed native files; its activation and
+  rollback paths validate offline; a fresh restricted recovery SSH login can
+  run native-session status but cannot activate it or obtain arbitrary sudo;
+  active `OMARCHY_PATH`, Hyprland and Quickshell PIDs remain on portable commit
+  `144f4d1e`; the visible desktop remains unchanged and responsive
+- timeout: 5 minutes
+- rollback: remove only the inactive native candidate, control command and its
+  exact new sudo authorization. Because no live pointer or process changes in
+  A3, rollback must not restart the graphical session
+- stop condition: close and review A3 before session activation. Any live
+  configuration pointer change, compositor/shell reload, LightDM restart,
+  package transaction, payload or reboot is outside A3
+- operator action: do not interact with the desktop during staging; when asked,
+  confirm that the existing Omarchy desktop did not visibly change
+- bounded UART context:
+  [`20260814_025833_602853-exp-20260814-001-a3-stage-native-rc3-session-with-remote-rollbac-0ed206ed.md`](../../ps4-uart/sessions/20260814_025833_602853-exp-20260814-001-a3-stage-native-rc3-session-with-remote-rollbac-0ed206ed.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: preflight inspection passed: all three packages are `4.0.0rc3-1`,
+  native runtime/config files exist, provisioning is unarmed, LightDM/sshd are
+  active, sshd is enabled, and Hyprland PID 439 plus Quickshell PID 5621 still
+  resolve to portable commit `144f4d1e`. Two inactive control sources were
+  copied into the existing developer bundle directory, but `sudo` correctly
+  required the `ps4` account password before either guarded check or apply
+  could run. No native candidate, `/usr/local` command, sudo policy, live
+  pointer or process changed
+- UART conclusion: completed continuity with routine `ps4` and recovery SSH
+  session lifecycles plus unchanged MT7668 P2P trace messages. No GPU, kernel,
+  ext4, USB, display-manager or service fault appeared
+- rollback: not required. The two inert user-owned source files may remain in
+  the private development bundle; neither is referenced by the session
+- next action: A4 may switch only the visible Quattro shell from the portable
+  runtime to the installed `/usr/share/omarchy` runtime without root or a
+  LightDM restart. Full native UWSM-profile activation remains a later action
+  requiring an interactive sudo authentication or separately authorized root
+  control
+
+### EXP-20260814-001-A4 — launch installed native RC3 Quattro shell
+
+- state: complete — pass for native shell activation; first-owner setup was
+  deliberately not armed or exercised
+- question: does the already-installed `/usr/share/omarchy` RC3 runtime launch
+  the visible Quattro shell successfully inside the current accepted Hyprland
+  session while persistent SSH remains available?
+- changed variable: Quattro shell runtime only — stop the current portable
+  `omarchy-launch-shell` supervisor and start one user-owned transient service
+  with `OMARCHY_PATH=/usr/share/omarchy`, `/usr/bin` commands and the installed
+  shell tree. Keep Hyprland PID 439, its portable configuration, LightDM,
+  packages, services, display settings, boot files, storage and provisioning
+  unchanged
+- source evidence: installed and portable `omarchy-launch-shell` files have the
+  same SHA-256
+  `484f3af00ee3d13b8f4e33b118d9b7355c72d254a631fc740a160f5f1d140cff`;
+  both derive from pinned commit `144f4d1e`, while the new process path and
+  environment will independently prove consumption of the package-owned tree
+- expected evidence: one new Quickshell process runs with
+  `OMARCHY_PATH=/usr/share/omarchy` and `-p /usr/share/omarchy/shell`; shell IPC
+  returns `ok`; Hyprland PID 439, LightDM, sshd and recovery access remain;
+  the top bar/menu are visible and the operator reports a responsive desktop;
+  UART has no GPU reset, page fault, kernel panic, ext4 or USB fault
+- timeout: 4 minutes
+- rollback: after closing A4, stop only the native transient user service and
+  start one portable transient service with the accepted portable
+  `OMARCHY_PATH`, PATH, launcher and shell tree. Do not restart LightDM
+- stop condition: one shell stop/start only. No compositor reload/restart,
+  config pointer change, package transaction, service/system change, reboot,
+  payload or retry belongs to A4
+- operator action: after the shell returns, move the pointer and press
+  `Super+Space` once; report whether the top bar, Omarchy menu and desktop are
+  visible and responsive
+- result: the portable launcher PID 5616 and Quickshell PID 5621 stopped once.
+  Transient user unit `omarchy-ps4-native-shell.service` then started installed
+  `/usr/bin/omarchy-launch-shell` PID 19768 and Quickshell PID 19771 with exact
+  command `quickshell -n -p /usr/share/omarchy/shell`,
+  `OMARCHY_PATH=/usr/share/omarchy` and native-first PATH. Shell IPC returned
+  `ok`; `omarchy-background` and `omarchy-bar` layers exist; `hyprctl
+  configerrors` is empty; Hyprland PID 439, LightDM, sshd and recovery status
+  remained healthy; no new coredump appeared
+- operator result: the operator observed no initial password/setup prompt. This
+  is expected for A4: it replaced only the shell inside the existing `ps4`
+  development session. Owner provisioning remained intentionally unarmed and
+  no development account, autologin, SSH identity or recovery path was removed
+- bounded UART context:
+  [`20260814_030341_403490-exp-20260814-001-a4-launch-installed-native-rc3-quattro-shell-800819f9.md`](../../ps4-uart/sessions/20260814_030341_403490-exp-20260814-001-a4-launch-installed-native-rc3-quattro-shell-800819f9.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- UART conclusion: completed continuity with only expected SSH/recovery session
+  lifecycles. No GPU, kernel, ext4, USB, display-manager or service fault
+  appeared
+- rollback: not applied. The native shell transient remains active and the
+  exact portable runtime remains present. Recovery requires stopping only
+  `omarchy-ps4-native-shell.service` and starting one portable shell supervisor
+  in a new bounded action
+- next action: owner direction is required. A safe first-owner UX preview may
+  render the setup form without creating an account or touching the current
+  root. Actual gift finalization remains clone-only because it removes the
+  development account, autologin, SSH host identity and machine identity
+
+### EXP-20260814-001-A5 — capture current native RC3 desktop for README
+
+- state: complete — pass
+- question: can the accepted live 1920×1080 Omarchy desktop be captured through
+  the existing Wayland session for project documentation without changing the
+  visible session or hardware state?
+- changed variable: none; read-only screenshot export only. Run the installed
+  screenshot client inside the current `ps4` Wayland environment, write one
+  temporary PNG, copy it to the repository and remove the temporary file. Do
+  not open a menu, move input, reload shell/compositor, change configuration,
+  install a package, restart a service, reboot or send a payload
+- expected evidence: PNG is exactly 1920×1080 and visually shows the current
+  Quattro RC3 desktop; Hyprland PID 439 and native Quickshell PID 19771 remain;
+  shell IPC, LightDM, sshd and recovery status stay healthy; UART continuity is
+  completed with no GPU, filesystem or USB fault
+- timeout: 2 minutes
+- rollback: remove only the temporary remote PNG if copying fails. The final
+  repository image is documentation and does not affect the console
+- stop condition: if no installed Wayland screenshot client exists, close A5
+  without installing one. Any visual composition or desktop interaction is a
+  separate experiment
+- operator action: none; leave the displayed desktop untouched during capture
+- result: installed `/usr/bin/grim` captured one exact 1920×1080, 8-bit RGB PNG
+  from the existing Wayland display. Local and remote SHA-256 both equal
+  `79938b462f8f34177dd8f814bf4856c50acac7906d0ca36a104d5d78abf65941`.
+  Visual review shows the current Tokyo Night Quattro desktop, top bar and PS4
+  Fastfetch identity; no menu or window was opened for composition
+- preservation evidence: Hyprland PID 439 and native Quickshell PID 19771 with
+  `-p /usr/share/omarchy/shell` remained; shell IPC returned `ok`; LightDM and
+  sshd remained active. The remote temporary PNG was removed after its verified
+  copy became `docs/assets/omarchy-ps4-quattro-rc3.png`
+- bounded UART context:
+  [`20260814_032728_511428-exp-20260814-001-a5-capture-current-native-rc3-desktop-for-readm-e0806ec2.md`](../../ps4-uart/sessions/20260814_032728_511428-exp-20260814-001-a5-capture-current-native-rc3-desktop-for-readm-e0806ec2.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- UART conclusion: completed continuity with three clean `ps4` SSH session
+  lifecycles only. No GPU, kernel, ext4, USB, display-manager or service fault
+  appeared
+- rollback: not required. The screenshot is documentation only and the console
+  remains on the accepted native RC3 shell
+- next action: publish the reviewed repository changes and screenshot on the
+  existing `agent/full-omarchy-port` branch, after local validation and secret
+  review
+
+### EXP-20260813-001-A31 — disable Quattro automatic idle service
+
+- state: complete — pass
+- question: does deploying the source-owned PS4 shell profile and hot-reloading
+  its configuration disable only automatic idle/screensaver/lock before theme
+  work, without restarting the shell or compositor?
+- changed variable: installed portable `config/omarchy/shell.json` only — add
+  `omarchy.idle` to `disabledPlugins`, then call shell `reloadConfig` once. Keep
+  manual lock, Hyprsunset block, layout and every other plugin/config value
+  unchanged
+- source evidence: corrected portable archive SHA-256 is
+  `e62c825a3685284fc4e8605097b468d1176f30b820c7c0e8cc2b1ab96e64bfa8`;
+  bundle/package tests require the idle service to be disabled
+- expected evidence: installed file matches source; Quickshell PID 524 and
+  Hyprland PID 439 remain; shell IPC stays `ok`; `omarchy-shell idle status`
+  returns target-not-found/not-running after reload; no screensaver or lock
+  process exists
+- timeout: 3 minutes
+- rollback: restore the exact pre-A31 shell JSON and call `reloadConfig`
+  once. No process restart belongs to rollback
+- stop condition: no theme, wallpaper, border, gamma, VRR, scale or package
+  change belongs to this precondition experiment
+- bounded UART context:
+  [`20260813_221712_137027-exp-20260813-001-a31-disable-quattro-automatic-idle-service-feadb7cb.md`](../../ps4-uart/sessions/20260813_221712_137027-exp-20260813-001-a31-disable-quattro-automatic-idle-service-feadb7cb.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: pass. Installed shell JSON matches source SHA-256
+  `16ba16d951108165777c3ad533a395612956c5c45b301d2d6e0ba661f6570264`,
+  includes `omarchy.idle` in `disabledPlugins`, and one shell `reloadConfig`
+  returned `ok`
+- acceptance evidence: idle IPC now returns `Target not found`; no screensaver
+  process runs; Hyprland PID 439 and Quickshell PID 524 stayed unchanged; shell
+  IPC returns `ok`. Manual lock was not disabled
+- UART conclusion: completed continuity across the configuration hot reload;
+  no display transition or hardware fault appeared
+- rollback: not applied. Exact prior JSON is preserved under
+  `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A31-20260813T161900Z/`
+- next action: initialize Tokyo Night plus one wallpaper as A32
+
+### EXP-20260813-001-A45 — accept persistent native Omarchy boot splash
+
+- state: planned; do not begin while A44 remains planned/active
+- question: does the initramfs renderer keep the native Omarchy wordmark and
+  progress line visible through framebuffer mode changes until the validated
+  root hands off to systemd, without hiding UART evidence or blocking boot?
+- changed variable: boot initramfs only — stage the locally verified artifact
+  with SHA-256
+  `acc08b4bbcb0535780161537033dc4a58d5b99a9fba659e23466bea95329d0ab`.
+  Keep the accepted kernel, product boot arguments, root filesystem, VRAM,
+  packages, display configuration and monitor settings unchanged
+- source evidence: final renderer SHA-256 is
+  `2124d28c21de2b2d96d0e9296fd51a9ccaf901bd8395645b3ee9df950bb11cc9`;
+  embedded alpha mask is
+  `fe3b19a33bae79976f8cb27269facee14aff23a5f73739fde8d7d18717b88eac`;
+  its source PNG is the exact Quattro RC3 native Plymouth logo at upstream
+  commit `144f4d1e31d6ddc2cba5dfd69278cabf02bafd05`, SHA-256
+  `ba8f1547a02ab5db64fe3923d0b834a220e2c3798c1674374a0eb92a18dfddfb`
+- expected evidence: HDMI displays a centered green `OMARCHY` wordmark on the
+  Tokyo Night background and a restrained progress line; transient fbcon or
+  modeset writes are repainted within one second; the splash stops immediately
+  before `switch_root`; graphical Linux reaches the accepted session; UART
+  retains kernel/initramfs messages and contains no new GPU, USB, ext4 or boot
+  fault
+- timeout: 4 minutes after payload delivery
+- rollback: restore the exact pre-A45 initramfs and its manifest entry from the
+  bounded staging backup, leaving kernel and boot arguments untouched
+- stop condition: no kernel, command-line, rootfs, package, session or monitor
+  change belongs to A45. If the red failure state appears, preserve UART
+  evidence rather than retrying; use the unchanged debug profile later if HDMI
+  error text is required
+- operator action: after the bounded session is active and the artifact is
+  staged, boot Linux once and report the splash appearance, whether anything
+  overwrites it for longer than one second, and the final desktop outcome
+
 ## Session-close checklist
 
 - [ ] Bounded UART session stopped or explicitly aborted with reason.

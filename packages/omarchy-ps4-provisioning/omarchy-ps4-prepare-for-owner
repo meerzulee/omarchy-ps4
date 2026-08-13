@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+confirmation_text=PREPARE-FOR-ANOTHER-OWNER
+expected_root_label=OMARCHY-PS4
+development_user=ps4
+check_only=0
+confirmed=0
+target_root=''
+
+usage() {
+  cat <<EOF
+Usage: omarchy-ps4-prepare-for-owner [--check] [--confirm $confirmation_text] TARGET_ROOT
+
+Prepare a mounted Omarchy PS4 USB root for its first owner. The command:
+
+  - refuses the running root and any target not labelled $expected_root_label;
+  - removes the temporary '$development_user' development account and access;
+  - removes LightDM autologin, cloned machine identity, and SSH host keys;
+  - arms the tty1 owner wizard for the next boot.
+
+Run --check first. The write operation requires the literal confirmation above.
+EOF
+}
+
+fail() {
+  printf 'omarchy-ps4-prepare-for-owner: %s\n' "$1" >&2
+  exit 1
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    --check)
+      check_only=1
+      shift
+      ;;
+    --confirm)
+      (( $# >= 2 )) || fail '--confirm requires its confirmation text'
+      [[ $2 == "$confirmation_text" ]] || fail "confirmation must be $confirmation_text"
+      confirmed=1
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --*)
+      fail "unknown option: $1"
+      ;;
+    *)
+      [[ -z $target_root ]] || fail 'only one target root may be specified'
+      target_root=$1
+      shift
+      ;;
+  esac
+done
+
+[[ $EUID -eq 0 ]] || fail 'must run as root'
+[[ -n $target_root ]] || fail 'TARGET_ROOT is required'
+target_root=$(readlink -f -- "$target_root")
+[[ -d $target_root ]] || fail "target root is not a directory: $target_root"
+[[ $target_root != / ]] || fail 'refusing to prepare the currently running root'
+
+for command_name in awk blkid find findmnt grep lsblk readlink; do
+  command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
+done
+
+mount_target=$(findmnt -nro TARGET --target "$target_root" 2>/dev/null || true)
+mount_target=$(readlink -f -- "$mount_target" 2>/dev/null || true)
+[[ $mount_target == "$target_root" ]] || fail 'TARGET_ROOT must be the root of its own mounted filesystem'
+
+root_source=$(findmnt -nro SOURCE --target "$target_root")
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source" 2>/dev/null || true)
+[[ -b $root_device ]] || fail "cannot resolve the target block device from $root_source"
+root_label=$(blkid -s LABEL -o value "$root_device" 2>/dev/null || true)
+[[ $root_label == "$expected_root_label" ]] || \
+  fail "target label is ${root_label:-unset}; expected $expected_root_label"
+root_transport=$(lsblk -s -nro TRAN "$root_device" 2>/dev/null | awk 'NF { print; exit }')
+[[ $root_transport == usb ]] || \
+  fail "target transport is ${root_transport:-unknown}; only an external USB root is supported"
+
+for required in \
+  etc/os-release \
+  etc/passwd \
+  etc/shadow \
+  etc/group \
+  etc/gshadow \
+  usr/bin/omarchy-ps4-provision-owner \
+  usr/lib/systemd/system/omarchy-ps4-provision-owner.service \
+  usr/share/omarchy/install/provisioning/setup-form.sh; do
+  [[ -e $target_root/$required ]] || fail "target is missing $required"
+done
+
+mapfile -t human_users < <(
+  awk -F: '$3 >= 1000 && $3 < 65534 { print $1 }' "$target_root/etc/passwd"
+)
+for username in "${human_users[@]}"; do
+  [[ $username == "$development_user" ]] || \
+    fail "target already contains owner account $username; refusing to erase personal data"
+done
+
+root_password=$(awk -F: '$1 == "root" { print $2; exit }' "$target_root/etc/shadow")
+[[ $root_password == '!'* || $root_password == '*'* ]] || fail 'target root account is not locked'
+
+mapfile -t passwordless_sudo_files < <(
+  grep -R -l -E '^[[:space:]]*[^#].*NOPASSWD' \
+    "$target_root/etc/sudoers" "$target_root/etc/sudoers.d" 2>/dev/null || true
+)
+for sudo_file in "${passwordless_sudo_files[@]}"; do
+  case "$sudo_file" in
+    "$target_root/etc/sudoers.d/90-omarchy-ps4-debug"|\
+    "$target_root/etc/sudoers.d/90-omarchy-ps4-development") ;;
+    *) fail "unexpected passwordless sudo rule: ${sudo_file#"$target_root"}" ;;
+  esac
+done
+
+printf 'Target:    %s\nDevice:    %s\nLabel:     %s\nTransport: %s\n' \
+  "$target_root" "$root_device" "$root_label" "$root_transport"
+if (( check_only )); then
+  printf '%s\n' 'Check passed; no files were changed.'
+  exit 0
+fi
+
+if (( confirmed == 0 )) && [[ -t 0 && -t 1 ]]; then
+  command -v gum >/dev/null 2>&1 || \
+    fail "interactive confirmation needs gum; otherwise use --confirm $confirmation_text"
+  clear
+  logo_path=$target_root/usr/share/omarchy/logo.txt
+  if [[ -r $logo_path ]]; then
+    gum style --foreground 2 "$(<"$logo_path")"
+  else
+    gum style --foreground 2 --bold 'OMARCHY PS4'
+  fi
+  echo
+  gum style 'This prepares the machine for another owner.'
+  gum style --foreground 8 'The system is installed now, but personal setup waits until first boot.'
+  echo
+  if gum confirm \
+      --affirmative 'Yes, prepare for another owner' \
+      --negative 'No, keep setting up' \
+      'Prepare this machine for another owner?'; then
+    confirmed=1
+  else
+    printf '%s\n' 'No changes made.'
+    exit 0
+  fi
+fi
+(( confirmed == 1 )) || fail "write operation requires --confirm $confirmation_text"
+
+state_dir=$target_root/var/lib/omarchy-ps4/provisioning
+install -d -m 0700 "$state_dir"
+
+rewrite_without_account() {
+  local file=$1 user=$2 temporary
+  [[ -e $file ]] || return 0
+  temporary=$(mktemp "$state_dir/account.XXXXXX")
+  awk -F: -v user="$user" '$1 != user' "$file" >"$temporary"
+  cat "$temporary" >"$file"
+  rm -f "$temporary"
+}
+
+rewrite_group_members() {
+  local file=$1 user=$2 primary_group=$3 temporary
+  temporary=$(mktemp "$state_dir/group.XXXXXX")
+  awk -F: -v OFS=: -v user="$user" -v primary_group="$primary_group" '
+    $1 == user && (primary_group == "" || $3 == primary_group) { next }
+    {
+      count = split($4, members, ",")
+      kept = ""
+      for (i = 1; i <= count; i++) {
+        if (members[i] != "" && members[i] != user) {
+          kept = kept (kept == "" ? "" : ",") members[i]
+        }
+      }
+      $4 = kept
+      print
+    }
+  ' "$file" >"$temporary"
+  cat "$temporary" >"$file"
+  rm -f "$temporary"
+}
+
+rewrite_gshadow_members() {
+  local file=$1 user=$2 temporary
+  temporary=$(mktemp "$state_dir/gshadow.XXXXXX")
+  awk -F: -v OFS=: -v user="$user" '
+    $1 == user { next }
+    {
+      for (field = 3; field <= 4; field++) {
+        count = split($field, members, ",")
+        kept = ""
+        for (i = 1; i <= count; i++) {
+          if (members[i] != "" && members[i] != user) {
+            kept = kept (kept == "" ? "" : ",") members[i]
+          }
+        }
+        $field = kept
+      }
+      print
+    }
+  ' "$file" >"$temporary"
+  cat "$temporary" >"$file"
+  rm -f "$temporary"
+}
+
+development_entry=$(awk -F: -v user="$development_user" '$1 == user { print; exit }' "$target_root/etc/passwd")
+development_gid=$(awk -F: -v user="$development_user" '$1 == user { print $3; exit }' "$target_root/etc/group")
+if [[ -n $development_entry ]]; then
+  development_uid=$(printf '%s\n' "$development_entry" | awk -F: '{ print $3 }')
+  development_home=$(printf '%s\n' "$development_entry" | awk -F: '{ print $6 }')
+  [[ $development_home == "/home/$development_user" ]] || \
+    fail "development home is unexpected: $development_home"
+
+  printf 'Removed development account %s (uid %s).\n' "$development_user" "$development_uid"
+fi
+
+rewrite_without_account "$target_root/etc/passwd" "$development_user"
+rewrite_without_account "$target_root/etc/shadow" "$development_user"
+rewrite_without_account "$target_root/etc/subuid" "$development_user"
+rewrite_without_account "$target_root/etc/subgid" "$development_user"
+rewrite_group_members "$target_root/etc/group" "$development_user" "$development_gid"
+rewrite_gshadow_members "$target_root/etc/gshadow" "$development_user"
+
+development_home_path=$target_root/home/$development_user
+if [[ -e $development_home_path ]]; then
+  find -P "$development_home_path" -xdev -depth -delete
+fi
+rm -f "$target_root/var/spool/mail/$development_user"
+
+rm -f \
+  "$target_root/etc/sudoers.d/90-omarchy-ps4-debug" \
+  "$target_root/etc/sudoers.d/90-omarchy-ps4-development"
+
+! grep -R -q -E '^[[:space:]]*[^#].*NOPASSWD' \
+  "$target_root/etc/sudoers" "$target_root/etc/sudoers.d" 2>/dev/null || \
+  fail 'a passwordless sudo rule remains after development cleanup'
+
+for wants_dir in \
+  "$target_root/etc/systemd/system/multi-user.target.wants" \
+  "$target_root/etc/systemd/system/sockets.target.wants"; do
+  rm -f "$wants_dir/sshd.service" "$wants_dir/sshd.socket"
+done
+if [[ -d $target_root/etc/ssh ]]; then
+  find "$target_root/etc/ssh" -maxdepth 1 -type f -name 'ssh_host_*' -delete
+fi
+
+lightdm_config=$target_root/etc/lightdm/lightdm.conf.d/20-omarchy-ps4.conf
+if [[ -e $lightdm_config ]]; then
+  temporary=$(mktemp "$state_dir/lightdm.XXXXXX")
+  awk '!/^[[:space:]]*autologin-user([[:space:]]|=)/ && !/^[[:space:]]*autologin-user-timeout([[:space:]]|=)/' \
+    "$lightdm_config" >"$temporary"
+  cat "$temporary" >"$lightdm_config"
+  rm -f "$temporary"
+fi
+
+: >"$target_root/etc/machine-id"
+rm -f "$target_root/var/lib/dbus/machine-id"
+touch "$state_dir/pending"
+chmod 0600 "$state_dir/pending"
+rm -f "$state_dir/setup-user"
+
+wants_dir=$target_root/etc/systemd/system/multi-user.target.wants
+install -d -m 0755 "$wants_dir"
+ln -sfn /usr/lib/systemd/system/omarchy-ps4-provision-owner.service \
+  "$wants_dir/omarchy-ps4-provision-owner.service"
+
+install -d -m 0755 "$target_root/var/lib/omarchy-ps4"
+cat >"$target_root/var/lib/omarchy-ps4/release-state" <<EOF
+mode=deferred-owner
+release=4.0.0rc3
+upstream_commit=144f4d1e31d6ddc2cba5dfd69278cabf02bafd05
+EOF
+
+sync -f "$target_root" 2>/dev/null || sync
+printf '%s\n' 'Image is prepared. The next boot will create its first owner on tty1.'

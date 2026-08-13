@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+bundle_dir="$repo_dir/fpkg/vendor/bundle"
+target_mount=""
+apply=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --mount) target_mount="${2:-}"; shift 2 ;;
+    --apply) apply=true; shift ;;
+    *) printf 'usage: %s --mount /path/to/PS4BOOT [--apply]\n' "$0" >&2; exit 2 ;;
+  esac
+done
+
+[[ -n "$target_mount" && -d "$target_mount" ]] || { printf 'error: explicit FAT mount directory required\n' >&2; exit 1; }
+target_mount="$(cd -- "$target_mount" && pwd -P)"
+[[ "$target_mount" != / ]] || { printf 'error: refusing filesystem root\n' >&2; exit 1; }
+
+for bundle_input in \
+  boot/bzImage boot/initramfs.cpio.gz boot/bootargs.txt boot/bootargs-product.txt \
+  boot/bootargs-debug.txt boot/vram.txt images/omarchy-ps4-rootfs.tar.zst \
+  images/omarchy-ps4-rootfs.tar.zst.sha256 CREDITS.md; do
+  [[ -f "$bundle_dir/$bundle_input" ]] || { printf 'error: missing staged input: %s\n' "$bundle_input" >&2; exit 1; }
+done
+
+printf '%s\n' \
+  "FAT target: $target_mount" \
+  'Files written:' \
+  '  /bzImage /initramfs.cpio.gz /bootargs.txt /vram.txt' \
+  '  /omarchy-ps4/omarchy-ps4-rootfs.tar.zst{,.sha256}' \
+  '  /omarchy-ps4/bootargs-{product,debug}.txt /omarchy-ps4/CREDITS.md'
+
+[[ "$apply" == true ]] || { printf 'Preview only; add --apply to copy.\n'; exit 0; }
+
+backup_dir="$target_mount/omarchy-ps4/previous-boot"
+mkdir -p "$backup_dir"
+for boot_name in bzImage initramfs.cpio.gz bootargs.txt vram.txt; do
+  if [[ -f "$target_mount/$boot_name" ]]; then
+    install -m 0644 "$target_mount/$boot_name" "$backup_dir/$boot_name"
+  fi
+done
+
+mkdir -p "$target_mount/omarchy-ps4"
+install -m 0644 "$bundle_dir/boot/bzImage" "$target_mount/bzImage"
+install -m 0644 "$bundle_dir/boot/initramfs.cpio.gz" "$target_mount/initramfs.cpio.gz"
+install -m 0644 "$bundle_dir/boot/bootargs.txt" "$target_mount/bootargs.txt"
+install -m 0644 "$bundle_dir/boot/vram.txt" "$target_mount/vram.txt"
+install -m 0644 "$bundle_dir/boot/bootargs-product.txt" "$target_mount/omarchy-ps4/bootargs-product.txt"
+install -m 0644 "$bundle_dir/boot/bootargs-debug.txt" "$target_mount/omarchy-ps4/bootargs-debug.txt"
+install -m 0644 "$bundle_dir/images/omarchy-ps4-rootfs.tar.zst" "$target_mount/omarchy-ps4/omarchy-ps4-rootfs.tar.zst"
+install -m 0644 "$bundle_dir/images/omarchy-ps4-rootfs.tar.zst.sha256" "$target_mount/omarchy-ps4/omarchy-ps4-rootfs.tar.zst.sha256"
+install -m 0644 "$bundle_dir/CREDITS.md" "$target_mount/omarchy-ps4/CREDITS.md"
+sync
+printf 'FAT staging complete. Previous boot files are in %s\n' "$backup_dir"

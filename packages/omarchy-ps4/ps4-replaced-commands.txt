@@ -1,0 +1,5 @@
+# Upstream originals are retained under /usr/lib/omarchy-ps4/upstream-bin.
+omarchy-launch-nautilus
+omarchy-launch-nautilus-cwd
+omarchy-theme-bg-install
+omarchy-install-gaming-retroarch

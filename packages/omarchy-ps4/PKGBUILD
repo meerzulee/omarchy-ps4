@@ -1,0 +1,122 @@
+# Maintainer: Omarchy PS4 contributors
+
+pkgname=omarchy-ps4
+pkgver=4.0.0rc3
+pkgrel=1
+pkgdesc='Pinned Omarchy Quattro runtime adapted for PlayStation 4 Linux'
+arch=('any')
+url='https://github.com/meerzulee/omarchy-ps4'
+license=('MIT')
+provides=('omarchy')
+conflicts=('omarchy' 'omarchy-dev')
+
+_commit=144f4d1e31d6ddc2cba5dfd69278cabf02bafd05
+_probe_sha256=f6638a914ee13b5a34803cc5b2727d7df27e0788694653f3c6f724f6298f7fa7
+
+depends=(
+  'fakeroot'
+  'git'
+  'gnome-keyring'
+  'gum'
+  'hyprland'
+  'jq'
+  'omarchy-ps4-settings=4.0.0rc3-1'
+  'pacman-contrib'
+  'perl'
+  'pipewire'
+  'quickshell'
+  'ttf-jetbrains-mono-nerd-basic'
+  'thunar'
+  'uwsm'
+  'wireplumber'
+  'xdg-desktop-portal-hyprland'
+)
+
+makedepends=('git')
+
+source=(
+  "omarchy::git+https://github.com/basecamp/omarchy.git#commit=${_commit}"
+  'ps4-disabled-commands.txt'
+  'ps4-replaced-commands.txt'
+  'omarchy-ps4-unsupported'
+  'omarchy-ps4-status'
+  'omarchy-launch-nautilus'
+  'omarchy-launch-nautilus-cwd'
+)
+sha256sums=(
+  'SKIP'
+  '9d7ee5ac79e6acd0a60db1e88595a187e345a2f349fb9b73fb3bad83e60079d9'
+  'a448d5e7c6013c6f029f4eb118f71f84125e3c4b37fe6b69686fdb3850c3cae9'
+  '20997056023e8830f4e3fa3aa743590c52adda7b23375939a3ac3e42a3e31d59'
+  'bc46ca05a29efeec6f605d18739721570bf72fd754d5e493bf3028c4a8d6af1d'
+  '122db1123d9fe1f8c679b87b6b5f7c00316079d9f294deaff097324a38a77393'
+  'd78a147033bef36e2167041b668a423d5544fb872bc497bf072081adf31807cf'
+)
+
+package() {
+  cd "$srcdir/omarchy"
+
+  install -d \
+    "$pkgdir/usr/bin" \
+    "$pkgdir/usr/lib/omarchy-ps4/upstream-bin" \
+    "$pkgdir/usr/share/omarchy/bin"
+
+  while IFS= read -r command; do
+    [[ -z $command || $command == \#* ]] && continue
+    [[ -f bin/$command ]] || {
+      printf 'disabled command is absent upstream: %s\n' "$command" >&2
+      return 1
+    }
+  done <"$srcdir/ps4-disabled-commands.txt"
+
+  for binary in bin/*; do
+    [[ -f $binary ]] || continue
+    name=${binary##*/}
+    install -Dm755 "$binary" "$pkgdir/usr/lib/omarchy-ps4/upstream-bin/$name"
+
+    case "$name" in
+      omarchy-debug|omarchy-debug-idle|omarchy-upload-log)
+        continue
+        ;;
+    esac
+
+    case "$name" in
+      omarchy-launch-nautilus|omarchy-launch-nautilus-cwd)
+        install -Dm755 "$srcdir/$name" "$pkgdir/usr/bin/$name"
+        ;;
+      omarchy-theme-bg-install|omarchy-install-gaming-retroarch)
+        sed 's/nautilus/thunar/g' "$binary" >"$srcdir/$name.ps4"
+        install -Dm755 "$srcdir/$name.ps4" "$pkgdir/usr/bin/$name"
+        ;;
+      *)
+        if grep -Fxq "$name" "$srcdir/ps4-disabled-commands.txt"; then
+          install -Dm755 "$srcdir/omarchy-ps4-unsupported" "$pkgdir/usr/bin/$name"
+        else
+          install -Dm755 "$binary" "$pkgdir/usr/bin/$name"
+        fi
+        ;;
+    esac
+    ln -s "/usr/bin/$name" "$pkgdir/usr/share/omarchy/bin/$name"
+  done
+
+  install -d "$pkgdir/usr/share/omarchy"
+  cp -a install migrations shell themes "$pkgdir/usr/share/omarchy/"
+  install -Dm644 version "$pkgdir/usr/share/omarchy/version"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+
+  install -Dm644 "$srcdir/ps4-disabled-commands.txt" \
+    "$pkgdir/usr/share/omarchy-ps4/disabled-commands.txt"
+  install -Dm644 "$srcdir/ps4-replaced-commands.txt" \
+    "$pkgdir/usr/share/omarchy-ps4/replaced-commands.txt"
+  install -Dm755 "$srcdir/omarchy-ps4-status" "$pkgdir/usr/bin/omarchy-ps4-status"
+  printf '%s  %s\n' "$_probe_sha256" "$startdir/../../bin/omarchy-ps4-probe" | sha256sum -c -
+  install -Dm755 "$startdir/../../bin/omarchy-ps4-probe" "$pkgdir/usr/bin/omarchy-ps4-probe"
+  printf '%s\n' "$_commit" >"$pkgdir/usr/share/omarchy-ps4/upstream-commit"
+
+  if compgen -G 'migrations/*.sh' >/dev/null; then
+    install -d "$pkgdir/etc/skel/.local/state/omarchy/migrations"
+    for migration in migrations/*.sh; do
+      touch "$pkgdir/etc/skel/.local/state/omarchy/migrations/${migration##*/}"
+    done
+  fi
+}

@@ -1,0 +1,185 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+recovery_user=omarchy-recovery
+recovery_home=/home/omarchy-recovery
+expected_key_fingerprint='SHA256:N64LAFp/1IpDOVOrMNVY3Bd6JHn2qxAyvT0/8FZ3T0M'
+state_dir=/var/lib/omarchy-ps4/recovery
+control_path=/usr/local/sbin/omarchy-ps4-dev-recovery
+sudoers_path=/etc/sudoers.d/91-omarchy-ps4-recovery
+sshd_policy_path=/etc/ssh/sshd_config.d/30-omarchy-ps4-recovery.conf
+
+usage() {
+  printf '%s\n' \
+    'Usage: arm-recovery (--check|--apply) EXPERIMENT_ID' \
+    '' \
+    'Create the temporary key-only RC3 recovery account on the running' \
+    'external OMARCHY-PS4 development root.'
+}
+
+fail() {
+  printf 'arm-recovery: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ $EUID -eq 0 ]] || fail 'must run as root'
+[[ $# -eq 2 ]] || {
+  usage >&2
+  exit 2
+}
+
+mode=$1
+experiment_id=$2
+case "$mode" in
+  --check|--apply) ;;
+  *) fail 'first argument must be --check or --apply' ;;
+esac
+[[ $experiment_id =~ ^EXP-[0-9]{8}-[0-9]{3}-A[0-9]+$ ]] || \
+  fail "invalid experiment ID: $experiment_id"
+
+bundle_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+"$bundle_dir/check" >/dev/null
+
+for command_name in \
+  awk findmnt getent grep install lsblk mktemp openssl passwd pwck readlink \
+  runuser ssh-keygen sshd systemctl useradd usermod visudo
+do
+  command -v "$command_name" >/dev/null 2>&1 || fail "missing command: $command_name"
+done
+
+root_source=$(findmnt -nro SOURCE --target /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source")
+[[ -b $root_device ]] || fail "root source is not a block device: $root_source"
+root_label=$(lsblk -dnro LABEL "$root_device")
+[[ $root_label == OMARCHY-PS4 ]] || fail "root label is '$root_label', expected OMARCHY-PS4"
+parent_name=$(lsblk -dnro PKNAME "$root_device")
+[[ -n $parent_name ]] || fail "cannot resolve the parent disk for $root_device"
+transport=$(lsblk -dnro TRAN "/dev/$parent_name")
+[[ $transport == usb ]] || fail "root parent uses '$transport', expected USB"
+
+source_keys=/home/ps4/.ssh/authorized_keys
+[[ -r $source_keys ]] || fail "source key file is missing: $source_keys"
+mapfile -t key_lines < <(awk 'NF && $1 !~ /^#/ { print }' "$source_keys")
+[[ ${#key_lines[@]} -eq 1 ]] || fail 'expected exactly one ps4 authorized key'
+
+temporary=$(mktemp -d)
+trap 'rm -rf -- "$temporary"' EXIT
+printf '%s\n' "${key_lines[0]}" >"$temporary/authorized_key"
+key_fingerprint=$(ssh-keygen -l -E sha256 -f "$temporary/authorized_key" | awk '{ print $2 }')
+[[ $key_fingerprint == "$expected_key_fingerprint" ]] || \
+  fail "source key fingerprint is $key_fingerprint, expected $expected_key_fingerprint"
+
+[[ -x /usr/bin/sshd ]] || fail 'OpenSSH server is not installed'
+sshd -t
+if getent passwd "$recovery_user" >/dev/null; then
+  [[ -r $state_dir/armed.env ]] || fail 'recovery user exists without the armed marker'
+  [[ -x $control_path ]] || fail 'recovery command is missing'
+  [[ -r $recovery_home/.ssh/authorized_keys ]] || fail 'recovery authorized key is missing'
+  installed_fingerprint=$(
+    ssh-keygen -l -E sha256 -f "$recovery_home/.ssh/authorized_keys" | awk '{ print $2 }'
+  )
+  [[ $installed_fingerprint == "$expected_key_fingerprint" ]] || \
+    fail "installed recovery key fingerprint is $installed_fingerprint"
+  systemctl is-enabled --quiet sshd.service || fail 'sshd.service is not enabled'
+  systemctl is-active --quiet sshd.service || fail 'sshd.service is not active'
+  printf '%s\n' 'Recovery access is already armed and healthy.'
+  exit 0
+fi
+
+printf 'Root:        %s (%s, label %s)\n' "$root_device" "$transport" "$root_label"
+printf 'Account:     %s (new, key-only SSH)\n' "$recovery_user"
+printf 'Key:         %s\n' "$key_fingerprint"
+printf 'Experiment:  %s\n' "$experiment_id"
+printf '%s\n' 'Sudo scope:  recovery status and exact RC3 foundation rollback only'
+printf '%s\n' 'Release gate: owner finalization will refuse this extra account and sudo rule'
+
+if [[ $mode == --check ]]; then
+  printf '%s\n' 'Check passed; no files, users, or services were changed.'
+  exit 0
+fi
+
+evidence_dir="$state_dir/${experiment_id}-$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 0700 "$evidence_dir"
+getent passwd >"$evidence_dir/passwd.before.txt"
+getent group >"$evidence_dir/group.before.txt"
+systemctl is-enabled sshd.service >"$evidence_dir/sshd-enabled.before.txt" 2>&1 || true
+systemctl is-active sshd.service >"$evidence_dir/sshd-active.before.txt" 2>&1 || true
+sshd -T >"$evidence_dir/sshd-effective.before.txt"
+
+install -D -o root -g root -m 0755 "$bundle_dir/dev-recovery" "$control_path"
+useradd --create-home --home-dir "$recovery_home" --shell /bin/bash \
+  --comment 'Temporary Omarchy PS4 recovery' "$recovery_user"
+random_password=$(openssl rand -hex 32)
+password_hash=$(openssl passwd -6 "$random_password")
+usermod --password "$password_hash" "$recovery_user"
+unset random_password password_hash
+
+recovery_uid=$(getent passwd "$recovery_user" | awk -F: '{ print $3 }')
+recovery_gid=$(getent passwd "$recovery_user" | awk -F: '{ print $4 }')
+install -d -o "$recovery_uid" -g "$recovery_gid" -m 0700 "$recovery_home/.ssh"
+install -o "$recovery_uid" -g "$recovery_gid" -m 0600 \
+  "$temporary/authorized_key" "$recovery_home/.ssh/authorized_keys"
+
+cat >"$temporary/sshd-policy" <<EOF
+# Temporary RC3 recovery access. Remove before gift finalization.
+Match User $recovery_user
+    AuthenticationMethods publickey
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+    PubkeyAuthentication yes
+    AllowAgentForwarding no
+    AllowTcpForwarding no
+    X11Forwarding no
+    PermitTunnel no
+    GatewayPorts no
+Match all
+EOF
+install -D -o root -g root -m 0644 "$temporary/sshd-policy" "$sshd_policy_path"
+
+cat >"$temporary/sudoers" <<EOF
+# Temporary RC3 recovery access. Remove before gift finalization.
+$recovery_user ALL=(root) NOPASSWD: $control_path status
+$recovery_user ALL=(root) NOPASSWD: $control_path rollback-foundation
+EOF
+install -D -o root -g root -m 0440 "$temporary/sudoers" "$sudoers_path"
+
+install -d -m 0700 "$state_dir"
+cat >"$state_dir/armed.env" <<EOF
+schema=1
+mode=temporary-dev-recovery
+experiment=$experiment_id
+user=$recovery_user
+key_fingerprint=$key_fingerprint
+gift_finalization=blocked-until-removed
+EOF
+chmod 0600 "$state_dir/armed.env"
+
+pwck --read-only >/dev/null
+visudo --check --file=/etc/sudoers >/dev/null
+sshd -t
+systemctl enable sshd.service >/dev/null
+if systemctl is-active --quiet sshd.service; then
+  systemctl reload sshd.service
+else
+  systemctl start sshd.service
+fi
+systemctl is-enabled --quiet sshd.service || fail 'sshd.service is not enabled'
+systemctl is-active --quiet sshd.service || fail 'sshd.service is not active'
+
+runuser -u "$recovery_user" -- sudo -n "$control_path" status \
+  >"$evidence_dir/recovery-status.txt"
+getent passwd "$recovery_user" >"$evidence_dir/recovery-passwd.txt"
+ssh-keygen -l -E sha256 -f "$recovery_home/.ssh/authorized_keys" \
+  >"$evidence_dir/recovery-key.txt"
+sshd -T -C "user=$recovery_user,host=localhost,addr=127.0.0.1" \
+  >"$evidence_dir/sshd-recovery-effective.txt"
+
+grep -qi '^passwordauthentication no$' "$evidence_dir/sshd-recovery-effective.txt" || \
+  fail 'recovery SSH policy still permits passwords'
+grep -qi '^authenticationmethods publickey$' "$evidence_dir/sshd-recovery-effective.txt" || \
+  fail 'recovery SSH policy is not public-key-only'
+
+printf 'Temporary recovery access armed. Evidence: %s\n' "$evidence_dir"
+printf '%s\n' 'A real SSH login must pass inside this bounded hardware experiment before A44.'

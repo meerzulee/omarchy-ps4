@@ -8,14 +8,15 @@ list, but no safe bare-install mode for this existing PS4 root.
 
 | Field | Value |
 |---|---|
-| Version | `4.0.0.alpha` |
+| Release | `4.0.0rc3` |
+| Source version file | `4.0.0.alpha` |
 | Branch | `quattro` |
-| Commit | `08204846ef6c2e2de8eba873d5888749e1d46ba5` |
-| Commit date | 2026-08-11 18:34:07 +0200 |
+| Commit | `144f4d1e31d6ddc2cba5dfd69278cabf02bafd05` |
+| Commit date | 2026-08-13 15:18:33 +0200 |
 | Core packages | 147 |
 | Additional/conditional packages | 59 |
-| Helper commands | 415 |
-| Migrations | 70 |
+| Helper commands | 422 |
+| Migrations | 77 |
 | Quickshell plugin manifests | 37 |
 
 Run `./scripts/sync-omarchy-upstream` to reproduce the ignored checkout under
@@ -67,7 +68,7 @@ Each candidate remains isolated until its gate passes on the PS4.
 | Normal package update freedom | Signed compatibility sets for kernel and graphics packages |
 | Upstream all-packages acceptance | PS4 profile acceptance driven by the component ledger |
 
-## Exclude from the first product
+## Block from the PS4 hardware path
 
 - Btrfs/Snapper and Limine snapshot integration; the MVP uses ext4.
 - Suspend, hibernate, firmware updates, and unattended major graphics updates.
@@ -76,8 +77,13 @@ Each candidate remains isolated until its gate passes on the PS4.
 - Intel, Nvidia, Apple, Surface, ASUS, Framework, Tuxedo, fingerprint, laptop,
   and DKMS hardware branches.
 - Power-profile and brightness behavior that assumes a laptop battery/backlight.
-- Printing, Docker, databases, office/video-production applications, and the
-  remainder of the 145-package workstation profile until requested and tested.
+- Automatic service activation for printing, Docker, databases, Bluetooth,
+  audio, and screen capture until each subsystem passes its own gate.
+
+The applications themselves are retained in the full workstation profile.
+Their installation status and their hardware support status are tracked
+separately. Portable mode carries their menu and configuration definitions but
+does not bundle their native binaries or shared-library dependency trees.
 
 ## Why upstream acceptance cannot be copied unchanged
 

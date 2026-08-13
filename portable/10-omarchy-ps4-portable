@@ -1,0 +1,5 @@
+export OMARCHY_PATH="$HOME/.local/share/omarchy-ps4/portable/current"
+export PATH="$OMARCHY_PATH/bin:$HOME/.local/bin:$PATH"
+export AMD_DEBUG=notiling
+export TERMINAL=foot
+export EDITOR=nvim

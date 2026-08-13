@@ -1,0 +1,13 @@
+# PS4 legacy DCE8: Quickshell's menu-card border shows broken scanline-like
+# segments. Keep every other theme token upstream-owned and disable only this
+# affected surface border.
+[menu]
+border-width = 0
+
+# Keep readable 1080p text while pinning the DCE8-sensitive top-bar icon
+# surfaces to their known-good default pixel geometry.
+[font]
+base-size = 14
+
+[bar]
+scale-with-font = false

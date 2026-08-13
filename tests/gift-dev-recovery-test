@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'gift-dev-recovery-test: %s\n' "$1" >&2
+  exit 1
+}
+
+[[ $# -eq 2 ]] || fail 'usage: gift-dev-recovery-test BUNDLE_DIRECTORY AUTHORIZED_KEY'
+bundle_dir=$(cd -- "$1" && pwd)
+authorized_key=$(cd -- "$(dirname -- "$2")" && pwd)/$(basename -- "$2")
+
+[[ -x $bundle_dir/arm-recovery ]] || fail 'arm-recovery is missing'
+[[ -x $bundle_dir/dev-recovery ]] || fail 'dev-recovery is missing'
+[[ -r $authorized_key ]] || fail 'authorized key is unreadable'
+[[ $(docker context show) == orbstack ]] || fail 'Docker context must be orbstack'
+docker info >/dev/null 2>&1 || fail 'OrbStack Docker engine is not running'
+
+docker run --rm -i --platform linux/amd64 \
+  -v "$bundle_dir:/bundle:ro" \
+  -v "$authorized_key:/test-key:ro" \
+  archlinux:base bash -s <<'CONTAINER_TEST'
+set -euo pipefail
+
+pacman -Sy --disable-sandbox --noconfirm --needed openssh sudo >/dev/null
+install -d -m 0755 /run/sshd /home/ps4/.ssh /test-bin
+install -m 0600 /test-key /home/ps4/.ssh/authorized_keys
+ssh-keygen -A >/dev/null
+mknod /tmp/fake-root b 7 199
+
+cat >/test-bin/findmnt <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '/dev/fake-root'
+EOF
+cat >/test-bin/readlink <<'EOF'
+#!/usr/bin/env bash
+if [[ ${*: -1} == /dev/fake-root ]]; then
+  printf '%s\n' '/tmp/fake-root'
+else
+  exec /usr/bin/readlink "$@"
+fi
+EOF
+cat >/test-bin/lsblk <<'EOF'
+#!/usr/bin/env bash
+if [[ $* == *' LABEL '* ]]; then
+  printf '%s\n' 'OMARCHY-PS4'
+elif [[ $* == *' PKNAME '* ]]; then
+  printf '%s\n' 'fake-parent'
+elif [[ $* == *' TRAN '* ]]; then
+  printf '%s\n' 'usb'
+else
+  exit 1
+fi
+EOF
+cat >/test-bin/systemctl <<'EOF'
+#!/usr/bin/env bash
+case ${1:-} in
+  is-enabled|is-active|enable|reload|start) exit 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod 0755 /test-bin/*
+install -m 0755 /test-bin/findmnt /usr/local/sbin/findmnt
+install -m 0755 /test-bin/readlink /usr/local/sbin/readlink
+install -m 0755 /test-bin/lsblk /usr/local/sbin/lsblk
+install -m 0755 /test-bin/systemctl /usr/local/sbin/systemctl
+export PATH=/test-bin:/usr/local/sbin:/usr/local/bin:/usr/bin
+
+check_output=$(/bundle/arm-recovery --check EXP-20260814-001-A1)
+grep -Fq 'Check passed; no files, users, or services were changed.' <<<"$check_output"
+! getent passwd omarchy-recovery >/dev/null
+
+apply_output=$(/bundle/arm-recovery --apply EXP-20260814-001-A1)
+grep -Fq 'Temporary recovery access armed.' <<<"$apply_output"
+getent passwd omarchy-recovery >/dev/null
+status_output=$(runuser -u omarchy-recovery -- \
+  sudo -n /usr/local/sbin/omarchy-ps4-dev-recovery status)
+grep -Fq 'Recovery:   omarchy-recovery armed' <<<"$status_output"
+
+if runuser -u omarchy-recovery -- sudo -n /usr/bin/id >/dev/null 2>&1; then
+  printf '%s\n' 'recovery user unexpectedly obtained general sudo' >&2
+  exit 1
+fi
+
+cat >/tmp/mock-pacman-state <<'EOF'
+omarchy-ps4-provisioning 4.0.0rc3-1
+omarchy-ps4-settings 4.0.0rc3-1
+omarchy-ps4 4.0.0rc3-1
+EOF
+cat >/usr/local/sbin/pacman <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+state=/tmp/mock-pacman-state
+case ${1:-} in
+  -Q)
+    if [[ $# -eq 1 ]]; then
+      cat "$state"
+    elif match=$(awk -v package="$2" '$1 == package { print; exit }' "$state") && [[ -n $match ]]; then
+      printf '%s\n' "$match"
+    else
+      exit 1
+    fi
+    ;;
+  -Rdd)
+    shift
+    [[ ${1:-} == --noconfirm ]] || exit 2
+    shift
+    [[ ${1:-} == -- ]] || exit 2
+    shift
+    printf '%s\n' "$@" >/tmp/mock-pacman-removed
+    : >"$state"
+    ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod 0755 /usr/local/sbin/pacman
+
+rollback_output=$(runuser -u omarchy-recovery -- \
+  sudo -n /usr/local/sbin/omarchy-ps4-dev-recovery rollback-foundation)
+grep -Fq 'RC3 package foundation removed.' <<<"$rollback_output"
+[[ ! -s /tmp/mock-pacman-state ]]
+[[ $(wc -l </tmp/mock-pacman-removed) -eq 3 ]]
+
+effective=$(sshd -T -C 'user=omarchy-recovery,host=localhost,addr=127.0.0.1')
+grep -qi '^passwordauthentication no$' <<<"$effective"
+grep -qi '^authenticationmethods publickey$' <<<"$effective"
+grep -qi '^allowtcpforwarding no$' <<<"$effective"
+grep -qi '^allowagentforwarding no$' <<<"$effective"
+
+recovery_uid=$(getent passwd omarchy-recovery | awk -F: '{ print $3 }')
+(( recovery_uid >= 1000 && recovery_uid < 65534 ))
+grep -q '^omarchy-recovery .*NOPASSWD' /etc/sudoers.d/91-omarchy-ps4-recovery
+
+printf '%s\n' 'Gift developer recovery fixture passed.'
+CONTAINER_TEST

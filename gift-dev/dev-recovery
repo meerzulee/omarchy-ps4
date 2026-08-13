@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+recovery_user=omarchy-recovery
+expected_root_label=OMARCHY-PS4
+expected_version=4.0.0rc3-1
+state_dir=/var/lib/omarchy-ps4/recovery
+
+usage() {
+  printf '%s\n' \
+    'Usage: omarchy-ps4-dev-recovery (status|rollback-foundation)' \
+    '' \
+    'Restricted recovery command for the temporary RC3 developer account.'
+}
+
+fail() {
+  printf 'omarchy-ps4-dev-recovery: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ $EUID -eq 0 ]] || fail 'must run as root through the installed sudo policy'
+[[ $# -eq 1 ]] || {
+  usage >&2
+  exit 2
+}
+
+action=$1
+case "$action" in
+  status|rollback-foundation) ;;
+  *) fail "unsupported action: $action" ;;
+esac
+
+for command_name in awk date findmnt getent install lsblk pacman readlink systemctl; do
+  command -v "$command_name" >/dev/null 2>&1 || fail "missing command: $command_name"
+done
+
+root_source=$(findmnt -nro SOURCE --target /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source")
+[[ -b $root_device ]] || fail "root source is not a block device: $root_source"
+root_label=$(lsblk -dnro LABEL "$root_device")
+[[ $root_label == "$expected_root_label" ]] || \
+  fail "root label is '$root_label', expected $expected_root_label"
+parent_name=$(lsblk -dnro PKNAME "$root_device")
+[[ -n $parent_name ]] || fail "cannot resolve the parent disk for $root_device"
+transport=$(lsblk -dnro TRAN "/dev/$parent_name")
+[[ $transport == usb ]] || fail "root parent uses '$transport', expected USB"
+
+[[ -r $state_dir/armed.env ]] || fail 'recovery access is not armed'
+getent passwd "$recovery_user" >/dev/null || fail "account $recovery_user is missing"
+systemctl is-enabled --quiet sshd.service || fail 'sshd.service is not enabled'
+systemctl is-active --quiet sshd.service || fail 'sshd.service is not active'
+
+packages=(
+  omarchy-ps4-provisioning
+  omarchy-ps4-settings
+  omarchy-ps4
+)
+
+print_status() {
+  printf 'Root:       %s (%s, label %s)\n' "$root_device" "$transport" "$root_label"
+  printf 'Recovery:   %s armed\n' "$recovery_user"
+  printf 'SSH:        enabled and active\n'
+  printf '%s\n' 'Foundation:'
+  local package_name
+  for package_name in "${packages[@]}"; do
+    if pacman -Q "$package_name" 2>/dev/null; then
+      :
+    else
+      printf '%s not-installed\n' "$package_name"
+    fi
+  done
+  if [[ -e /var/lib/omarchy-ps4/provisioning/pending ]]; then
+    printf '%s\n' 'Provisioning: UNEXPECTEDLY ARMED'
+  else
+    printf '%s\n' 'Provisioning: not armed'
+  fi
+}
+
+if [[ $action == status ]]; then
+  print_status
+  exit 0
+fi
+
+installed=()
+for package_name in "${packages[@]}"; do
+  if package_version=$(pacman -Q "$package_name" 2>/dev/null | awk '{ print $2 }'); then
+    [[ $package_version == "$expected_version" ]] || \
+      fail "$package_name is $package_version, expected $expected_version"
+    installed+=("$package_name")
+  fi
+done
+[[ ${#installed[@]} -gt 0 ]] || fail 'the RC3 foundation is not installed'
+
+evidence_dir="$state_dir/rollback-$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 0700 "$evidence_dir"
+pacman -Q >"$evidence_dir/packages.before.txt"
+printf '%s\n' "${installed[@]}" >"$evidence_dir/foundation-packages.txt"
+printf '%s\n' \
+  'Rollback removes only the installed RC3 project packages with dependency checks disabled.' \
+  'It intentionally leaves every dependency and the active portable desktop in place.' \
+  >"$evidence_dir/README.txt"
+
+pacman -Rdd --noconfirm -- "${installed[@]}"
+
+for package_name in "${installed[@]}"; do
+  ! pacman -Q "$package_name" >/dev/null 2>&1 || \
+    fail "$package_name remains installed after rollback"
+done
+pacman -Q >"$evidence_dir/packages.after.txt"
+systemctl is-active --quiet sshd.service || fail 'sshd stopped during rollback'
+getent passwd "$recovery_user" >/dev/null || fail 'recovery account disappeared during rollback'
+[[ ! -e /var/lib/omarchy-ps4/provisioning/pending ]] || \
+  fail 'owner provisioning was unexpectedly armed'
+
+printf 'RC3 package foundation removed. Evidence: %s\n' "$evidence_dir"
+printf '%s\n' 'Dependencies, boot assets, running desktop, accounts, and SSH were retained.'

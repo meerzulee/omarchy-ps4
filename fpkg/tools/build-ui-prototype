@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_dir="$(cd -- "$script_dir/../.." && pwd)"
+toolchain_version="v0.5.4"
+archive_name="toolchain-llvm-18.tar.gz"
+archive_sha256="3c7cd5bb593ca74fa1c13fd59f3938dc0fc07985167f7275063019e63abe4526"
+cache_dir="$repo_dir/cache/openorbis-$toolchain_version"
+archive_path="$cache_dir/$archive_name"
+toolchain_dir="$cache_dir/OpenOrbis/PS4Toolchain"
+download_url="https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/releases/download/$toolchain_version/$archive_name"
+
+mkdir -p "$cache_dir"
+
+if [[ ! -f "$archive_path" ]]; then
+  curl -fL --retry 3 --output "$archive_path" "$download_url"
+fi
+
+actual_sha256="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
+if [[ "$actual_sha256" != "$archive_sha256" ]]; then
+  echo "OpenOrbis archive SHA-256 mismatch" >&2
+  echo "expected: $archive_sha256" >&2
+  echo "actual:   $actual_sha256" >&2
+  exit 1
+fi
+
+if [[ ! -x "$toolchain_dir/bin/macos/PkgTool.Core" && ! -x "$toolchain_dir/bin/linux/PkgTool.Core" ]]; then
+  tar -xzf "$archive_path" -C "$cache_dir"
+fi
+
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  if [[ ! -e "$toolchain_dir/bin/macos/create-fself" ]]; then
+    ln -s create-fself-macos "$toolchain_dir/bin/macos/create-fself"
+  fi
+  llvm_prefix="$(brew --prefix llvm)"
+  lld_prefix="$(brew --prefix lld@20)"
+  compiler="$llvm_prefix/bin/clang++"
+  linker="$lld_prefix/bin/ld.lld"
+else
+  compiler="$(command -v clang++)"
+  linker="$(command -v ld.lld)"
+fi
+
+make -C "$repo_dir/fpkg/ui-prototype" \
+  OO_PS4_TOOLCHAIN="$toolchain_dir" \
+  CXX="$compiler" \
+  LD="$linker" \
+  clean fpkg audit
+
+package="$repo_dir/output/fpkg-ui-prototype/IV0000-BREW09004_00-OMARCHYPS4UI0000.pkg"
+shasum -a 256 "$package"
+echo "$package"

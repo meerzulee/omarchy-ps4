@@ -1,0 +1,501 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+control_target=/usr/local/sbin/omarchy-ps4-owner-rehearsal
+service_target=/etc/systemd/system/omarchy-ps4-owner-rehearsal.service
+service_name=omarchy-ps4-owner-rehearsal.service
+enter_sudoers=/etc/sudoers.d/92-omarchy-ps4-owner-rehearsal-enter
+recovery_sudoers=/etc/sudoers.d/93-omarchy-ps4-owner-rehearsal-recovery
+state_root=/var/lib/omarchy-ps4/owner-rehearsal
+armed_file=$state_root/armed
+development_user=ps4
+development_home=/home/ps4
+recovery_user=omarchy-recovery
+expected_version=4.0.0rc3-1
+expected_commit=144f4d1e31d6ddc2cba5dfd69278cabf02bafd05
+display_unit=display-manager.service
+
+usage() {
+  printf '%s\n' \
+    'Usage: owner-rehearsal (check EXPERIMENT_ID|arm EXPERIMENT_ID|enter|status|rollback)' \
+    '' \
+    'Run the real first-owner wizard while keeping a root-only backup of the' \
+    'development account and preserving restricted recovery SSH.'
+}
+
+fail() {
+  printf 'omarchy-ps4-owner-rehearsal: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ $EUID -eq 0 ]] || fail 'must run as root through the intended sudo path'
+[[ $# -ge 1 ]] || {
+  usage >&2
+  exit 2
+}
+action=$1
+shift
+case "$action" in
+  check|arm)
+    [[ $# -eq 1 ]] || fail "$action requires one experiment ID"
+    [[ $1 =~ ^EXP-[0-9]{8}-[0-9]{3}-A[0-9]+$ ]] || fail "invalid experiment ID: $1"
+    experiment_id=$1
+    ;;
+  enter|run|status|rollback)
+    [[ $# -eq 0 ]] || fail "$action does not accept arguments"
+    ;;
+  *)
+    fail "unsupported action: $action"
+    ;;
+esac
+
+for command_name in awk cp date find findmnt getent grep grpck hostnamectl \
+  install loginctl lsblk mktemp mv pacman pgrep pkill pwck readlink \
+  runuser sha256sum sort stat systemctl timedatectl visudo
+do
+  command -v "$command_name" >/dev/null 2>&1 || fail "missing command: $command_name"
+done
+
+root_source=$(findmnt -nro SOURCE --target /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source")
+[[ -b $root_device ]] || fail "root source is not a block device: $root_source"
+[[ $(lsblk -dnro LABEL "$root_device") == OMARCHY-PS4 ]] || \
+  fail 'root is not labelled OMARCHY-PS4'
+parent_name=$(lsblk -dnro PKNAME "$root_device")
+[[ -n $parent_name ]] || fail "cannot resolve parent disk for $root_device"
+[[ $(lsblk -dnro TRAN "/dev/$parent_name") == usb ]] || \
+  fail 'root parent is not a USB device'
+
+load_evidence_dir() {
+  [[ -r $armed_file ]] || fail 'owner rehearsal is not armed'
+  evidence_dir=$(<"$armed_file")
+  [[ $evidence_dir == "$state_root/runs/"* && -d $evidence_dir ]] || \
+    fail "unsafe rehearsal evidence path: $evidence_dir"
+  [[ $(stat -c '%U:%G:%a' "$evidence_dir") == root:root:700 ]] || \
+    fail 'rehearsal evidence permissions are unsafe'
+}
+
+foundation_guard() {
+  local package_name installed_version
+  for package_name in omarchy-ps4 omarchy-ps4-settings omarchy-ps4-provisioning; do
+    installed_version=$(pacman -Q "$package_name" 2>/dev/null | awk '{ print $2 }') || \
+      fail "$package_name is not installed"
+    [[ $installed_version == "$expected_version" ]] || \
+      fail "$package_name is $installed_version, expected $expected_version"
+  done
+  [[ -r /usr/share/omarchy/install/provisioning/setup-form.sh ]] || \
+    fail 'installed owner setup form is missing'
+  [[ -x /usr/bin/omarchy-ps4-provision-owner ]] || fail 'owner provisioner is missing'
+  [[ -r /usr/share/omarchy-ps4/settings-upstream-commit ]] || \
+    fail 'settings provenance marker is missing'
+  [[ $(</usr/share/omarchy-ps4/settings-upstream-commit) == "$expected_commit" ]] || \
+    fail 'installed settings commit does not match RC3'
+}
+
+recovery_guard() {
+  [[ -r /var/lib/omarchy-ps4/recovery/armed.env ]] || fail 'temporary recovery is not armed'
+  getent passwd "$recovery_user" >/dev/null || fail "$recovery_user is missing"
+  [[ -x /usr/local/sbin/omarchy-ps4-dev-recovery ]] || \
+    fail 'existing restricted recovery command is missing'
+  systemctl is-enabled --quiet sshd.service || fail 'sshd.service is not enabled'
+  systemctl is-active --quiet sshd.service || fail 'sshd.service is not active'
+  runuser -u "$recovery_user" -- \
+    sudo -n /usr/local/sbin/omarchy-ps4-dev-recovery status >/dev/null || \
+    fail 'existing restricted recovery status is unavailable'
+}
+
+snapshot_path() {
+  local evidence_dir=$1 path=$2 name=$3
+  if [[ -e $path || -L $path ]]; then
+    cp -a -- "$path" "$evidence_dir/snapshot/$name"
+    printf 'present\t%s\t%s\n' "$path" "$name" >>"$evidence_dir/snapshot-paths.tsv"
+  else
+    printf 'absent\t%s\t%s\n' "$path" "$name" >>"$evidence_dir/snapshot-paths.tsv"
+  fi
+}
+
+restore_snapshot_paths() {
+  local evidence_dir=$1 state path name
+  while IFS=$'\t' read -r state path name; do
+    case "$path" in
+      /etc/passwd|/etc/shadow|/etc/group|/etc/gshadow|/etc/subuid|/etc/subgid|\
+      /etc/hostname|/etc/localtime|/etc/vconsole.conf|\
+      /etc/lightdm/lightdm.conf.d/20-omarchy-ps4.conf|\
+      /var/lib/omarchy-ps4/provisioning/pending|\
+      /var/lib/omarchy-ps4/provisioning/setup-user|\
+      /etc/systemd/system/multi-user.target.wants/omarchy-ps4-provision-owner.service) ;;
+      *) fail "unsafe snapshot restore target: $path" ;;
+    esac
+    rm -rf -- "$path"
+    if [[ $state == present ]]; then
+      [[ -e $evidence_dir/snapshot/$name || -L $evidence_dir/snapshot/$name ]] || \
+        fail "snapshot is missing: $name"
+      cp -a -- "$evidence_dir/snapshot/$name" "$path"
+    fi
+  done <"$evidence_dir/snapshot-paths.tsv"
+}
+
+preflight() {
+  foundation_guard
+  recovery_guard
+  [[ ! -e $armed_file ]] || fail "owner rehearsal is already armed: $(<"$armed_file")"
+  [[ ! -e $control_target ]] || fail "control target already exists: $control_target"
+  [[ ! -e $service_target ]] || fail "service target already exists: $service_target"
+  [[ ! -e $enter_sudoers ]] || fail "sudo rule already exists: $enter_sudoers"
+  [[ ! -e $recovery_sudoers ]] || fail "sudo rule already exists: $recovery_sudoers"
+  [[ ! -e /var/lib/omarchy-ps4/provisioning/pending ]] || \
+    fail 'owner provisioning is already pending'
+  [[ ! -e /etc/systemd/system/multi-user.target.wants/omarchy-ps4-provision-owner.service ]] || \
+    fail 'owner provisioning service is already enabled'
+  systemctl is-active --quiet "$display_unit" || fail 'display manager is not active'
+
+  development_entry=$(getent passwd "$development_user") || \
+    fail "development account $development_user is missing"
+  [[ $(printf '%s\n' "$development_entry" | awk -F: '{ print $3 }') == 1000 ]] || \
+    fail 'development account is not UID 1000'
+  [[ $(printf '%s\n' "$development_entry" | awk -F: '{ print $6 }') == "$development_home" ]] || \
+    fail 'development home is unexpected'
+  [[ -d $development_home && ! -L $development_home ]] || \
+    fail 'development home is missing or is a symlink'
+
+  mapfile -t unexpected_users < <(
+    awk -F: -v dev="$development_user" -v recovery="$recovery_user" \
+      '$3 >= 1000 && $3 < 65534 && $1 != dev && $1 != recovery { print $1 }' /etc/passwd
+  )
+  (( ${#unexpected_users[@]} == 0 )) || \
+    fail "unexpected human account exists: ${unexpected_users[*]}"
+
+  [[ $(stat -c '%d' "$development_home") == "$(stat -c '%d' /var/lib/omarchy-ps4)" ]] || \
+    fail 'development home and rehearsal backup are not on the same filesystem'
+  pgrep -u "$development_user" -x Hyprland >/dev/null || \
+    fail 'the development Hyprland session is not active'
+  pgrep -u "$development_user" -x quickshell >/dev/null || \
+    fail 'the development Quattro shell is not active'
+
+  bundle_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+  service_source=$bundle_dir/owner-rehearsal.service
+  [[ -r $service_source ]] || fail "service source is missing: $service_source"
+}
+
+if [[ $action == check || $action == arm ]]; then
+  preflight
+  printf 'Root:       %s (usb, label OMARCHY-PS4)\n' "$root_device"
+  printf 'Experiment: %s\n' "$experiment_id"
+  printf 'Development account: %s (will be moved, not erased)\n' "$development_user"
+  printf 'Recovery account:    %s (retained with restricted SSH)\n' "$recovery_user"
+  printf 'Wizard:              installed RC3 first-owner form on tty1\n'
+  printf 'Rollback:            restore exact accounts, home and LightDM config\n'
+  if [[ $action == check ]]; then
+    printf '%s\n' 'Check passed; no persistent file, account, service or session was changed.'
+    exit 0
+  fi
+
+  evidence_dir=$state_root/runs/${experiment_id}-$(date -u +%Y%m%dT%H%M%SZ)
+  install -d -m 0700 "$evidence_dir" "$evidence_dir/snapshot"
+  : >"$evidence_dir/snapshot-paths.tsv"
+  snapshot_path "$evidence_dir" /etc/passwd etc-passwd
+  snapshot_path "$evidence_dir" /etc/shadow etc-shadow
+  snapshot_path "$evidence_dir" /etc/group etc-group
+  snapshot_path "$evidence_dir" /etc/gshadow etc-gshadow
+  snapshot_path "$evidence_dir" /etc/subuid etc-subuid
+  snapshot_path "$evidence_dir" /etc/subgid etc-subgid
+  snapshot_path "$evidence_dir" /etc/hostname etc-hostname
+  snapshot_path "$evidence_dir" /etc/localtime etc-localtime
+  snapshot_path "$evidence_dir" /etc/vconsole.conf etc-vconsole
+  snapshot_path "$evidence_dir" \
+    /etc/lightdm/lightdm.conf.d/20-omarchy-ps4.conf lightdm-config
+  snapshot_path "$evidence_dir" \
+    /var/lib/omarchy-ps4/provisioning/pending provisioning-pending
+  snapshot_path "$evidence_dir" \
+    /var/lib/omarchy-ps4/provisioning/setup-user provisioning-setup-user
+  snapshot_path "$evidence_dir" \
+    /etc/systemd/system/multi-user.target.wants/omarchy-ps4-provision-owner.service \
+    provisioning-service-link
+  hostnamectl --static >"$evidence_dir/hostname.before.txt"
+  timedatectl show -p Timezone --value >"$evidence_dir/timezone.before.txt"
+  pacman -Q >"$evidence_dir/packages.before.txt"
+  getent passwd >"$evidence_dir/passwd.before.txt"
+  getent group >"$evidence_dir/group.before.txt"
+  systemctl is-active "$display_unit" >"$evidence_dir/display.before.txt"
+  systemctl is-active sshd.service >"$evidence_dir/sshd.before.txt"
+  pgrep -a -u "$development_user" >"$evidence_dir/development-processes.before.txt"
+  sha256sum "${BASH_SOURCE[0]}" "$service_source" >"$evidence_dir/sources.sha256"
+
+  install_failed=1
+  # shellcheck disable=SC2329  # Invoked by the EXIT trap below.
+  cleanup_arm() {
+    local status=$?
+    if (( status != 0 && install_failed == 1 )); then
+      rm -f -- "$armed_file" "$control_target" "$service_target" \
+        "$enter_sudoers" "$recovery_sudoers"
+      systemctl daemon-reload >/dev/null 2>&1 || true
+    fi
+    exit "$status"
+  }
+  trap cleanup_arm EXIT
+
+  install -m 0755 "${BASH_SOURCE[0]}" "$control_target"
+  install -m 0644 "$service_source" "$service_target"
+  temporary=$(mktemp -d)
+  cat >"$temporary/enter-sudoers" <<EOF
+# Recoverable first-owner rehearsal; removed before the wizard creates an owner.
+$development_user ALL=(root) NOPASSWD: $control_target enter
+EOF
+  cat >"$temporary/recovery-sudoers" <<EOF
+# Restricted rollback retained while the recoverable owner rehearsal is active.
+$recovery_user ALL=(root) NOPASSWD: $control_target status
+$recovery_user ALL=(root) NOPASSWD: $control_target rollback
+EOF
+  chmod 0440 "$temporary/enter-sudoers" "$temporary/recovery-sudoers"
+  visudo -cf "$temporary/enter-sudoers" >/dev/null
+  visudo -cf "$temporary/recovery-sudoers" >/dev/null
+  install -m 0440 "$temporary/enter-sudoers" "$enter_sudoers"
+  install -m 0440 "$temporary/recovery-sudoers" "$recovery_sudoers"
+  rm -rf -- "$temporary"
+  visudo -cf /etc/sudoers >/dev/null
+  systemctl daemon-reload
+
+  install -d -m 0700 "$state_root"
+  printf '%s\n' "$evidence_dir" >"$armed_file"
+  chmod 0600 "$armed_file"
+  printf '%s\n' armed >"$evidence_dir/state"
+  runuser -u "$recovery_user" -- sudo -n "$control_target" status \
+    >"$evidence_dir/recovery-status.after-arm.txt"
+  # shellcheck disable=SC2024  # The script already runs as root; sudo only lists policy.
+  sudo -l -U "$development_user" >"$evidence_dir/development-sudo.after-arm.txt"
+  grep -Fq "$control_target enter" "$evidence_dir/development-sudo.after-arm.txt" || \
+    fail 'development account did not receive the exact enter command'
+  if grep -Eq 'NOPASSWD: (ALL|/usr/bin/(ba)?sh|/bin/(ba)?sh)' \
+      "$evidence_dir/development-sudo.after-arm.txt"; then
+    fail 'development account unexpectedly received broad passwordless sudo'
+  fi
+  install_failed=0
+  printf 'Recoverable first-owner rehearsal armed. Evidence: %s\n' "$evidence_dir"
+  printf '%s\n' 'No account, home, running process or display-manager setting changed.'
+  exit 0
+fi
+
+if [[ $action == status ]]; then
+  load_evidence_dir
+  printf 'Root:       %s (usb, label OMARCHY-PS4)\n' "$root_device"
+  printf 'Evidence:   %s\n' "$evidence_dir"
+  printf 'State:      %s\n' "$(<"$evidence_dir/state")"
+  if [[ -r $evidence_dir/new-owner ]]; then
+    printf 'New owner:  %s\n' "$(<"$evidence_dir/new-owner")"
+  fi
+  printf 'Recovery:   %s retained\n' "$recovery_user"
+  printf 'SSH:        %s\n' "$(systemctl is-active sshd.service)"
+  printf 'Display:    %s\n' "$(systemctl is-active "$display_unit" 2>/dev/null || true)"
+  exit 0
+fi
+
+if [[ $action == enter ]]; then
+  load_evidence_dir
+  [[ $(<"$evidence_dir/state") == armed ]] || \
+    fail "rehearsal state is not armed: $(<"$evidence_dir/state")"
+  [[ -r $service_target ]] || fail 'rehearsal service is missing'
+  printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$evidence_dir/enter-requested-at.txt"
+  systemctl reset-failed "$service_name" >/dev/null 2>&1 || true
+  systemctl start --no-block "$service_name"
+  printf '%s\n' 'Owner rehearsal requested. The desktop will close and tty1 will show the setup form.'
+  exit 0
+fi
+
+rewrite_without_account() {
+  local file=$1 user=$2 temporary
+  [[ -e $file ]] || return 0
+  temporary=$(mktemp "$state_root/account.XXXXXX")
+  awk -F: -v user="$user" '$1 != user' "$file" >"$temporary"
+  cat "$temporary" >"$file"
+  rm -f -- "$temporary"
+}
+
+rewrite_group_members() {
+  local file=$1 user=$2 primary_group=$3 temporary
+  [[ -e $file ]] || return 0
+  temporary=$(mktemp "$state_root/group.XXXXXX")
+  awk -F: -v OFS=: -v user="$user" -v primary_group="$primary_group" '
+    $1 == user && (primary_group == "" || $3 == primary_group) { next }
+    {
+      count = split($4, members, ",")
+      kept = ""
+      for (i = 1; i <= count; i++) {
+        if (members[i] != "" && members[i] != user) {
+          kept = kept (kept == "" ? "" : ",") members[i]
+        }
+      }
+      $4 = kept
+      print
+    }
+  ' "$file" >"$temporary"
+  cat "$temporary" >"$file"
+  rm -f -- "$temporary"
+}
+
+rewrite_gshadow_members() {
+  local file=$1 user=$2 temporary
+  [[ -e $file ]] || return 0
+  temporary=$(mktemp "$state_root/gshadow.XXXXXX")
+  awk -F: -v OFS=: -v user="$user" '
+    $1 == user { next }
+    {
+      for (field = 3; field <= 4; field++) {
+        count = split($field, members, ",")
+        kept = ""
+        for (i = 1; i <= count; i++) {
+          if (members[i] != "" && members[i] != user) {
+            kept = kept (kept == "" ? "" : ",") members[i]
+          }
+        }
+        $field = kept
+      }
+      print
+    }
+  ' "$file" >"$temporary"
+  cat "$temporary" >"$file"
+  rm -f -- "$temporary"
+}
+
+if [[ $action == run ]]; then
+  load_evidence_dir
+  [[ $(<"$evidence_dir/state") == armed ]] || \
+    fail "rehearsal state is not armed: $(<"$evidence_dir/state")"
+  foundation_guard
+  recovery_guard
+  printf '%s\n' entering >"$evidence_dir/state"
+  rm -f -- "$enter_sudoers"
+  visudo -cf /etc/sudoers >/dev/null
+
+  systemctl stop "$display_unit"
+  systemctl is-active --quiet "$display_unit" && fail 'display manager did not stop'
+  development_uid=$(getent passwd "$development_user" | awk -F: '{ print $3 }')
+  development_gid=$(getent passwd "$development_user" | awk -F: '{ print $4 }')
+  loginctl terminate-user "$development_user" >/dev/null 2>&1 || true
+  for (( attempt = 1; attempt <= 10; attempt++ )); do
+    pgrep -u "$development_uid" >/dev/null || break
+    (( attempt < 10 )) && sleep 0.2
+  done
+  if pgrep -u "$development_uid" >/dev/null; then
+    pkill -KILL -u "$development_uid" || true
+  fi
+  pgrep -u "$development_uid" >/dev/null && fail 'development processes remain after termination'
+
+  [[ -d $development_home && ! -e $evidence_dir/home.ps4 ]] || \
+    fail 'development home cannot be parked safely'
+  mv -- "$development_home" "$evidence_dir/home.ps4"
+  printf '%s\n' home-parked >"$evidence_dir/state"
+
+  rewrite_without_account /etc/passwd "$development_user"
+  rewrite_without_account /etc/shadow "$development_user"
+  rewrite_without_account /etc/subuid "$development_user"
+  rewrite_without_account /etc/subgid "$development_user"
+  rewrite_group_members /etc/group "$development_user" "$development_gid"
+  rewrite_gshadow_members /etc/gshadow "$development_user"
+  rm -f -- "/var/spool/mail/$development_user"
+  getent passwd "$development_user" >/dev/null && fail 'development account remains'
+  getent passwd "$recovery_user" >/dev/null || fail 'recovery account disappeared'
+  pwck --read-only >/dev/null
+  grpck --read-only >/dev/null
+
+  lightdm_config=/etc/lightdm/lightdm.conf.d/20-omarchy-ps4.conf
+  if [[ -e $lightdm_config ]]; then
+    temporary=$(mktemp "$state_root/lightdm.XXXXXX")
+    awk '!/^[[:space:]]*autologin-user([[:space:]]|=)/ && \
+         !/^[[:space:]]*autologin-user-timeout([[:space:]]|=)/' \
+      "$lightdm_config" >"$temporary"
+    cat "$temporary" >"$lightdm_config"
+    rm -f -- "$temporary"
+  fi
+
+  provisioning_dir=/var/lib/omarchy-ps4/provisioning
+  install -d -m 0700 "$provisioning_dir"
+  : >"$provisioning_dir/pending"
+  chmod 0600 "$provisioning_dir/pending"
+  rm -f -- "$provisioning_dir/setup-user"
+  install -d -m 0755 /etc/systemd/system/multi-user.target.wants
+  ln -sfn /usr/lib/systemd/system/omarchy-ps4-provision-owner.service \
+    /etc/systemd/system/multi-user.target.wants/omarchy-ps4-provision-owner.service
+  systemctl daemon-reload
+  printf '%s\n' wizard >"$evidence_dir/state"
+  printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$evidence_dir/wizard-started-at.txt"
+  chvt 1 >/dev/null 2>&1 || true
+
+  OMARCHY_PATH=/usr/share/omarchy /usr/bin/omarchy-ps4-provision-owner
+  [[ ! -e $provisioning_dir/pending ]] || fail 'owner provisioner left pending state'
+  mapfile -t new_owners < <(
+    awk -F: -v recovery="$recovery_user" \
+      '$3 >= 1000 && $3 < 65534 && $1 != recovery { print $1 }' /etc/passwd
+  )
+  (( ${#new_owners[@]} == 1 )) || fail 'could not identify exactly one new owner'
+  new_owner=${new_owners[0]}
+  new_home=$(getent passwd "$new_owner" | awk -F: '{ print $6 }')
+  [[ -r $new_home/.local/state/omarchy-ps4/owner-provisioned ]] || \
+    fail 'new owner provenance marker is missing'
+  printf '%s\n' "$new_owner" >"$evidence_dir/new-owner"
+  printf '%s\n' owner-created >"$evidence_dir/state"
+  printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$evidence_dir/wizard-completed-at.txt"
+
+  systemctl start "$display_unit"
+  systemctl is-active --quiet "$display_unit" || fail 'display manager did not start'
+  systemctl is-active --quiet sshd.service || fail 'sshd stopped during rehearsal'
+  printf '%s\n' complete >"$evidence_dir/state"
+  printf 'First-owner rehearsal complete for %s. Recovery rollback remains armed.\n' "$new_owner"
+  exit 0
+fi
+
+load_evidence_dir
+current_state=$(<"$evidence_dir/state")
+if [[ $current_state == armed ]]; then
+  rm -f -- "$armed_file" "$control_target" "$service_target" \
+    "$enter_sudoers" "$recovery_sudoers"
+  systemctl daemon-reload
+  printf '%s\n' disarmed >"$evidence_dir/state"
+  printf 'Inactive owner rehearsal disarmed. Evidence: %s\n' "$evidence_dir"
+  exit 0
+fi
+
+systemctl stop "$service_name" >/dev/null 2>&1 || true
+systemctl stop "$display_unit" >/dev/null 2>&1 || true
+
+development_home_parked=0
+[[ -d $evidence_dir/home.ps4 ]] && development_home_parked=1
+mapfile -t rehearsal_users < <(
+  awk -F: -v recovery="$recovery_user" -v dev="$development_user" \
+    -v parked="$development_home_parked" '
+      $3 >= 1000 && $3 < 65534 && $1 != recovery && (parked == 1 || $1 != dev) { print $1 }
+    ' /etc/passwd
+)
+for username in "${rehearsal_users[@]}"; do
+  home_dir=$(getent passwd "$username" | awk -F: '{ print $6 }')
+  if [[ -n $home_dir && -e $home_dir ]]; then
+    parked_owner_home=$evidence_dir/rehearsal-owner-home-$username
+    [[ ! -e $parked_owner_home ]] || fail "parked owner home already exists: $parked_owner_home"
+    mv -- "$home_dir" "$parked_owner_home"
+  fi
+done
+
+old_hostname=$(<"$evidence_dir/hostname.before.txt")
+old_timezone=$(<"$evidence_dir/timezone.before.txt")
+hostnamectl set-hostname "$old_hostname"
+timedatectl set-timezone "$old_timezone"
+restore_snapshot_paths "$evidence_dir"
+if (( development_home_parked == 1 )); then
+  [[ ! -e $development_home ]] || fail 'cannot restore the parked development home safely'
+  mv -- "$evidence_dir/home.ps4" "$development_home"
+fi
+getent passwd "$development_user" >/dev/null || fail 'development account did not restore'
+getent passwd "$recovery_user" >/dev/null || fail 'recovery account did not restore'
+pwck --read-only >/dev/null
+grpck --read-only >/dev/null
+
+rm -f -- "$armed_file" "$enter_sudoers" "$recovery_sudoers" "$service_target"
+systemctl daemon-reload
+systemctl start "$display_unit"
+systemctl is-active --quiet "$display_unit" || fail 'development display manager did not recover'
+systemctl is-active --quiet sshd.service || fail 'sshd did not survive rollback'
+printf '%s\n' rolled-back >"$evidence_dir/state"
+printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$evidence_dir/rolled-back-at.txt"
+rm -f -- "$control_target"
+printf 'Development account, home and display session restored. Evidence: %s\n' "$evidence_dir"

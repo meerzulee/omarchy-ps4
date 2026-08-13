@@ -21,11 +21,12 @@ test exists; package installation alone is not support.
 |---|---|---|---|
 | Baseline | Linux 5.4.247 boot | Supported | Reproduce twice from a clean build |
 | Baseline | Linux 5.4 systemd graphical boot | Supported | Include in automated probe |
-| Baseline | Linux 6.18.44 external root/systemd boot | Degraded | A51 passed; diagnose internal-SATA delay, then repeat a true cold boot |
-| Storage | Linux 6.18 Baikal MSI/xHCI/USB root | Degraded | Eliminate internal-SATA I/O retries and repeat cleanly |
+| Baseline | Linux 6.18.44 external root/systemd boot | Degraded | A5 passed a clean rebuilt-USB boot; repeat unchanged before promotion |
+| Storage | Linux 6.18 Baikal MSI/xHCI/USB root | Degraded | A5 mounted `/dev/sda2` cleanly at 11.55 seconds with internal SATA disabled; repeat unchanged |
 | Display | Linux 5.4 HDMI 1080p60 | Supported | Capture connector/mode and EDID |
 | Display | Linux 5.4 Xorg modesetting | Supported | Record Xorg and DRM logs |
-| Display | Linux 6.18 HDMI 1080p60 | Candidate | A43 and A51 displayed XFCE; repeat unchanged from a true cold boot |
+| Display | Linux 6.18 HDMI 1080p60 | Degraded | A7 produced clear 1080p XFCE with Xorg glamor disabled; verify from two unchanged cold boots |
+| Display | Linux 6.18 Xorg modesetting recovery profile | Degraded | A7 passed with `AccelMethod none` and ShadowFB; acceleration is intentionally disabled |
 | Desktop | XFCE 4.20 | Supported | Two clean cold boots |
 | Network | MT7668 Wi-Fi | Supported | Reconnect after cold boot |
 | Network | OpenSSH over MT7668 | Candidate | A51 key login passed at `192.168.50.125`; repeat after cold boot |

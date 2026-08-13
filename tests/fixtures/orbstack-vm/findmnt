@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+if [[ $* == *' SOURCE '* || $* == *'SOURCE,FSTYPE,OPTIONS'* ]]; then
+  printf '%s\n' '/dev/omarchy-test-root'
+else
+  exec /usr/bin/findmnt "$@"
+fi

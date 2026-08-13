@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    'usage: sudo ./scripts/prepare-usb-linux --device /dev/sdX --apply' \
+    '' \
+    'DESTROYS the selected device and creates:' \
+    '  partition 1: 2 GiB FAT32, label PS4BOOT' \
+    '  partition 2: remaining space ext4, label OMARCHY-PS4'
+}
+
+target_device=""
+apply=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --device) target_device="${2:-}"; shift 2 ;;
+    --apply) apply=true; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
+  esac
+done
+
+[[ $EUID -eq 0 ]] || { printf 'error: run as root\n' >&2; exit 1; }
+[[ -n "$target_device" && -b "$target_device" ]] || { printf 'error: an explicit whole-disk --device is required\n' >&2; exit 1; }
+[[ "$(lsblk -dn -o TYPE "$target_device")" == disk ]] || { printf 'error: target is not a whole disk\n' >&2; exit 1; }
+[[ "$(lsblk -dn -o TRAN "$target_device")" == usb ]] || { printf 'error: target transport is not USB\n' >&2; exit 1; }
+
+root_source="$(findmnt -n -o SOURCE /)"
+# Bind-mounted and container-backed roots can be reported as
+# /dev/vdb1[/path/inside/source]. Resolve the underlying block node before
+# comparing it with the destructive target.
+root_source="${root_source%%\[*}"
+root_parent=""
+if [[ -b "$root_source" ]]; then
+  root_parent_name="$(lsblk -no PKNAME "$root_source" | head -n 1)"
+  [[ -z "$root_parent_name" ]] || root_parent="/dev/$root_parent_name"
+fi
+[[ "$target_device" != "$root_source" && ( -z "$root_parent" || "$target_device" != "$root_parent" ) ]] || { printf 'error: refusing to erase the running root disk\n' >&2; exit 1; }
+
+size_bytes="$(blockdev --getsize64 "$target_device")"
+(( size_bytes >= 16 * 1024 * 1024 * 1024 )) || { printf 'error: USB must be at least 16 GiB\n' >&2; exit 1; }
+
+for required_command in lsblk findmnt blockdev wipefs sfdisk partprobe mkfs.fat mkfs.ext4; do
+  command -v "$required_command" >/dev/null 2>&1 || { printf 'error: missing command: %s\n' "$required_command" >&2; exit 1; }
+done
+
+printf 'Target inventory:\n'
+lsblk -o NAME,PATH,TRAN,SIZE,MODEL,SERIAL,FSTYPE,LABEL,MOUNTPOINTS "$target_device"
+printf '\nPlanned destructive layout:\n  %s1  FAT32  2 GiB  PS4BOOT\n  %s2  ext4   rest   OMARCHY-PS4\n' "$target_device" "$target_device"
+
+[[ "$apply" == true ]] || { printf '\nPreview only; add --apply to continue.\n'; exit 0; }
+read -r -p "Type WIPE $target_device to continue: " confirmation
+[[ "$confirmation" == "WIPE $target_device" ]] || { printf 'aborted\n' >&2; exit 1; }
+
+if lsblk -nr -o MOUNTPOINTS "$target_device" | grep -q '[^[:space:]]'; then
+  printf 'error: one or more target partitions are mounted; unmount them first\n' >&2
+  exit 1
+fi
+
+wipefs --all "$target_device"
+sfdisk --wipe always "$target_device" <<'LAYOUT'
+label: dos
+size=2GiB, type=c, bootable
+type=83
+LAYOUT
+partprobe "$target_device"
+udevadm settle
+
+if [[ "$target_device" =~ [0-9]$ ]]; then
+  boot_partition="${target_device}p1"
+  root_partition="${target_device}p2"
+else
+  boot_partition="${target_device}1"
+  root_partition="${target_device}2"
+fi
+
+[[ -b "$boot_partition" && -b "$root_partition" ]] || { printf 'error: partitions did not appear\n' >&2; exit 1; }
+mkfs.fat -F 32 -n PS4BOOT "$boot_partition"
+mkfs.ext4 -F -L OMARCHY-PS4 "$root_partition"
+sync
+
+printf 'USB prepared. No rootfs was installed yet.\n'
+lsblk -o NAME,PATH,TRAN,SIZE,FSTYPE,LABEL,MOUNTPOINTS "$target_device"

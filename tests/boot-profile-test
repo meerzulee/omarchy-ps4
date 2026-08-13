@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+profiles="$repo_dir/fpkg/bootargs"
+product="$(< "$profiles/6.18-baikal-product-splash.txt")"
+installer="$(< "$profiles/6.18-baikal-install-usb.txt")"
+lab_installer="$(< "$profiles/6.18-baikal-install-usb-lab.txt")"
+debug="$(< "$profiles/6.18-baikal-debug-uart.txt")"
+
+for profile in "$product" "$installer" "$lab_installer" "$debug"; do
+  [[ "$profile" == *'earlycon=uart8250,mmio32,0xC890E000,115200n8'* ]]
+  [[ "$profile" == *'root=LABEL=OMARCHY-PS4'* ]]
+  [[ "$profile" != *'earlyprintk='* ]]
+  [[ "$profile" != *'console=ttyS0'* ]]
+done
+
+[[ "$product" == *'libata.force=1.00:disable'* && "$product" == *'omarchy.splash=1'* ]]
+[[ "$product" != *'console=tty0'* ]]
+[[ "$installer" == *'omarchy.install=usb'* && "$installer" != *'omarchy.allow_development_rootfs=1'* ]]
+[[ "$lab_installer" == *'omarchy.install=usb'* && "$lab_installer" == *'omarchy.allow_development_rootfs=1'* ]]
+[[ "$debug" == *'console=tty0'* && "$debug" == *'initcall_debug'* ]]
+[[ "$debug" != *'libata.force='* && "$debug" != *'omarchy.splash=1'* ]]
+
+printf 'boot-profile: OK\n'

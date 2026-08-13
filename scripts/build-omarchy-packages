@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    'Usage: build-omarchy-packages [--output DIRECTORY]' \
+    '' \
+    'Build the pinned Omarchy PS4 runtime, settings, and provisioning packages with OrbStack.'
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+output=''
+snapshot_date='2026/08/09'
+
+while (( $# > 0 )); do
+  case "$1" in
+    --output)
+      (( $# >= 2 )) || fail '--output requires a directory'
+      output=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown argument: $1"
+      ;;
+  esac
+done
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+project_dir=$(cd -- "$script_dir/.." && pwd)
+output=${output:-"$project_dir/output/omarchy-packages"}
+
+command -v docker >/dev/null 2>&1 || fail 'Docker CLI is not installed'
+command -v git >/dev/null 2>&1 || fail 'Git is not installed'
+
+docker_context=$(docker context show)
+[[ $docker_context == orbstack ]] || \
+  fail "Docker context must be orbstack; current context is $docker_context"
+docker info >/dev/null 2>&1 || fail 'OrbStack Docker engine is not running'
+
+[[ ! -e $output ]] || fail "output already exists: $output"
+mkdir -p -- "$(dirname -- "$output")"
+
+upstream_commit=$(sed -n 's/^OMARCHY_COMMIT=//p' "$project_dir/upstream/omarchy.lock")
+upstream_checkout=$project_dir/cache/omarchy-quattro
+source_seed=$project_dir/upstream/omarchy.git
+[[ $upstream_commit =~ ^[0-9a-f]{40}$ ]] || fail 'upstream lock has an invalid commit'
+[[ -d $upstream_checkout/.git ]] || fail 'upstream checkout is missing; run ./scripts/sync-omarchy-upstream'
+[[ $(git -C "$upstream_checkout" rev-parse HEAD) == "$upstream_commit" ]] || \
+  fail 'upstream checkout does not match the lock'
+for pkgbuild in \
+  "$project_dir/packages/omarchy-ps4/PKGBUILD" \
+  "$project_dir/packages/omarchy-ps4-settings/PKGBUILD"; do
+  grep -Fxq "_commit=$upstream_commit" "$pkgbuild" || \
+    fail "package recipe does not match the upstream lock: $pkgbuild"
+done
+if [[ ! -d $source_seed ]]; then
+  printf 'Creating local pinned Git seed at %s\n' "$source_seed"
+  git clone --mirror "$upstream_checkout/.git" "$source_seed"
+fi
+printf 'Refreshing pinned commit in local Git seed\n'
+git --git-dir="$source_seed" fetch --update-shallow --force \
+  "$upstream_checkout/.git" \
+  "$upstream_commit:refs/heads/omarchy-ps4-pinned"
+git --git-dir="$source_seed" cat-file -e "$upstream_commit^{commit}" || \
+  fail 'local Git seed does not contain the pinned upstream commit'
+
+printf 'Building Omarchy PS4 packages from Arch snapshot %s\n' "$snapshot_date"
+docker build \
+  --platform linux/amd64 \
+  --progress plain \
+  --file "$project_dir/Containerfile.packages" \
+  --build-arg "SNAPSHOT_DATE=$snapshot_date" \
+  --build-arg "OMARCHY_COMMIT=$upstream_commit" \
+  --output "type=local,dest=$output" \
+  "$project_dir"
+
+mapfile -t packages < <(find "$output" -maxdepth 1 -type f -name '*.pkg.tar.zst' -print | sort)
+[[ ${#packages[@]} -eq 3 ]] || fail "expected three packages, found ${#packages[@]}"
+
+: >"$output/SHA256SUMS"
+for package in "${packages[@]}"; do
+  (
+    cd "$output"
+    shasum -a 256 "${package##*/}"
+  ) >>"$output/SHA256SUMS"
+done
+
+{
+  printf 'schema=1\n'
+  printf 'profile=omarchy-full\n'
+  printf 'platform=linux/amd64\n'
+  printf 'arch_snapshot=%s\n' "$snapshot_date"
+  printf 'upstream_commit=%s\n' "$upstream_commit"
+  printf 'package_count=%s\n' "${#packages[@]}"
+} >"$output/manifest.env"
+
+printf 'Built packages in %s\n' "$output"
+printf 'Checksums: %s/SHA256SUMS\n' "$output"

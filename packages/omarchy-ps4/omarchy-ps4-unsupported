@@ -1,0 +1,36 @@
+#!/bin/bash
+
+set -euo pipefail
+
+command_name=${0##*/}
+
+case "$command_name" in
+  *hyprsunset*|*nightlight*)
+    reason='the legacy PS4 DCE8 color path can black out HDMI output'
+    ;;
+  *limine*|*plymouth*|*apply-system*|*apply-hardware*|*factory-reset*|*drive-password*)
+    reason='PS4 boot and storage are managed by the loader and omarchy-ps4 recovery tools'
+    ;;
+  *hibernate*|*powerprofile*|*brightness*|*system-reboot*)
+    reason='this PS4 power or display operation has not passed its hardware safety gate'
+    ;;
+  *channel*|*migrate*|*refresh-pacman*|*reinstall*|*update*)
+    reason='updates must use a matched PS4 kernel and graphics compatibility set'
+    ;;
+  *gpu-lib32*|*xbox-controllers*)
+    reason='this installer assumes stock PC graphics or DKMS kernel integration'
+    ;;
+  *)
+    reason='this upstream command is outside the supported PS4 hardware profile'
+    ;;
+esac
+
+printf 'Unsupported on Omarchy PS4: %s\n' "$command_name" >&2
+printf 'Reason: %s.\n' "$reason" >&2
+if [[ -n ${OMARCHY_PATH:-} && -d ${OMARCHY_PATH}/lib/omarchy-ps4/upstream-bin ]]; then
+  audit_path=$OMARCHY_PATH/lib/omarchy-ps4/upstream-bin
+else
+  audit_path=/usr/lib/omarchy-ps4/upstream-bin
+fi
+printf 'The unmodified upstream script is retained under %s for audit.\n' "$audit_path" >&2
+exit 78

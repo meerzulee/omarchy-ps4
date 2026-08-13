@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Omarchy PS4 Manager — UX prototype</title>
+<style>
+  /* ============================================================
+     Omarchy PS4 Manager — interactive UX prototype
+     Tokyo Night palette · 1920×1080 TV canvas, scaled to fit
+     Console interaction grammar: left/right selects, Cross
+     confirms, Circle backs out. No network, storage, or device
+     actions. Everything simulated.
+     ============================================================ */
+  @font-face {
+    font-family: "OmarchyMark";
+    src: url("../../cache/omarchy-quattro/default/fonts/omarchy/omarchy.ttf") format("truetype");
+    font-display: block;
+  }
+
+  :root {
+    --bg:        #1a1b26;
+    --dark:      #13141c;
+    --darker:    #0e0e14;
+    --panel:     #24283b;
+    --selection: #292e42;
+    --fg:        #a9b1d6;
+    --bright:    #c0caf5;
+    --focus:     #7aa2f7;
+    --green:     #9ece6a;
+    --warn:      #e0af68;
+    --error:     #f7768e;
+    --muted:     #565f89;
+    /* TV-safe margins on the 1920×1080 canvas */
+    --safe-x:    96px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    background: var(--darker);
+    overflow: hidden;
+  }
+
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--fg);
+  }
+
+  /* ---- 16:9 stage, scaled to viewport ---- */
+  #stage {
+    position: absolute;
+    width: 1920px;
+    height: 1080px;
+    top: 50%;
+    left: 50%;
+    transform-origin: center center;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---- top chrome: brand left, context right ---- */
+  .chrome-top {
+    flex: none;
+    height: 104px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--safe-x);
+    z-index: 2;
+  }
+  .brand { display: flex; align-items: center; gap: 20px; }
+  .wordmark { height: 28px; width: auto; display: block; image-rendering: pixelated; }
+  .ps4-tag {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: var(--focus);
+    border: 1px solid #3d4573;
+    border-radius: 5px;
+    padding: 3px 10px 2px;
+    line-height: 1.35;
+  }
+  .top-status {
+    font-size: 19px;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+
+  /* ---- bottom chrome: persistent action legend in safe area ---- */
+  .chrome-bottom {
+    flex: none;
+    height: 92px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--safe-x);
+    z-index: 2;
+  }
+  .proto-note { font-size: 17px; color: var(--muted); letter-spacing: 0.03em; }
+  .hints { display: flex; gap: 44px; }
+  .hint { display: flex; align-items: center; gap: 13px; font-size: 20px; color: var(--fg); }
+  .hint .key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px; height: 36px;
+    border: 2px solid #414868;
+    border-radius: 50%;
+    font-size: 17px;
+    color: var(--bright);
+  }
+  .hint .key.pad { border-radius: 8px; }
+
+  /* ---- screens ---- */
+  main {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+  }
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0 var(--safe-x);
+  }
+  .screen[hidden] { display: none; }
+  .screen.enter { animation: screen-in 180ms ease-out; }
+  @keyframes screen-in {
+    from { opacity: 0; transform: translateX(14px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* stable title region shared by all shallow pages */
+  .page-head {
+    flex: none;
+    min-height: 122px;
+    padding-top: 18px;
+  }
+  .page-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding-bottom: 24px;
+  }
+
+  /* home backdrop, kept very quiet */
+  #backdrop {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(26,27,38,0.86) 0%, rgba(26,27,38,0.96) 70%, var(--bg) 100%),
+      url("../../cache/omarchy-quattro/themes/tokyo-night/backgrounds/2-swirl-buck.jpg") center / cover no-repeat;
+    opacity: 0;
+    transition: opacity 300ms ease;
+    pointer-events: none;
+  }
+  #backdrop.on { opacity: 1; }
+
+  .kicker {
+    font-size: 19px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  h1 {
+    font-size: 40px;
+    font-weight: 600;
+    color: var(--bright);
+    letter-spacing: 0.01em;
+  }
+  .lede {
+    font-size: 24px;
+    line-height: 1.5;
+    color: var(--fg);
+    max-width: 940px;
+  }
+
+  /* ---- buttons ---- */
+  button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  button:focus { outline: none; }
+  button:focus-visible { outline: none; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    border: 2px solid #3b4261;
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--bright);
+    font-size: 25px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 20px 52px;
+    min-width: 380px;
+    min-height: 78px;
+    transition: background-color 120ms ease, border-color 120ms ease, transform 80ms ease;
+  }
+  .btn.primary { border-color: #46527e; }
+  .btn:focus, .btn:hover {
+    background: var(--selection);
+    border-color: var(--focus);
+    box-shadow: 0 0 0 2px rgba(122,162,247,0.35);
+  }
+  .btn:active, .btn.is-pressed {
+    transform: translateY(3px) scale(0.99);
+    background: var(--dark);
+  }
+
+  .btn.quiet {
+    min-width: 0;
+    font-size: 21px;
+    font-weight: 500;
+    color: var(--fg);
+    background: none;
+    border: 2px solid transparent;
+    padding: 14px 30px;
+    min-height: 66px;
+  }
+  .btn.quiet:focus, .btn.quiet:hover {
+    background: var(--selection);
+    border-color: var(--focus);
+    color: var(--bright);
+    box-shadow: none;
+  }
+  .btn.quiet:active, .btn.quiet.is-pressed { transform: translateY(3px); }
+
+  /* ============================================================
+     HOME — console spatial UI.
+     One dominant state-derived tile plus two quiet destinations,
+     laid out left-to-right. The selected tile lifts and reveals
+     its detail line; unselected tiles stay restrained.
+     ============================================================ */
+  #home .page-body { justify-content: center; }
+  #home .home-note {
+    font-size: 21px;
+    color: var(--green);
+    min-height: 32px;
+    margin-bottom: 22px;
+  }
+  #home .home-note:empty { visibility: hidden; }
+
+  .tile-strip {
+    display: flex;
+    align-items: stretch;
+    gap: 26px;
+  }
+  .tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-end;
+    text-align: left;
+    border-radius: 14px;
+    border: 2px solid #2c3049;
+    background: rgba(19,20,28,0.82);
+    padding: 30px 34px;
+    height: 320px;
+    transition: border-color 140ms ease, background-color 140ms ease,
+                transform 140ms ease, box-shadow 140ms ease;
+  }
+  .tile-primary {
+    width: 720px;
+    background: linear-gradient(160deg, rgba(36,40,59,0.92), rgba(19,20,28,0.92));
+    border-color: #3b4261;
+  }
+  .tile-secondary { width: 380px; }
+
+  .tile .tile-state {
+    font-size: 19px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .tile .tile-state.ok    { color: var(--green); }
+  .tile .tile-state.warn  { color: var(--warn); }
+  .tile .tile-title {
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--bright);
+    line-height: 1.25;
+  }
+  .tile-secondary .tile-title { font-size: 25px; color: var(--fg); }
+
+  /* selected tile expands its detail; unselected keep it hidden */
+  .tile .tile-detail {
+    font-size: 20px;
+    line-height: 1.45;
+    color: var(--fg);
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    margin-top: 0;
+    transition: max-height 160ms ease, opacity 160ms ease, margin-top 160ms ease;
+  }
+  .tile:focus, .tile:hover {
+    border-color: var(--focus);
+    background-color: var(--selection);
+    transform: translateY(-8px);
+    box-shadow: 0 14px 40px rgba(0,0,0,0.45), 0 0 0 2px rgba(122,162,247,0.3);
+  }
+  .tile:focus .tile-detail, .tile:hover .tile-detail {
+    max-height: 120px;
+    opacity: 1;
+    margin-top: 14px;
+  }
+  .tile-secondary:focus .tile-title, .tile-secondary:hover .tile-title { color: var(--bright); }
+  .tile:active, .tile.is-pressed {
+    transform: translateY(-3px) scale(0.99);
+    background-color: var(--dark);
+  }
+
+  /* ---- review / confirm ---- */
+  .facts {
+    width: 980px;
+    background: var(--dark);
+    border: 1px solid #2c3049;
+    border-radius: 12px;
+    padding: 8px 44px;
+    margin: 26px 0 24px;
+  }
+  .facts > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 40px;
+    padding: 19px 0;
+    border-bottom: 1px solid #24283b;
+  }
+  .facts > div:last-child { border-bottom: none; }
+  .facts dt { font-size: 22px; color: var(--muted); flex: none; }
+  .facts dd { font-size: 23px; color: var(--bright); text-align: right; }
+  .facts dd .ok   { color: var(--green); }
+  .facts dd .keep { color: var(--fg); }
+  .fine-note {
+    font-size: 20px;
+    line-height: 1.55;
+    color: var(--muted);
+    max-width: 940px;
+    margin-bottom: 38px;
+  }
+  .btn-row { display: flex; gap: 26px; align-items: center; }
+
+  /* ---- progress ---- */
+  #progress .phase-name { min-height: 56px; }
+  #progress .bar-track {
+    width: 860px;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--panel);
+    margin: 38px 0 32px;
+    overflow: hidden;
+  }
+  #progress .bar-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 4px;
+    background: var(--focus);
+  }
+  #progress .explain {
+    font-size: 24px;
+    color: var(--fg);
+    max-width: 900px;
+    min-height: 36px;
+  }
+  #progress .cancel-safety {
+    font-size: 20px;
+    margin: 18px 0 44px;
+    color: var(--muted);
+  }
+  #progress .cancel-safety.unsafe { color: var(--warn); }
+
+  /* ---- result ---- */
+  .result-mark {
+    width: 88px; height: 88px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px;
+    margin-bottom: 28px;
+    border: 3px solid var(--green);
+    color: var(--green);
+  }
+  .result-mark.warn { border-color: var(--warn); color: var(--warn); }
+  #result .lede { margin: 18px 0 46px; }
+
+  /* ---- recovery ---- */
+  .action-list { width: 1020px; display: flex; flex-direction: column; gap: 16px; }
+  .action-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
+    text-align: left;
+    background: var(--dark);
+    border: 2px solid #2c3049;
+    border-radius: 12px;
+    padding: 24px 36px;
+    min-height: 104px;
+    transition: background-color 120ms ease, border-color 120ms ease, transform 80ms ease;
+  }
+  .action-row:focus, .action-row:hover {
+    background: var(--selection);
+    border-color: var(--focus);
+  }
+  .action-row:active, .action-row.is-pressed { transform: translateY(2px); }
+  .action-row .a-title { font-size: 25px; font-weight: 600; color: var(--bright); display: block; margin-bottom: 6px; }
+  .action-row .a-desc { font-size: 20px; color: var(--fg); display: block; line-height: 1.4; }
+  .action-row .a-go { font-size: 26px; color: var(--muted); flex: none; }
+  #recovery .recovery-status {
+    min-height: 62px;
+    margin-top: 24px;
+    font-size: 21px;
+    color: var(--green);
+    max-width: 1020px;
+    line-height: 1.45;
+  }
+  #recovery .recovery-status.muted { color: var(--muted); }
+  #recovery .btn-row { margin-top: 8px; }
+
+  /* ---- credits ---- */
+  .credits-scroll {
+    width: 1060px;
+    max-height: 520px;
+    overflow-y: auto;
+    background: var(--dark);
+    border: 1px solid #2c3049;
+    border-radius: 12px;
+    padding: 34px 48px;
+    scrollbar-width: thin;
+    scrollbar-color: #3b4261 transparent;
+  }
+  .credits-scroll:focus { border-color: var(--focus); outline: none; }
+  .credits-scroll h2 {
+    font-size: 21px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    margin: 32px 0 14px;
+  }
+  .credits-scroll h2:first-child { margin-top: 0; }
+  .credits-scroll .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 40px;
+    padding: 12px 0;
+    border-bottom: 1px solid #24283b;
+    font-size: 21px;
+  }
+  .credits-scroll .row:last-of-type { border-bottom: none; }
+  .credits-scroll .row .name { color: var(--bright); }
+  .credits-scroll .row .lic  { color: var(--fg); text-align: right; }
+  .credits-scroll .row .lic.warn { color: var(--warn); }
+  .credits-scroll p { font-size: 20px; line-height: 1.55; color: var(--fg); margin: 8px 0; }
+  #credits .btn-row { margin-top: 26px; }
+
+  /* ---- takeover (simulated console handoff, deliberately bare) ---- */
+  #takeover {
+    background: var(--darker);
+    z-index: 5;
+  }
+  #takeover .page-body { align-items: center; justify-content: center; text-align: center; }
+  #takeover .brand-glyph {
+    font-family: "OmarchyMark";
+    font-size: 110px;
+    color: var(--green);
+    line-height: 1;
+    margin-bottom: 28px;
+  }
+  #takeover .splash-word { height: 32px; image-rendering: pixelated; margin-bottom: 54px; }
+  #takeover .lede { margin-top: 22px; }
+  #takeover .end-actions { margin-top: 52px; }
+  #takeover .t-stage[hidden] { display: none; }
+  #takeover .t-stage { display: flex; flex-direction: column; align-items: center; }
+
+  /* ---- dev state switcher (preview aid, not product UI) ---- */
+  #dev {
+    position: absolute;
+    right: 20px;
+    bottom: 14px;
+    z-index: 9;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 15px;
+    text-align: right;
+  }
+  #devToggle {
+    color: #414868;
+    padding: 6px 10px;
+    letter-spacing: 0.06em;
+  }
+  #devToggle:hover, #devToggle:focus-visible { color: var(--fg); outline: 1px dashed #414868; }
+  .dev-panel {
+    background: rgba(14,14,20,0.96);
+    border: 1px dashed #414868;
+    border-radius: 6px;
+    padding: 14px 18px;
+    text-align: left;
+    margin-bottom: 8px;
+  }
+  .dev-panel legend { color: var(--muted); padding-bottom: 8px; font-size: 14px; }
+  .dev-panel fieldset { border: none; }
+  .dev-panel label {
+    display: block;
+    padding: 5px 2px;
+    color: var(--fg);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .dev-panel label:hover { color: var(--bright); }
+  .dev-panel input { accent-color: var(--focus); margin-right: 9px; }
+  .dev-panel .dev-hint { color: #414868; font-size: 13px; padding-top: 8px; }
+
+  /* ---- reduced motion ---- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <header class="chrome-top">
+    <div class="brand">
+      <img class="wordmark" src="../../cache/omarchy-quattro/default/plymouth/logo.png" alt="OMARCHY">
+      <span class="ps4-tag">PS4</span>
+    </div>
+    <span class="top-status" id="topStatus">Manager</span>
+  </header>
+
+  <main>
+    <div id="backdrop"></div>
+
+    <!-- HOME — horizontal console strip: one dominant state tile, two quiet destinations -->
+    <section class="screen" id="home" data-axis="x" aria-label="Home">
+      <div class="page-head">
+        <p class="kicker">Omarchy PS4 Manager</p>
+        <p class="home-note" id="homeNote" role="status"></p>
+      </div>
+      <div class="page-body">
+        <div class="tile-strip">
+          <button class="tile tile-primary" id="homeCta" data-nav data-autofocus>
+            <span class="tile-state" id="ctaState"></span>
+            <span class="tile-title" id="ctaTitle"></span>
+            <span class="tile-detail" id="ctaDetail"></span>
+          </button>
+          <button class="tile tile-secondary" id="homeRecovery" data-nav>
+            <span class="tile-state">Tools</span>
+            <span class="tile-title">Recovery &amp; diagnostics</span>
+            <span class="tile-detail">Verify boot files, restore the previous set, export diagnostics.</span>
+          </button>
+          <button class="tile tile-secondary" id="homeCredits" data-nav>
+            <span class="tile-state">About</span>
+            <span class="tile-title">Credits &amp; licenses</span>
+            <span class="tile-detail">Versions, components, and license notices for this release.</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- REVIEW (install / resume / update / restore confirm / boot review) -->
+    <section class="screen" id="review" data-axis="x" aria-label="Review" hidden>
+      <div class="page-head">
+        <p class="kicker" id="reviewKicker">Review</p>
+        <h1 id="reviewTitle"></h1>
+      </div>
+      <div class="page-body">
+        <dl class="facts" id="reviewFacts"></dl>
+        <p class="fine-note" id="reviewNote"></p>
+        <div class="btn-row">
+          <button class="btn primary" id="reviewConfirm" data-nav data-autofocus></button>
+          <button class="btn quiet" id="reviewBack" data-nav>Back</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROGRESS -->
+    <section class="screen" id="progress" data-axis="x" aria-label="Progress" hidden>
+      <div class="page-head">
+        <p class="kicker" id="progressKicker"></p>
+        <h1 class="phase-name" id="phaseName" aria-live="polite"></h1>
+      </div>
+      <div class="page-body">
+        <div class="bar-track" role="progressbar" id="barTrack"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="phaseName">
+          <div class="bar-fill" id="barFill"></div>
+        </div>
+        <p class="explain" id="phaseExplain"></p>
+        <p class="cancel-safety" id="cancelSafety"></p>
+        <button class="btn quiet" id="progressCancel" data-nav data-autofocus>Cancel</button>
+      </div>
+    </section>
+
+    <!-- RESULT -->
+    <section class="screen" id="result" data-axis="x" aria-label="Result" hidden>
+      <div class="page-head">
+        <p class="kicker" id="resultKicker">Result</p>
+        <h1 id="resultTitle"></h1>
+      </div>
+      <div class="page-body">
+        <div class="result-mark" id="resultMark" aria-hidden="true">✓</div>
+        <p class="lede" id="resultBody"></p>
+        <div class="btn-row">
+          <button class="btn primary" id="resultPrimary" data-nav data-autofocus></button>
+          <button class="btn quiet" id="resultSecondary" data-nav></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- RECOVERY — vertical list page, up/down moves through actions -->
+    <section class="screen" id="recovery" data-axis="y" aria-label="Recovery and diagnostics" hidden>
+      <div class="page-head">
+        <p class="kicker">Tools</p>
+        <h1>Recovery &amp; diagnostics</h1>
+      </div>
+      <div class="page-body">
+        <div class="action-list">
+          <button class="action-row" id="recVerify" data-nav data-autofocus>
+            <span>
+              <span class="a-title">Verify boot files</span>
+              <span class="a-desc">Read-only check of the staged boot files. Nothing is changed.</span>
+            </span>
+            <span class="a-go" aria-hidden="true">›</span>
+          </button>
+          <button class="action-row" id="recRestore" data-nav>
+            <span>
+              <span class="a-title">Restore previous boot set</span>
+              <span class="a-desc">Replace the current boot files with the set kept from before. Asks first.</span>
+            </span>
+            <span class="a-go" aria-hidden="true">›</span>
+          </button>
+          <button class="action-row" id="recExport" data-nav>
+            <span>
+              <span class="a-title">Export diagnostics</span>
+              <span class="a-desc">Write a diagnostics file to the USB drive, for bug reports.</span>
+            </span>
+            <span class="a-go" aria-hidden="true">›</span>
+          </button>
+        </div>
+        <p class="recovery-status" id="recoveryStatus" role="status"></p>
+        <div class="btn-row">
+          <button class="btn quiet" id="recoveryBack" data-nav>Back to Home</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CREDITS — vertical page, up/down scrolls the region -->
+    <section class="screen" id="credits" data-axis="y" aria-label="Credits and licenses" hidden>
+      <div class="page-head">
+        <p class="kicker">About</p>
+        <h1>Credits &amp; licenses</h1>
+      </div>
+      <div class="page-body">
+        <div class="credits-scroll" id="creditsScroll" tabindex="0" data-nav data-scroll data-autofocus
+             role="region" aria-label="Credits, versions and licenses. Use up and down to scroll.">
+          <h2>This release</h2>
+          <div class="row"><span class="name">Omarchy Linux</span><span class="lic">Quattro RC3</span></div>
+          <div class="row"><span class="name">Theme</span><span class="lic">Tokyo Night</span></div>
+          <div class="row"><span class="name">Linux root</span><span class="lic">External USB drive · OMARCHY-PS4</span></div>
+          <div class="row"><span class="name">PS4 Manager</span><span class="lic">Interactive UX prototype</span></div>
+
+          <h2>Components &amp; licenses</h2>
+          <div class="row"><span class="name">Omarchy · omarchy.org</span><span class="lic">MIT License</span></div>
+          <div class="row"><span class="name">Tokyo Night theme</span><span class="lic">MIT License</span></div>
+          <div class="row"><span class="name">Linux kernel with PS4 patches</span><span class="lic">GPL-2.0</span></div>
+          <div class="row"><span class="name">GoldHEN</span><span class="lic">Separate homebrew — not included in this package</span></div>
+          <div class="row"><span class="name">PS4 Linux Loader payload</span><span class="lic warn">Redistribution status unresolved</span></div>
+          <p>
+            The PS4 Linux Loader payload's redistribution terms have not been cleared yet.
+            Until they are, this package does not bundle the payload; it must be obtained
+            separately. This notice will be updated when the status is resolved.
+          </p>
+
+          <h2>Notes</h2>
+          <p>
+            Technical details — addresses, file hashes, and logs — are intentionally kept out of
+            these screens. They are included in exported diagnostics from Recovery &amp; diagnostics.
+          </p>
+          <p>
+            This app stages and verifies boot files on the PS4 side. The contents of the external
+            OMARCHY-PS4 drive are verified by Linux itself when it starts.
+          </p>
+        </div>
+        <div class="btn-row">
+          <button class="btn quiet" id="creditsBack" data-nav>Back to Home</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAKEOVER (Completed → Linux takeover) -->
+    <section class="screen" id="takeover" data-axis="x" aria-label="Linux takeover" hidden>
+      <div class="page-head"></div>
+      <div class="page-body">
+        <div class="t-stage" id="tHandoff">
+          <p class="kicker">Completed</p>
+          <h1>Handing off to GoldHEN</h1>
+          <p class="lede">The Manager's part is done. The screen will go dark for a moment.</p>
+        </div>
+        <div class="t-stage" id="tSplash" hidden>
+          <span class="brand-glyph" aria-hidden="true">&#xe900;</span>
+          <img class="splash-word" src="../../cache/omarchy-quattro/default/plymouth/logo.png" alt="OMARCHY">
+          <p class="lede" role="status">Linux is starting — checking the OMARCHY-PS4 drive.</p>
+        </div>
+        <div class="t-stage" id="tEnd" hidden>
+          <h1>Linux has taken over</h1>
+          <p class="lede">
+            From here, Omarchy asks for keyboard and region, then a username and password,
+            then hostname and timezone — all inside Linux. This app plays no part in that
+            and never sees or stores the password.
+          </p>
+          <p class="lede" style="color:#565f89; font-size:21px;">
+            Restarting the console returns to the PlayStation system.
+          </p>
+          <div class="end-actions">
+            <button class="btn" id="takeoverHome" data-nav data-autofocus>End of prototype — back to Home</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="chrome-bottom">
+    <span class="proto-note">Interactive UX prototype — nothing is installed, written, or changed.</span>
+    <div class="hints" id="hints"></div>
+  </footer>
+
+  <!-- preview-only state switcher; ` toggles. Not part of the product UI. -->
+  <div id="dev">
+    <div class="dev-panel" id="devPanel" hidden>
+      <fieldset>
+        <legend>preview: home state</legend>
+        <label><input type="radio" name="devstate" value="not-installed" checked> not installed</label>
+        <label><input type="radio" name="devstate" value="interrupted"> interrupted</label>
+        <label><input type="radio" name="devstate" value="ready"> ready</label>
+        <label><input type="radio" name="devstate" value="update"> update available</label>
+        <label><input type="radio" name="devstate" value="damaged"> damaged</label>
+      </fieldset>
+      <div class="dev-hint">` to hide · preview aid only</div>
+    </div>
+    <button id="devToggle" aria-expanded="false" aria-label="Toggle preview state switcher">·dev</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* =============================================================
+   Omarchy PS4 Manager — prototype logic.
+   Pure simulation: no network, no storage, no console actions.
+
+   Interaction grammar (translated from the PS4 home model):
+   - left/right selects among horizontal items; up/down moves
+     through vertical lists and scrolls long regions only.
+   - Cross (button 0) / Enter confirms; Circle (button 1) /
+     Escape / Backspace goes back. Button assignments are
+     user-customizable on the console, so the legend's text and
+     accessible labels stay semantic: Confirm / Back / Navigate.
+   ============================================================= */
+
+const $ = (id) => document.getElementById(id);
+
+const app = {
+  device: 'not-installed',   // not-installed | interrupted | ready | update | damaged
+  screen: 'home',
+  flow: null,                // install | resume | update | verify | restore
+  timers: [],
+  back: null,                // Circle / Escape action for the current screen
+  homeNote: '',              // one-shot message shown in the home title region
+};
+
+function clearTimers() {
+  app.timers.forEach(clearTimeout);
+  app.timers = [];
+  if (app.progressTick) { clearInterval(app.progressTick); app.progressTick = null; }
+}
+function later(fn, ms) { app.timers.push(setTimeout(fn, ms)); }
+
+/* ---------- persistent action legend ---------- */
+/* Visual hints show Cross / Circle / directional glyphs; the text
+   beside each glyph is the semantic action, and each hint carries a
+   semantic aria-label so remapped controllers still read correctly. */
+
+const HINT_SETS = {
+  full:   ['nav', 'confirm', 'back'],
+  noBack: ['nav', 'confirm'],
+  cancel: ['confirm'],
+  none:   [],
+};
+
+const HINT_DEFS = {
+  nav:     { k: '✚', pad: true,  t: 'Navigate', label: 'Navigate with the directional buttons or left stick' },
+  confirm: { k: '✕', pad: false, t: 'Confirm',  label: 'Confirm the selected item' },
+  back:    { k: '○', pad: false, t: 'Back',     label: 'Go back' },
+};
+
+function setHints(name) {
+  $('hints').innerHTML = (HINT_SETS[name] || [])
+    .map((id) => {
+      const h = HINT_DEFS[id];
+      return `<span class="hint" role="img" aria-label="${h.label}">` +
+        `<span class="key${h.pad ? ' pad' : ''}" aria-hidden="true">${h.k}</span>` +
+        `<span aria-hidden="true">${h.t}</span></span>`;
+    })
+    .join('');
+}
+
+/* ---------- screen switching ---------- */
+
+function show(screenId, { hints = 'full', back = null, topStatus = 'Manager' } = {}) {
+  clearTimers();
+  document.querySelectorAll('.screen').forEach((s) => {
+    s.hidden = s.id !== screenId;
+    s.classList.remove('enter');
+  });
+  const el = $(screenId);
+  el.classList.add('enter');
+  app.screen = screenId;
+  app.back = back;
+  setHints(hints);
+  $('topStatus').textContent = topStatus;
+  $('backdrop').classList.toggle('on', screenId === 'home');
+  const target = el.querySelector('[data-autofocus]') || el.querySelector('[data-nav]');
+  if (target) target.focus({ preventScroll: true });
+}
+
+/* ---------- home ---------- */
+
+const HOME_STATES = {
+  'not-installed': {
+    state: 'Not installed', tone: '',
+    cta: 'Install Omarchy',
+    detail: 'Quattro RC3 to the external USB drive. Internal PS4 storage is never touched.',
+    act: () => showReview('install'),
+  },
+  interrupted: {
+    state: 'Installation interrupted', tone: 'warn',
+    cta: 'Resume installation',
+    detail: 'Nothing is damaged. Resuming picks up where it stopped.',
+    act: () => showReview('resume'),
+  },
+  ready: {
+    state: 'Quattro RC3 · Ready', tone: 'ok',
+    cta: 'Boot Linux',
+    detail: 'You review the boot details first — nothing boots until you confirm.',
+    act: () => showBootReview(),
+  },
+  update: {
+    state: 'Update available', tone: 'ok',
+    cta: 'Update Omarchy',
+    detail: 'Quattro RC3. The previous boot set is kept and restorable.',
+    act: () => showReview('update'),
+  },
+  damaged: {
+    state: 'Needs attention', tone: 'warn',
+    cta: 'Open recovery',
+    detail: 'Some boot files failed a check. The previous boot set is intact.',
+    act: () => showRecovery(),
+  },
+};
+
+function showHome() {
+  const s = HOME_STATES[app.device];
+  $('homeNote').textContent = app.homeNote;
+  app.homeNote = '';
+  const st = $('ctaState');
+  st.textContent = s.state;
+  st.className = 'tile-state' + (s.tone ? ' ' + s.tone : '');
+  $('ctaTitle').textContent = s.cta;
+  $('ctaDetail').textContent = s.detail;
+  $('homeCta').onclick = s.act;
+  show('home', { hints: 'noBack' });
+}
+
+/* ---------- review (install / resume / update) ---------- */
+
+const SHARED_FACTS = [
+  ['Release', '<span>Omarchy Quattro RC3</span>'],
+  ['Linux root', '<span>External USB drive · <span class="ok">OMARCHY-PS4</span> · checked by Linux</span>'],
+  ['Video memory', '<span>1024 MB set aside for Linux</span>'],
+  ['Previous boot set', '<span class="keep">Kept — restorable from Recovery</span>'],
+  ['Internal PS4 storage', '<span class="keep">Untouched — never formatted or used</span>'],
+];
+
+const REVIEWS = {
+  install: { title: 'Install Omarchy', confirm: 'Begin installation', kicker: 'Review' },
+  resume:  { title: 'Resume installation', confirm: 'Resume', kicker: 'Review' },
+  update:  { title: 'Update Omarchy', confirm: 'Begin update', kicker: 'Review' },
+};
+
+function renderFacts(facts) {
+  $('reviewFacts').innerHTML = facts
+    .map(([t, d]) => `<div><dt>${t}</dt><dd>${d}</dd></div>`)
+    .join('');
+}
+
+function showReview(flow) {
+  app.flow = flow;
+  const r = REVIEWS[flow];
+  $('reviewKicker').textContent = r.kicker;
+  $('reviewTitle').textContent = r.title;
+  renderFacts(SHARED_FACTS);
+  $('reviewNote').textContent =
+    'This app stages and verifies the boot files. The external drive itself is checked by Linux when it starts. Nothing happens until you confirm.';
+  $('reviewConfirm').textContent = r.confirm;
+  $('reviewConfirm').onclick = () => runInstallProgress(flow);
+  $('reviewBack').textContent = 'Back';
+  $('reviewBack').onclick = showHome;
+  show('review', { back: showHome, topStatus: r.title });
+}
+
+/* ---------- boot review ---------- */
+
+function showBootReview() {
+  app.flow = 'boot';
+  $('reviewKicker').textContent = 'Boot review';
+  $('reviewTitle').textContent = 'Boot Linux';
+  renderFacts([
+    ['Release', '<span>Omarchy Quattro RC3</span>'],
+    ['Video memory', '<span>1024 MB</span>'],
+    ['Boot drive', '<span>External USB · <span class="ok">OMARCHY-PS4</span></span>'],
+  ]);
+  $('reviewNote').textContent =
+    'The PlayStation screen will be replaced by Linux. Restarting the console returns to the PlayStation system.';
+  $('reviewConfirm').textContent = 'Boot now';
+  $('reviewConfirm').onclick = runTakeover;
+  $('reviewBack').textContent = 'Not now';
+  $('reviewBack').onclick = showHome;
+  show('review', { back: showHome, topStatus: 'Boot Linux' });
+}
+
+/* ---------- restore confirmation ---------- */
+
+function showRestoreConfirm() {
+  app.flow = 'restore';
+  $('reviewKicker').textContent = 'Confirm restore';
+  $('reviewTitle').textContent = 'Restore previous boot set';
+  renderFacts([
+    ['Becomes active', '<span>The boot set kept from before</span>'],
+    ['Replaced', '<span>The current boot files</span>'],
+    ['Internal PS4 storage', '<span class="keep">Untouched</span>'],
+  ]);
+  $('reviewNote').textContent =
+    'Restore never runs on its own — it only happens here, after you confirm. Only the boot folder is touched.';
+  $('reviewConfirm').textContent = 'Restore now';
+  $('reviewConfirm').onclick = runRestoreProgress;
+  $('reviewBack').textContent = 'Back';
+  $('reviewBack').onclick = showRecovery;
+  show('review', { back: showRecovery, topStatus: 'Recovery' });
+}
+
+/* ---------- progress engine ---------- */
+
+function runProgress({ kicker, phases, onDone, onCancelSafe, onCancelUnsafe, topStatus }) {
+  show('progress', { hints: 'cancel', topStatus });
+  const track = $('barTrack');
+  const fill = $('barFill');
+  let idx = 0;
+  let phaseStart = performance.now();
+
+  function enterPhase(i) {
+    const p = phases[i];
+    phaseStart = performance.now();
+    $('progressKicker').textContent = kicker;
+    $('phaseName').textContent = p.name;
+    $('phaseExplain').textContent = p.explain;
+    const safety = $('cancelSafety');
+    safety.textContent = p.safe
+      ? 'Safe to cancel — nothing has been changed yet.'
+      : 'Cancelling now leaves this step unfinished. You can pick it up again later.';
+    safety.classList.toggle('unsafe', !p.safe);
+    later(() => {
+      idx += 1;
+      if (idx < phases.length) enterPhase(idx);
+      else { clearTimers(); onDone(); }
+    }, p.ms);
+  }
+
+  app.progressTick = setInterval(() => {
+    const p = phases[idx];
+    if (!p) return;
+    const t = Math.min(1, (performance.now() - phaseStart) / p.ms);
+    const pct = Math.round(((idx + t) / phases.length) * 100);
+    fill.style.width = pct + '%';
+    track.setAttribute('aria-valuenow', String(pct));
+  }, 200);
+  fill.style.width = '0%';
+
+  const cancel = () => {
+    const p = phases[idx];
+    clearTimers();
+    if (p && p.safe) onCancelSafe(); else onCancelUnsafe();
+  };
+  $('progressCancel').onclick = cancel;
+  app.back = cancel;
+  enterPhase(0);
+}
+
+/* install / resume / update share one phase list */
+function runInstallProgress(flow) {
+  const verb = flow === 'update' ? 'Updating Omarchy' : 'Installing Omarchy';
+  runProgress({
+    kicker: verb,
+    topStatus: verb,
+    phases: [
+      { name: 'Checking system', ms: 2100, safe: true,
+        explain: 'Making sure GoldHEN is ready and PS4BOOT has the required free space.' },
+      { name: 'Verifying release', ms: 2700, safe: true,
+        explain: 'Confirming the Quattro RC3 files are complete and untampered.' },
+      { name: 'Preparing boot files', ms: 3300, safe: false,
+        explain: 'Writing the new boot set. The previous set is kept. Keep the console on.' },
+    ],
+    onDone: () => {
+      app.device = 'ready';
+      showResult('ready');
+    },
+    onCancelSafe: () => {
+      app.homeNote = 'Cancelled. Nothing was changed.';
+      showHome();
+    },
+    onCancelUnsafe: () => {
+      app.device = 'interrupted';
+      app.homeNote = '';
+      showHome();
+    },
+  });
+}
+
+function runVerifyProgress() {
+  runProgress({
+    kicker: 'Recovery',
+    topStatus: 'Recovery',
+    phases: [
+      { name: 'Checking boot files', ms: 2500, safe: true,
+        explain: 'Reading and checking each staged boot file. Nothing is modified.' },
+    ],
+    onDone: () => {
+      if (app.device === 'damaged') showResult('attention');
+      else showRecovery('Verified just now — all boot files are healthy.');
+    },
+    onCancelSafe: () => showRecovery(),
+    onCancelUnsafe: () => showRecovery(),
+  });
+}
+
+function runRestoreProgress() {
+  runProgress({
+    kicker: 'Recovery',
+    topStatus: 'Recovery',
+    phases: [
+      { name: 'Restoring previous boot set', ms: 2700, safe: false,
+        explain: 'Putting the kept boot set back in place. Keep the console on.' },
+    ],
+    onDone: () => {
+      app.device = 'ready';
+      app.homeNote = 'Previous boot set restored.';
+      showHome();
+    },
+    onCancelSafe: () => showRecovery(),
+    onCancelUnsafe: () =>
+      showRecovery('Restore was stopped early. Run Verify boot files, then Restore again.', true),
+  });
+}
+
+/* ---------- result ---------- */
+
+const RESULTS = {
+  ready: {
+    mark: '✓', warn: false,
+    title: 'Ready',
+    body: 'Omarchy Quattro RC3 is installed. The console stays as it is until you choose to boot.',
+    primary: ['Boot Linux', () => showBootReview()],
+    secondary: ['Back to Home', () => showHome()],
+    back: () => showHome(),
+  },
+  attention: {
+    mark: '!', warn: true,
+    title: 'Needs attention',
+    body: 'Some boot files failed verification. Your previous boot set is intact and can be restored.',
+    primary: ['Restore previous boot set', () => showRestoreConfirm()],
+    secondary: ['Back to recovery', () => showRecovery()],
+    back: () => showRecovery(),
+  },
+};
+
+function showResult(kind) {
+  const r = RESULTS[kind];
+  const mark = $('resultMark');
+  mark.textContent = r.mark;
+  mark.classList.toggle('warn', r.warn);
+  $('resultTitle').textContent = r.title;
+  $('resultBody').textContent = r.body;
+  $('resultPrimary').textContent = r.primary[0];
+  $('resultPrimary').onclick = r.primary[1];
+  $('resultSecondary').textContent = r.secondary[0];
+  $('resultSecondary').onclick = r.secondary[1];
+  show('result', { back: r.back, topStatus: r.title });
+}
+
+/* ---------- recovery ---------- */
+
+function showRecovery(statusText, mutedStatus) {
+  const st = $('recoveryStatus');
+  st.textContent = statusText || '';
+  st.classList.toggle('muted', !!mutedStatus);
+  show('recovery', { back: showHome, topStatus: 'Recovery' });
+}
+
+$('recVerify').onclick = () => runVerifyProgress();
+$('recRestore').onclick = () => showRestoreConfirm();
+$('recExport').onclick = () => {
+  const st = $('recoveryStatus');
+  st.classList.add('muted');
+  st.textContent =
+    'In the real app this writes omarchy-diagnostics.txt to the USB drive. This preview writes nothing.';
+};
+$('recoveryBack').onclick = showHome;
+
+/* ---------- credits ---------- */
+
+function showCredits() {
+  show('credits', { back: showHome, topStatus: 'Credits' });
+}
+$('creditsBack').onclick = showHome;
+
+/* ---------- takeover (Completed → Linux takeover) ---------- */
+
+function runTakeover() {
+  show('takeover', { hints: 'none', back: null, topStatus: 'Booting' });
+  $('tHandoff').hidden = false;
+  $('tSplash').hidden = true;
+  $('tEnd').hidden = true;
+  later(() => {
+    $('tHandoff').hidden = true;
+    $('tSplash').hidden = false;
+  }, 1700);
+  later(() => {
+    $('tSplash').hidden = true;
+    $('tEnd').hidden = false;
+    setHints('noBack');
+    app.back = null;
+    const btn = $('takeoverHome');
+    btn.focus({ preventScroll: true });
+  }, 4200);
+}
+$('takeoverHome').onclick = () => { app.device = 'ready'; showHome(); };
+
+/* ---------- home wiring ---------- */
+
+$('homeRecovery').onclick = () => showRecovery();
+$('homeCredits').onclick = showCredits;
+
+/* ---------- focus movement (D-pad / left stick / arrows) ----------
+   Each screen declares its axis: data-axis="x" pages move with
+   left/right; data-axis="y" pages move with up/down. The cross
+   axis is inert (no wrap tricks, no traps) except inside a
+   data-scroll region, where up/down scrolls until the edge. */
+
+function navItems() {
+  const scr = $(app.screen);
+  if (!scr || scr.hidden) return [];
+  return Array.from(scr.querySelectorAll('[data-nav]')).filter(
+    (el) => !el.disabled && el.offsetParent !== null
+  );
+}
+
+function moveFocus(delta) {
+  const items = navItems();
+  if (!items.length) return;
+  const i = items.indexOf(document.activeElement);
+  const next = i === -1 ? 0 : (i + delta + items.length) % items.length;
+  items[next].focus({ preventScroll: true });
+}
+
+function moveDir(axis, delta) {
+  const host = document.activeElement;
+  const inScroll = host && host.dataset && 'scroll' in host.dataset;
+  if (inScroll && axis === 'y') {
+    const atTop = host.scrollTop <= 0;
+    const atBottom = host.scrollTop + host.clientHeight >= host.scrollHeight - 2;
+    if (delta > 0 && !atBottom) { host.scrollTop += 90; return; }
+    if (delta < 0 && !atTop) { host.scrollTop -= 90; return; }
+    /* at the edge: fall through and move focus along the page axis */
+  }
+  const scr = $(app.screen);
+  const pageAxis = (scr && scr.dataset.axis) || 'x';
+  if (axis !== pageAxis) return;
+  moveFocus(delta);
+}
+
+function pressFeedback(el) {
+  el.classList.add('is-pressed');
+  setTimeout(() => el.classList.remove('is-pressed'), 130);
+}
+
+function activateFocused() {
+  const el = document.activeElement;
+  if (el && el.dataset && 'nav' in el.dataset && typeof el.click === 'function') {
+    pressFeedback(el);
+    el.click();
+  }
+}
+
+function goBack() {
+  if (typeof app.back === 'function') app.back();
+}
+
+/* ---------- keyboard preview: arrows = D-pad, Enter = Confirm,
+              Escape / Backspace = Back ---------- */
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === '`') { toggleDev(); e.preventDefault(); return; }
+  if (e.target && e.target.closest && e.target.closest('#dev')) return;
+
+  switch (e.key) {
+    case 'ArrowLeft':  moveDir('x', -1); e.preventDefault(); break;
+    case 'ArrowRight': moveDir('x', 1);  e.preventDefault(); break;
+    case 'ArrowUp':    moveDir('y', -1); e.preventDefault(); break;
+    case 'ArrowDown':  moveDir('y', 1);  e.preventDefault(); break;
+    case 'Enter':
+      activateFocused(); e.preventDefault(); break;
+    case 'Escape':
+    case 'Backspace':
+      if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+      goBack(); e.preventDefault(); break;
+  }
+});
+
+/* ---------- gamepad: D-pad + left stick move, Cross (0) confirms,
+              Circle (1) backs out. Edge-triggered; the stick uses a
+              deadzone with hysteresis so one flick = one step. ---------- */
+
+const padPrev = {};   // button edge state, keyed pad:button
+const stickPrev = {}; // stick zone state, keyed pad:axis
+
+function pollPads() {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const pad of pads) {
+    if (!pad) continue;
+    const pressed = (i) => pad.buttons[i] && pad.buttons[i].pressed;
+    const edge = (i) => {
+      const key = pad.index + ':' + i;
+      const now = pressed(i);
+      const was = padPrev[key] || false;
+      padPrev[key] = now;
+      return now && !was;
+    };
+    /* left stick: -1 / 0 / +1 zones; fires only on entering a zone,
+       and must return near center (hysteresis) before re-firing */
+    const stickStep = (axisIdx) => {
+      const key = pad.index + ':a' + axisIdx;
+      const v = pad.axes[axisIdx] || 0;
+      const prev = stickPrev[key] || 0;
+      let zone = prev;
+      if (prev === 0) zone = v > 0.6 ? 1 : v < -0.6 ? -1 : 0;
+      else if (Math.abs(v) < 0.35) zone = 0;
+      stickPrev[key] = zone;
+      return zone !== 0 && prev === 0 ? zone : 0;
+    };
+
+    if (edge(14)) moveDir('x', -1);            // d-pad left
+    if (edge(15)) moveDir('x', 1);             // d-pad right
+    if (edge(12)) moveDir('y', -1);            // d-pad up
+    if (edge(13)) moveDir('y', 1);             // d-pad down
+    const sx = stickStep(0);
+    if (sx) moveDir('x', sx);
+    const sy = stickStep(1);
+    if (sy) moveDir('y', sy);
+    if (edge(0)) activateFocused();            // cross → Confirm
+    if (edge(1)) goBack();                     // circle → Back
+  }
+  requestAnimationFrame(pollPads);
+}
+requestAnimationFrame(pollPads);
+
+/* ---------- dev state switcher (preview aid) ---------- */
+
+function toggleDev(force) {
+  const panel = $('devPanel');
+  const next = force !== undefined ? force : panel.hidden;
+  panel.hidden = !next;
+  $('devToggle').setAttribute('aria-expanded', String(next));
+}
+$('devToggle').onclick = () => toggleDev();
+document.querySelectorAll('input[name="devstate"]').forEach((radio) => {
+  radio.addEventListener('change', () => {
+    app.device = radio.value;
+    app.homeNote = '';
+    showHome();
+  });
+});
+
+/* ---------- stage scaling ---------- */
+
+function fitStage() {
+  const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+  $('stage').style.transform = `translate(-50%, -50%) scale(${s})`;
+}
+window.addEventListener('resize', fitStage);
+fitStage();
+
+/* ---------- boot the prototype ---------- */
+
+showHome();
+</script>
+</body>
+</html>

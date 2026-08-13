@@ -1,14 +1,15 @@
 schema = 1
 
 [upstream]
-version = "4.0.0.alpha"
+release = "4.0.0rc3"
+source_version = "4.0.0.alpha"
 branch = "quattro"
-commit = "08204846ef6c2e2de8eba873d5888749e1d46ba5"
-commit_date = "2026-08-11T18:34:07+02:00"
+commit = "144f4d1e31d6ddc2cba5dfd69278cabf02bafd05"
+commit_date = "2026-08-13T15:18:33+02:00"
 core_package_count = 147
 other_package_count = 59
-command_count = 415
-migration_count = 70
+command_count = 422
+migration_count = 77
 shell_plugin_manifest_count = 37
 
 [[gate]]

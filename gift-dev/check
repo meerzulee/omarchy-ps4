@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'gift-dev check: %s\n' "$1" >&2
+  exit 1
+}
+
+bundle_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+cd "$bundle_dir"
+
+for command_name in bsdtar find readlink sha256sum; do
+  command -v "$command_name" >/dev/null 2>&1 || fail "missing command: $command_name"
+done
+
+[[ -f MANIFEST.sha256 ]] || fail 'MANIFEST.sha256 is missing'
+sha256sum -c MANIFEST.sha256
+
+appledouble=$(find . -type f -name '._*' -print -quit)
+[[ -z $appledouble ]] || fail "AppleDouble metadata is present: $appledouble"
+
+mapfile -t packages < <(find packages -maxdepth 1 -type f -name '*.pkg.tar.zst' -print | LC_ALL=C sort)
+[[ ${#packages[@]} -eq 3 ]] || fail "expected three native packages, found ${#packages[@]}"
+
+declare -A expected_versions=(
+  [omarchy-ps4]=4.0.0rc3-1
+  [omarchy-ps4-settings]=4.0.0rc3-1
+  [omarchy-ps4-provisioning]=4.0.0rc3-1
+)
+
+for package in "${packages[@]}"; do
+  package_name=$(bsdtar -xOf "$package" .PKGINFO | sed -n 's/^pkgname = //p' | head -n1)
+  package_version=$(bsdtar -xOf "$package" .PKGINFO | sed -n 's/^pkgver = //p' | head -n1)
+  [[ -n ${expected_versions[$package_name]:-} ]] || fail "unexpected package: $package_name"
+  [[ $package_version == "${expected_versions[$package_name]}" ]] || \
+    fail "$package_name is $package_version, expected ${expected_versions[$package_name]}"
+  unset 'expected_versions[$package_name]'
+done
+[[ ${#expected_versions[@]} -eq 0 ]] || fail 'one or more native packages are missing'
+
+[[ -f packages/omarchy-ps4-dev.db ]] || fail 'local Pacman database is missing'
+[[ -f fpkg/IV0000-BREW09004_00-OMARCHYPS4UI0000.pkg ]] || fail 'UI-only FPKG is missing'
+[[ -f portable/omarchy-ps4-portable-4.0.0rc3-144f4d1.tar.zst ]] || \
+  fail 'portable recovery archive is missing'
+for recovery_command in arm-recovery dev-recovery install-foundation owner-rehearsal; do
+  [[ -x $recovery_command ]] || fail "required command is missing or not executable: $recovery_command"
+done
+[[ -r owner-rehearsal.service ]] || fail 'owner rehearsal service is missing'
+bash -n owner-rehearsal
+grep -Fq 'ExecStart=/usr/local/sbin/omarchy-ps4-owner-rehearsal run' \
+  owner-rehearsal.service || fail 'owner rehearsal service has an unexpected entry point'
+
+for forbidden in payload payloads loader kernel initramfs rootfs firmware keys; do
+  if find . -mindepth 1 -print | grep -Eiq "/${forbidden}(/|$)"; then
+    fail "forbidden bundle path detected: $forbidden"
+  fi
+done
+
+printf '%s\n' 'Gift developer bundle policy passed.'

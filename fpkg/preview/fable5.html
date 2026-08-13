@@ -1,0 +1,1283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Omarchy PS4 Manager — Fable 5 Prototype</title>
+  <style>
+    @font-face {
+      font-family: "Omarchy Mark";
+      src: url("../../cache/omarchy-quattro/default/fonts/omarchy/omarchy.ttf") format("truetype");
+      font-display: block;
+      unicode-range: U+E900;
+    }
+
+    :root {
+      --background: #1a1b26;
+      --dark: #13141c;
+      --darker: #0e0e14;
+      --panel: #24283b;
+      --selection: #292e42;
+      --foreground: #a9b1d6;
+      --bright: #c0caf5;
+      --blue: #7aa2f7;
+      --green: #9ece6a;
+      --warning: #e0af68;
+      --error: #f7768e;
+      --safe-x: clamp(32px, 5.2vw, 100px);
+      --safe-y: clamp(28px, 4.8vh, 52px);
+      --radius: 14px;
+      --ease: cubic-bezier(.2, .8, .2, 1);
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--darker);
+      color: var(--bright);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 18px;
+      line-height: 1.45;
+    }
+
+    button,
+    input,
+    select { font: inherit; }
+
+    button { color: inherit; }
+
+    .shell {
+      position: relative;
+      isolation: isolate;
+      width: 100%;
+      min-height: 100%;
+      background:
+        linear-gradient(90deg, rgba(14,14,20,.98) 0%, rgba(14,14,20,.92) 46%, rgba(14,14,20,.62) 100%),
+        url("../../cache/omarchy-quattro/themes/tokyo-night/backgrounds/2-swirl-buck.jpg") center / cover no-repeat;
+    }
+
+    .shell::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: linear-gradient(180deg, rgba(14,14,20,.28), rgba(14,14,20,.72));
+      pointer-events: none;
+    }
+
+    .chrome {
+      position: absolute;
+      inset: var(--safe-y) var(--safe-x) auto;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 15px;
+      min-width: 0;
+    }
+
+    .brand img {
+      display: block;
+      width: clamp(180px, 15vw, 268px);
+      height: auto;
+    }
+
+    .brand small {
+      margin-bottom: .17em;
+      color: var(--blue);
+      font-size: clamp(14px, 1.15vw, 20px);
+      font-weight: 750;
+      letter-spacing: .18em;
+      line-height: 1;
+    }
+
+    .prototype-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 36px;
+      padding: 0 13px;
+      border: 1px solid rgba(192,202,245,.18);
+      border-radius: 999px;
+      background: var(--dark);
+      color: var(--foreground);
+      font-size: 13px;
+      font-weight: 650;
+      letter-spacing: .04em;
+    }
+
+    .prototype-tag::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--warning);
+    }
+
+    #app {
+      position: absolute;
+      inset: calc(var(--safe-y) + 82px) var(--safe-x) calc(var(--safe-y) + 56px);
+      display: flex;
+      align-items: center;
+    }
+
+    .view {
+      width: min(910px, 54vw);
+      max-height: 100%;
+      animation: enter .28s var(--ease) both;
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 750;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p { margin-top: 0; }
+
+    h1 {
+      max-width: 720px;
+      margin-bottom: 16px;
+      color: var(--bright);
+      font-size: clamp(38px, 3.2vw, 59px);
+      font-weight: 650;
+      letter-spacing: -.045em;
+      line-height: 1.04;
+    }
+
+    h2 {
+      margin-bottom: 10px;
+      color: var(--bright);
+      font-size: clamp(29px, 2.25vw, 42px);
+      font-weight: 650;
+      letter-spacing: -.035em;
+      line-height: 1.1;
+    }
+
+    h3 {
+      margin-bottom: 6px;
+      color: var(--bright);
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    .lede {
+      max-width: 640px;
+      margin-bottom: 29px;
+      color: var(--foreground);
+      font-size: clamp(18px, 1.25vw, 22px);
+      line-height: 1.5;
+    }
+
+    .lede.compact {
+      margin-bottom: 22px;
+      font-size: 18px;
+    }
+
+    .card {
+      border: 0;
+      border-left: 3px solid rgba(122,162,247,.58);
+      border-radius: 0 10px 10px 0;
+      background: rgba(19,20,28,.94);
+    }
+
+    .card-pad { padding: clamp(24px, 2.15vw, 38px); }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 27px;
+    }
+
+    .button,
+    .link-button,
+    .option,
+    .state-chip {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+      transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease;
+    }
+
+    .button {
+      min-height: 58px;
+      padding: 0 26px;
+      border: 1px solid rgba(192,202,245,.16);
+      border-radius: 5px;
+      background: var(--selection);
+      color: var(--bright);
+      font-size: 17px;
+      font-weight: 700;
+      text-align: left;
+    }
+
+    .button.primary {
+      background: var(--blue);
+      color: var(--darker);
+    }
+
+    .button.danger {
+      border-color: rgba(247,118,142,.4);
+      color: var(--error);
+    }
+
+    .button[disabled] {
+      cursor: not-allowed;
+      opacity: .42;
+    }
+
+    .link-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px 23px;
+      margin-top: 22px;
+    }
+
+    .link-button {
+      min-height: 42px;
+      padding: 0;
+      background: transparent;
+      color: var(--foreground);
+      font-size: 15px;
+      font-weight: 650;
+      text-align: left;
+    }
+
+    .link-button::after {
+      content: "  ›";
+      color: var(--blue);
+    }
+
+    :focus { outline: none; }
+
+    [data-focus]:focus-visible,
+    [data-focus].controller-focus {
+      outline: 2px solid var(--blue);
+      outline-offset: 5px;
+      box-shadow: 0 0 0 4px rgba(122,162,247,.12);
+    }
+
+    .button.primary:focus-visible,
+    .button.primary.controller-focus {
+      outline-color: var(--bright);
+    }
+
+    [data-focus]:active { transform: translateY(1px); }
+
+    [data-focus].pressed {
+      transform: scale(.985);
+      filter: brightness(.88);
+    }
+
+    .status-line {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      color: var(--foreground);
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .status-dot.warning { background: var(--warning); }
+    .status-dot.error { background: var(--error); }
+    .status-dot.blue { background: var(--blue); }
+
+    .review-list {
+      margin: 0;
+      border-top: 1px solid rgba(192,202,245,.11);
+    }
+
+    .review-row {
+      display: grid;
+      grid-template-columns: minmax(165px, .75fr) minmax(260px, 1.25fr);
+      gap: 28px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(192,202,245,.11);
+    }
+
+    .review-row dt {
+      color: var(--foreground);
+      font-size: 15px;
+    }
+
+    .review-row dd {
+      margin: 0;
+      color: var(--bright);
+      font-size: 15px;
+      font-weight: 650;
+    }
+
+    .review-row dd.good { color: var(--green); }
+    .review-row dd.warn { color: var(--warning); }
+
+    .phase-number {
+      color: var(--foreground);
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .progress-track {
+      position: relative;
+      height: 6px;
+      margin: 25px 0 20px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--selection);
+    }
+
+    .progress-bar {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--blue);
+      transition: width .7s var(--ease);
+    }
+
+    .phase-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      color: var(--foreground);
+      font-size: 14px;
+    }
+
+    .cancel-state {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cancel-state::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .cancel-state.unsafe::before { background: var(--warning); }
+
+    .option-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 23px;
+    }
+
+    .option {
+      position: relative;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      align-content: start;
+      gap: 18px;
+      width: 100%;
+      min-height: 162px;
+      padding: 20px;
+      border: 1px solid rgba(192,202,245,.11);
+      border-radius: 7px;
+      background: rgba(36,40,59,.94);
+      color: var(--bright);
+      text-align: left;
+    }
+
+    .option:focus-visible,
+    .option.controller-focus {
+      border-color: var(--blue);
+      background: var(--selection);
+      transform: translateY(-3px);
+    }
+
+    .option-icon {
+      display: block;
+      width: auto;
+      height: auto;
+      padding-left: 9px;
+      border-left: 3px solid var(--blue);
+      border-radius: 0;
+      background: transparent;
+      color: var(--blue);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .12em;
+    }
+
+    .option-copy strong,
+    .option-copy small { display: block; }
+
+    .option-copy strong {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .option-copy small {
+      margin-top: 2px;
+      color: var(--foreground);
+      font-size: 13px;
+    }
+
+    .option-chevron { color: var(--blue); }
+
+    .option-chevron {
+      position: absolute;
+      right: 18px;
+      bottom: 15px;
+    }
+
+    .result-mark {
+      display: grid;
+      place-items: center;
+      width: 50px;
+      height: 50px;
+      margin-bottom: 20px;
+      border-radius: 50%;
+      background: rgba(158,206,106,.12);
+      color: var(--green);
+      font-size: 23px;
+      font-weight: 800;
+    }
+
+    .result-mark.attention {
+      background: rgba(247,118,142,.12);
+      color: var(--error);
+    }
+
+    .result-mark.blue {
+      background: rgba(122,162,247,.12);
+      color: var(--blue);
+    }
+
+    .license-list {
+      display: grid;
+      gap: 0;
+      margin-top: 20px;
+      border-top: 1px solid rgba(192,202,245,.11);
+    }
+
+    .license-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      padding: 13px 0;
+      border-bottom: 1px solid rgba(192,202,245,.11);
+    }
+
+    .license-item strong,
+    .license-item span { font-size: 14px; }
+    .license-item strong { color: var(--bright); }
+    .license-item span { color: var(--foreground); }
+    .license-item .unresolved { color: var(--warning); }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 22px;
+    }
+
+    .field { display: grid; gap: 7px; }
+
+    .field.full { grid-column: 1 / -1; }
+
+    .field label {
+      color: var(--foreground);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      min-height: 51px;
+      padding: 0 14px;
+      border: 1px solid rgba(192,202,245,.18);
+      border-radius: 8px;
+      outline: none;
+      background: var(--selection);
+      color: var(--bright);
+    }
+
+    .field input:focus,
+    .field select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(122,162,247,.18);
+    }
+
+    .field-error {
+      min-height: 18px;
+      margin: 8px 0 0;
+      color: var(--error);
+      font-size: 13px;
+    }
+
+    .stepper {
+      display: flex;
+      gap: 7px;
+      margin-bottom: 20px;
+    }
+
+    .stepper span {
+      width: 28px;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--selection);
+    }
+
+    .stepper span.active { background: var(--blue); }
+    .stepper span.done { background: var(--green); }
+
+    .splash-view {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      min-height: 55vh;
+      text-align: center;
+    }
+
+    .splash-mark {
+      font-family: "Omarchy Mark";
+      color: var(--green);
+      font-size: 86px;
+      line-height: 1;
+    }
+
+    .splash-view h2 { margin: 16px 0 8px; }
+
+    .desktop-preview {
+      position: relative;
+      min-height: 370px;
+      overflow: hidden;
+      border: 1px solid rgba(192,202,245,.12);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(rgba(14,14,20,.3), rgba(14,14,20,.3)),
+        url("../../cache/omarchy-quattro/themes/tokyo-night/backgrounds/2-swirl-buck.jpg") center / cover;
+    }
+
+    .desktop-bar {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      left: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 39px;
+      padding: 0 13px;
+      border-radius: 8px;
+      background: var(--darker);
+      color: var(--foreground);
+      font-size: 12px;
+    }
+
+    .desktop-message {
+      position: absolute;
+      bottom: 22px;
+      left: 22px;
+      width: 315px;
+      padding: 18px;
+      border-radius: 10px;
+      background: var(--dark);
+    }
+
+    .desktop-message strong { display: block; margin-bottom: 5px; }
+
+    .desktop-message small { color: var(--foreground); }
+
+    .preview-controls {
+      position: absolute;
+      right: var(--safe-x);
+      bottom: var(--safe-y);
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: rgba(169,177,214,.78);
+      font-size: 12px;
+    }
+
+    .preview-controls select {
+      min-height: 34px;
+      padding: 0 23px 0 7px;
+      border: 0;
+      border-bottom: 1px solid rgba(192,202,245,.22);
+      border-radius: 0;
+      background: transparent;
+      color: var(--foreground);
+      font-size: 12px;
+    }
+
+    .preview-controls select:disabled { opacity: .35; }
+
+    .control-hints {
+      position: absolute;
+      bottom: var(--safe-y);
+      left: var(--safe-x);
+      z-index: 5;
+      color: rgba(169,177,214,.67);
+      font-size: 12px;
+      letter-spacing: .02em;
+    }
+
+    .control-hints span { margin-right: 17px; }
+    .control-hints b { color: var(--bright); }
+
+    .control-hints kbd {
+      display: inline-block;
+      min-width: 22px;
+      margin-right: 5px;
+      padding: 2px 5px;
+      border: 1px solid rgba(192,202,245,.28);
+      border-radius: 4px;
+      background: rgba(19,20,28,.8);
+      color: var(--bright);
+      font: inherit;
+      font-weight: 750;
+      text-align: center;
+    }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 920px) {
+      html, body { overflow: auto; }
+      .shell { min-height: 100vh; }
+      .chrome { position: relative; inset: auto; padding: 25px 25px 0; }
+      #app { position: relative; inset: auto; min-height: calc(100vh - 170px); padding: 50px 25px 105px; }
+      .view { width: min(100%, 760px); }
+      .preview-controls { right: 25px; bottom: 22px; }
+      .control-hints { left: 25px; bottom: 67px; }
+      .prototype-tag { display: none; }
+      .option-list { grid-template-columns: 1fr; }
+      .option { min-height: 84px; grid-template-columns: 38px 1fr; grid-template-rows: auto; align-items: center; }
+    }
+
+    @media (max-width: 620px) {
+      .brand img { width: 164px; }
+      .review-row,
+      .license-item,
+      .form-grid { grid-template-columns: 1fr; gap: 5px; }
+      .field.full { grid-column: auto; }
+      .actions { align-items: stretch; flex-direction: column; }
+      .button { width: 100%; }
+      .phase-meta { align-items: flex-start; flex-direction: column; gap: 8px; }
+      .preview-controls label { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="chrome">
+      <div class="brand" aria-label="Omarchy PS4">
+        <img src="../../cache/omarchy-quattro/default/plymouth/logo.png" alt="Omarchy">
+        <small>PS4</small>
+      </div>
+      <div class="prototype-tag">Console UX prototype · no system actions</div>
+    </header>
+
+    <section id="app" aria-live="polite"></section>
+
+    <div class="control-hints" aria-hidden="true">
+      <span><kbd>D-PAD</kbd>Move</span><span><kbd>CROSS</kbd>Confirm</span><span><kbd>CIRCLE</kbd>Back</span>
+    </div>
+
+    <div class="preview-controls">
+      <label for="preview-state">Prototype state</label>
+      <select id="preview-state" aria-label="Choose a prototype system state">
+        <option value="not-installed">Not installed</option>
+        <option value="interrupted">Interrupted</option>
+        <option value="ready">Ready</option>
+        <option value="update">Update available</option>
+        <option value="damaged">Damaged files</option>
+      </select>
+    </div>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const app = document.querySelector("#app");
+      const statePicker = document.querySelector("#preview-state");
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      const homeStates = {
+        "not-installed": {
+          eyebrow: "Ready to install",
+          title: "A clean path to Linux.",
+          copy: "Install the verified Omarchy RC3 boot set. Your Linux system stays on the external OMARCHY-PS4 drive.",
+          label: "Install Omarchy",
+          action: "install",
+          dot: "blue",
+          status: "External USB drive attached"
+        },
+        interrupted: {
+          eyebrow: "Installation paused",
+          title: "Continue where you left off.",
+          copy: "The previous installation stopped safely. Resume from the last verified step without starting over.",
+          label: "Resume installation",
+          action: "resume",
+          dot: "warning",
+          status: "Previous boot set remains available"
+        },
+        ready: {
+          eyebrow: "Ready",
+          title: "Omarchy is ready to boot.",
+          copy: "RC3 is verified on PS4BOOT. Linux verifies the external OMARCHY-PS4 root when it starts.",
+          label: "Boot Linux",
+          action: "boot",
+          dot: "",
+          status: "Boot files verified"
+        },
+        update: {
+          eyebrow: "Update available",
+          title: "A verified update is ready.",
+          copy: "Update the boot set to RC3. The current working set is kept so you can restore it if needed.",
+          label: "Update Omarchy",
+          action: "update",
+          dot: "blue",
+          status: "Current boot set will be retained"
+        },
+        damaged: {
+          eyebrow: "Needs attention",
+          title: "Boot files need a closer look.",
+          copy: "Linux will not be started until the boot set is verified or the previous working set is restored.",
+          label: "Open recovery",
+          action: "recovery",
+          dot: "error",
+          status: "No changes have been made"
+        }
+      };
+
+      const actionCopy = {
+        install: { eyebrow: "Review installation", title: "Install Omarchy RC3?", confirm: "Confirm installation", note: "Installation begins only after you confirm." },
+        resume: { eyebrow: "Review installation", title: "Resume installation?", confirm: "Confirm resume", note: "The manager continues from the last verified step." },
+        update: { eyebrow: "Review update", title: "Update the boot set?", confirm: "Confirm update", note: "The current working set is retained for recovery." },
+        boot: { eyebrow: "Review boot", title: "Boot Linux now?", confirm: "Confirm boot", note: "Confirming starts the handoff. Orbis will close when Linux takes over." },
+        verify: { eyebrow: "Read-only check", title: "Verify boot files?", confirm: "Start verification", note: "Verification only reads files. It does not repair or replace anything." },
+        restore: { eyebrow: "Confirm recovery", title: "Restore the previous boot set?", confirm: "Confirm restore", note: "The current damaged boot set will be replaced by the retained working set." },
+        export: { eyebrow: "Review export", title: "Export diagnostics?", confirm: "Confirm export", note: "A support bundle will be prepared. No private account data is included in this prototype." }
+      };
+
+      let systemState = "not-installed";
+      let page = "home";
+      let activeAction = null;
+      let progressTimer = null;
+      let setupStep = 0;
+      let focusIndex = 0;
+      let progressCancelable = true;
+      let lastGamepadInput = 0;
+      let gamepadHeld = false;
+
+      const progressSets = {
+        install: [
+          ["Checking system", "Confirming PS4BOOT identity and free space. Linux verifies OMARCHY-PS4 after startup.", true, 18],
+          ["Verifying release", "Checking the RC3 release manifest before any files are prepared.", true, 43],
+          ["Preparing boot files", "Writing the verified boot set. Keep the manager open.", false, 78],
+          ["Ready", "The RC3 boot set is verified and ready.", true, 100]
+        ],
+        resume: [
+          ["Checking system", "Finding the last verified installation step.", true, 25],
+          ["Verifying release", "Rechecking the RC3 release manifest.", true, 50],
+          ["Preparing boot files", "Completing the retained boot set. Keep the manager open.", false, 82],
+          ["Ready", "The RC3 boot set is verified and ready.", true, 100]
+        ],
+        update: [
+          ["Checking system", "Confirming the current and retained boot sets.", true, 18],
+          ["Verifying release", "Checking the RC3 update manifest.", true, 45],
+          ["Preparing boot files", "Preparing RC3 while retaining the working set.", false, 80],
+          ["Ready", "RC3 is verified and the previous set is retained.", true, 100]
+        ],
+        boot: [
+          ["Checking system", "Confirming the selected PS4BOOT set and 1024 MB video-memory profile.", true, 25],
+          ["Preparing handoff", "Starting the local GoldHEN loader handoff.", false, 62],
+          ["Linux takeover", "The boot payload has control. Orbis is ready to close.", false, 100]
+        ],
+        verify: [
+          ["Checking system", "Locating the active and retained boot sets.", true, 28],
+          ["Verifying boot files", "Comparing boot files with the pinned RC3 manifest.", true, 68],
+          ["Verification complete", "The read-only verification has finished.", true, 100]
+        ],
+        restore: [
+          ["Checking recovery set", "Verifying the retained working boot set.", true, 28],
+          ["Restoring boot files", "Replacing the damaged set. Keep the manager open.", false, 72],
+          ["Restore complete", "The retained boot set is active again.", true, 100]
+        ],
+        export: [
+          ["Checking diagnostics", "Collecting manager versions and verification results.", true, 38],
+          ["Preparing support bundle", "Writing the local diagnostics export.", true, 75],
+          ["Export complete", "The diagnostics bundle is ready.", true, 100]
+        ]
+      };
+
+      function render(markup, initialFocus = true) {
+        clearTimeout(progressTimer);
+        statePicker.disabled = page === "progress";
+        app.innerHTML = `<div class="view">${markup}</div>`;
+        focusIndex = 0;
+        if (initialFocus) requestAnimationFrame(() => focusAt(0));
+      }
+
+      function focusables() {
+        return [...app.querySelectorAll("[data-focus]:not([disabled])")];
+      }
+
+      function focusAt(index) {
+        const items = focusables();
+        if (!items.length) return;
+        focusIndex = (index + items.length) % items.length;
+        items.forEach((item) => item.classList.remove("controller-focus"));
+        items[focusIndex].classList.add("controller-focus");
+        items[focusIndex].focus({ preventScroll: true });
+      }
+
+      function moveFocus(direction) {
+        const items = focusables();
+        if (!items.length) return;
+        const current = items.includes(document.activeElement) ? document.activeElement : items[focusIndex];
+        if (!current) return focusAt(0);
+        const from = current.getBoundingClientRect();
+        const origin = { x: from.left + from.width / 2, y: from.top + from.height / 2 };
+        const vertical = direction === "up" || direction === "down";
+        const sign = direction === "up" || direction === "left" ? -1 : 1;
+        let best = null;
+        let bestScore = Infinity;
+
+        items.forEach((item, index) => {
+          if (item === current) return;
+          const rect = item.getBoundingClientRect();
+          const point = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+          const primaryDelta = vertical ? point.y - origin.y : point.x - origin.x;
+          const secondaryDelta = vertical ? point.x - origin.x : point.y - origin.y;
+          if (primaryDelta * sign <= 6) return;
+          const primary = Math.abs(primaryDelta);
+          const secondary = Math.abs(secondaryDelta);
+          const score = primary + secondary * 1.9 + (secondary / Math.max(primary, 1)) * 48;
+          if (score < bestScore) {
+            best = index;
+            bestScore = score;
+          }
+        });
+
+        if (best !== null) focusAt(best);
+      }
+
+      function activateFocused() {
+        const target = document.activeElement?.matches?.("[data-focus]:not([disabled])") ? document.activeElement : focusables()[focusIndex];
+        if (!target) return;
+        target.classList.add("pressed");
+        window.setTimeout(() => {
+          target.classList.remove("pressed");
+          target.click();
+        }, reduceMotion ? 20 : 90);
+      }
+
+      function escapeText(value) {
+        return String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
+      }
+
+      function goHome() {
+        page = "home";
+        activeAction = null;
+        setupStep = 0;
+        const state = homeStates[systemState];
+        render(`
+          <p class="eyebrow">${state.eyebrow}</p>
+          <div class="status-line"><span class="status-dot ${state.dot}"></span>${state.status}</div>
+          <h1>${state.title}</h1>
+          <p class="lede">${state.copy}</p>
+          <div class="actions">
+            <button class="button primary" data-focus data-action="${state.action}">${state.label}</button>
+          </div>
+          <nav class="link-row" aria-label="Secondary">
+            <button class="link-button" data-focus data-action="recovery">Recovery &amp; diagnostics</button>
+            <button class="link-button" data-focus data-action="credits">Credits &amp; licenses</button>
+          </nav>
+        `);
+      }
+
+      function showReview(action) {
+        page = "review";
+        activeAction = action;
+        const copy = actionCopy[action];
+        const isRestore = action === "restore";
+        const isBoot = action === "boot";
+        const isVerify = action === "verify";
+        const isExport = action === "export";
+        let rows = `
+          <div class="review-row"><dt>Release</dt><dd>Quattro RC3</dd></div>
+          <div class="review-row"><dt>Linux root</dt><dd>External OMARCHY-PS4</dd></div>
+          <div class="review-row"><dt>Video memory</dt><dd>1024 MB VRAM</dd></div>
+          <div class="review-row"><dt>Recovery</dt><dd class="good">Previous boot set retained</dd></div>
+          <div class="review-row"><dt>Internal PS4 storage</dt><dd class="good">Will not be formatted</dd></div>`;
+        if (isRestore) rows = `
+          <div class="review-row"><dt>Source</dt><dd>Retained working boot set</dd></div>
+          <div class="review-row"><dt>Target</dt><dd>Active PS4BOOT set</dd></div>
+          <div class="review-row"><dt>Linux root</dt><dd class="good">External root is unchanged</dd></div>
+          <div class="review-row"><dt>Internal PS4 storage</dt><dd class="good">Will not be formatted</dd></div>`;
+        if (isVerify) rows = `
+          <div class="review-row"><dt>Scope</dt><dd>Active and retained boot files</dd></div>
+          <div class="review-row"><dt>Manifest</dt><dd>Quattro RC3</dd></div>
+          <div class="review-row"><dt>Access</dt><dd class="good">Read-only</dd></div>
+          <div class="review-row"><dt>Repairs</dt><dd>None</dd></div>`;
+        if (isExport) rows = `
+          <div class="review-row"><dt>Contents</dt><dd>Versions, checks, manager events</dd></div>
+          <div class="review-row"><dt>Account data</dt><dd class="good">Excluded</dd></div>
+          <div class="review-row"><dt>Destination</dt><dd>External diagnostics folder</dd></div>`;
+        if (isBoot) rows += `<div class="review-row"><dt>Handoff</dt><dd class="warn">Orbis closes after confirmation</dd></div>`;
+        render(`
+          <p class="eyebrow">${copy.eyebrow}</p>
+          <h2>${copy.title}</h2>
+          <p class="lede compact">${copy.note}</p>
+          <div class="card card-pad">
+            <dl class="review-list">${rows}</dl>
+            <div class="actions">
+              <button class="button primary" data-focus data-action="confirm">${copy.confirm}</button>
+              <button class="button" data-focus data-action="back">Go back</button>
+            </div>
+          </div>
+        `);
+      }
+
+      function showProgress(action, index = 0) {
+        page = "progress";
+        activeAction = action;
+        const phases = progressSets[action];
+        const phase = phases[index];
+        progressCancelable = phase[2];
+        const label = action === "verify" ? "Read-only verification" : action === "boot" ? "Boot handoff preview" : "Action preview";
+        render(`
+          <p class="eyebrow">${label}</p>
+          <div class="card card-pad">
+            <div class="phase-meta"><span class="phase-number">Step ${index + 1} of ${phases.length}</span><span>Simulation only</span></div>
+            <h2 style="margin-top: 15px">${phase[0]}</h2>
+            <p class="lede compact">${phase[1]}</p>
+            <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${phase[3]}">
+              <div class="progress-bar" style="width:${phase[3]}%"></div>
+            </div>
+            <div class="phase-meta">
+              <span class="cancel-state ${phase[2] ? "" : "unsafe"}">${phase[2] ? "Safe to cancel" : "Keep manager open"}</span>
+              <span>${phase[3]}%</span>
+            </div>
+            <div class="actions">
+              <button class="button" data-focus data-action="cancel" ${phase[2] ? "" : "disabled"}>Cancel preview</button>
+            </div>
+          </div>
+        `, false);
+
+        if (index < phases.length - 1) {
+          progressTimer = window.setTimeout(() => showProgress(action, index + 1), reduceMotion ? 480 : 1050);
+        } else {
+          progressTimer = window.setTimeout(() => finishProgress(action), reduceMotion ? 480 : 950);
+        }
+      }
+
+      function finishProgress(action) {
+        if (["install", "resume", "update"].includes(action)) {
+          systemState = "ready";
+          statePicker.value = systemState;
+          showResult("ready");
+        } else if (action === "boot") {
+          showResult("completed");
+        } else if (action === "verify") {
+          showResult(systemState === "damaged" ? "attention" : "healthy");
+        } else if (action === "restore") {
+          systemState = "ready";
+          statePicker.value = systemState;
+          showResult("restored");
+        } else if (action === "export") {
+          showResult("exported");
+        }
+      }
+
+      function showResult(kind) {
+        page = "result";
+        const results = {
+          ready: ["blue", "Ready", "Omarchy RC3 is ready.", "The verified boot set is prepared. Linux will start only when you explicitly choose Boot Linux.", "Boot Linux", "boot"],
+          completed: ["blue", "Completed", "Linux takeover is ready.", "The handoff preview is complete. Continue to preview the Linux splash and first-owner setup.", "Preview Linux startup", "splash"],
+          healthy: ["", "Verification complete", "Boot files are healthy.", "The active RC3 boot set matches its pinned manifest. No files were changed.", "Return home", "home"],
+          attention: ["attention", "Needs attention", "Boot files need recovery.", "Verification found a mismatch. Restore remains a separate action and requires confirmation.", "Open recovery", "recovery"],
+          restored: ["", "Recovery complete", "Previous boot set restored.", "The retained working set is active again. The external Linux root was not changed.", "Return home", "home"],
+          exported: ["", "Export complete", "Diagnostics are ready.", "The local support bundle has been prepared in this simulation.", "Back to diagnostics", "recovery"]
+        };
+        const r = results[kind];
+        render(`
+          <div class="card card-pad">
+            <div class="result-mark ${r[0]}">${kind === "attention" ? "!" : "✓"}</div>
+            <p class="eyebrow">${r[1]}</p>
+            <h2>${r[2]}</h2>
+            <p class="lede compact">${r[3]}</p>
+            <div class="actions">
+              <button class="button primary" data-focus data-action="${r[5]}">${r[4]}</button>
+            </div>
+          </div>
+        `);
+      }
+
+      function showRecovery() {
+        page = "recovery";
+        render(`
+          <p class="eyebrow">Recovery &amp; diagnostics</p>
+          <h2>Inspect first. Change only when asked.</h2>
+          <p class="lede compact">Verification is read-only. Restoring a retained boot set is always reviewed and confirmed separately.</p>
+          <div class="option-list">
+            <button class="option" data-focus data-action="verify">
+              <span class="option-icon">CHECK</span><span class="option-copy"><strong>Verify boot files</strong><small>Read-only manifest check</small></span><span class="option-chevron">›</span>
+            </button>
+            <button class="option" data-focus data-action="restore">
+              <span class="option-icon">RESTORE</span><span class="option-copy"><strong>Restore previous boot set</strong><small>Requires a separate confirmation</small></span><span class="option-chevron">›</span>
+            </button>
+            <button class="option" data-focus data-action="export">
+              <span class="option-icon">EXPORT</span><span class="option-copy"><strong>Export diagnostics</strong><small>Prepare a local support bundle</small></span><span class="option-chevron">›</span>
+            </button>
+          </div>
+          <div class="actions"><button class="button" data-focus data-action="home">Return home</button></div>
+        `);
+      }
+
+      function showCredits() {
+        page = "credits";
+        render(`
+          <p class="eyebrow">Credits &amp; licenses</p>
+          <h2>Built from open work.</h2>
+          <p class="lede compact">This prototype contains presentation assets only. Release packages must preserve every upstream license and source notice.</p>
+          <div class="card card-pad">
+            <div class="license-list">
+              <div class="license-item"><strong>Omarchy PS4 Manager</strong><span>Quattro RC3 prototype</span></div>
+              <div class="license-item"><strong>Omarchy assets and theme</strong><span>Pinned upstream checkout</span></div>
+              <div class="license-item"><strong>PS4 Linux kernel</strong><span>Source and license notices required</span></div>
+              <div class="license-item"><strong>GoldHEN / loader components</strong><span class="unresolved">Redistribution unresolved · excluded</span></div>
+            </div>
+            <p style="margin:18px 0 0;color:var(--foreground);font-size:13px">No loader binary, payload, console operation, network request, or storage write is performed by this web prototype.</p>
+            <div class="actions"><button class="button" data-focus data-action="home">Return home</button></div>
+          </div>
+        `);
+      }
+
+      function showSplash() {
+        page = "splash";
+        render(`
+          <div class="splash-view">
+            <div>
+              <div class="splash-mark" aria-hidden="true">&#xE900;</div>
+              <h2>Starting Omarchy</h2>
+              <p class="lede compact">Linux splash → first-owner setup</p>
+              <button class="button primary" data-focus data-action="setup">Continue to owner setup</button>
+            </div>
+          </div>
+        `);
+      }
+
+      function stepper() {
+        return `<div class="stepper" aria-label="Owner setup step ${setupStep + 1} of 4">${[0,1,2,3].map((step) => `<span class="${step < setupStep ? "done" : step === setupStep ? "active" : ""}"></span>`).join("")}</div>`;
+      }
+
+      function showSetup(step = 0) {
+        page = "setup";
+        setupStep = step;
+        if (step === 0) {
+          render(`
+            ${stepper()}<p class="eyebrow">First-owner setup</p><h2>Keyboard and region</h2>
+            <p class="lede compact">Choose how this installation should speak to you.</p>
+            <div class="form-grid">
+              <div class="field"><label for="keyboard">Keyboard</label><select id="keyboard" data-focus><option>English (US)</option><option>English (UK)</option><option>Russian</option></select></div>
+              <div class="field"><label for="region">Region</label><select id="region" data-focus><option>Kyrgyzstan</option><option>United States</option><option>United Kingdom</option></select></div>
+            </div>
+            <div class="actions"><button class="button primary" data-focus data-action="setup-next">Continue</button><button class="button" data-focus data-action="splash">Back</button></div>
+          `);
+        } else if (step === 1) {
+          render(`
+            ${stepper()}<p class="eyebrow">First-owner setup</p><h2>Create your owner account</h2>
+            <p class="lede compact">There is no shared default password. This password protects login and sudo.</p>
+            <div class="form-grid">
+              <div class="field"><label for="username">Username</label><input id="username" data-focus autocomplete="off" value="owner" maxlength="24"></div>
+              <div class="field"><label for="password">Password</label><input id="password" data-focus type="password" autocomplete="new-password" placeholder="At least 4 characters"></div>
+            </div>
+            <p class="field-error" id="account-error" role="alert"></p>
+            <div class="actions"><button class="button primary" data-focus data-action="setup-next">Continue</button><button class="button" data-focus data-action="setup-back">Back</button></div>
+          `);
+        } else if (step === 2) {
+          render(`
+            ${stepper()}<p class="eyebrow">First-owner setup</p><h2>Name this system</h2>
+            <p class="lede compact">Set the network name and local time zone.</p>
+            <div class="form-grid">
+              <div class="field"><label for="hostname">Hostname</label><input id="hostname" data-focus autocomplete="off" value="omarchy-ps4" maxlength="63"></div>
+              <div class="field"><label for="timezone">Timezone</label><select id="timezone" data-focus><option>Asia/Bishkek</option><option>UTC</option><option>America/New_York</option><option>Europe/London</option></select></div>
+            </div>
+            <div class="actions"><button class="button primary" data-focus data-action="setup-next">Review owner</button><button class="button" data-focus data-action="setup-back">Back</button></div>
+          `);
+        } else {
+          render(`
+            ${stepper()}<p class="eyebrow">Ready to create owner</p><h2>One account. No default password.</h2>
+            <p class="lede compact">This is the final confirmation in the prototype. Nothing is written to disk.</p>
+            <div class="card card-pad">
+              <dl class="review-list">
+                <div class="review-row"><dt>Owner</dt><dd>owner</dd></div>
+                <div class="review-row"><dt>Hostname</dt><dd>omarchy-ps4</dd></div>
+                <div class="review-row"><dt>Timezone</dt><dd>Asia/Bishkek</dd></div>
+                <div class="review-row"><dt>Privileges</dt><dd>Normal wheel user with password sudo</dd></div>
+              </dl>
+              <div class="actions"><button class="button primary" data-focus data-action="create-owner">Create owner</button><button class="button" data-focus data-action="setup-back">Back</button></div>
+            </div>
+          `);
+        }
+      }
+
+      function showDesktop() {
+        page = "desktop";
+        render(`
+          <p class="eyebrow">Owner setup complete</p>
+          <h2>Welcome to Omarchy.</h2>
+          <div class="desktop-preview" aria-label="Omarchy desktop preview">
+            <div class="desktop-bar"><span>Omarchy</span><span>NET&nbsp;&nbsp; VOL&nbsp;&nbsp; 14:32</span></div>
+            <div class="desktop-message"><strong>Your system is ready.</strong><small>Owner created · RC3 · external Linux root</small></div>
+          </div>
+          <div class="actions"><button class="button" data-focus data-action="home">Return to manager prototype</button></div>
+        `);
+      }
+
+      function handleAction(action) {
+        if (homeStates[systemState] && ["install", "resume", "update", "boot"].includes(action)) showReview(action);
+        else if (["verify", "restore", "export"].includes(action)) showReview(action);
+        else if (action === "confirm") showProgress(activeAction);
+        else if (action === "recovery") showRecovery();
+        else if (action === "credits") showCredits();
+        else if (action === "home") goHome();
+        else if (action === "back" || action === "cancel") goBack();
+        else if (action === "splash") showSplash();
+        else if (action === "setup") showSetup(0);
+        else if (action === "setup-next") {
+          if (setupStep === 1) {
+            const username = document.querySelector("#username").value.trim();
+            const password = document.querySelector("#password").value;
+            if (!username || password.length < 4) {
+              document.querySelector("#account-error").textContent = "Enter a username and a password with at least 4 characters.";
+              return;
+            }
+          }
+          showSetup(Math.min(3, setupStep + 1));
+        } else if (action === "setup-back") showSetup(Math.max(0, setupStep - 1));
+        else if (action === "create-owner") showDesktop();
+      }
+
+      function goBack() {
+        if (page === "home") return;
+        if (page === "recovery" || page === "credits" || page === "result") goHome();
+        else if (page === "review" && ["verify", "restore", "export"].includes(activeAction)) showRecovery();
+        else if (page === "review") goHome();
+        else if (page === "progress") {
+          if (!progressCancelable) return;
+          const source = activeAction;
+          clearTimeout(progressTimer);
+          if (["verify", "restore", "export"].includes(source)) showRecovery(); else goHome();
+        } else if (page === "splash") showResult("completed");
+        else if (page === "setup") setupStep === 0 ? showSplash() : showSetup(setupStep - 1);
+        else if (page === "desktop") goHome();
+      }
+
+      app.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-action]");
+        if (target && !target.disabled) handleAction(target.dataset.action);
+      });
+
+      document.addEventListener("keydown", (event) => {
+        const editing = ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName);
+        if (editing && event.key.startsWith("Arrow")) return;
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          moveFocus("down");
+        } else if (event.key === "ArrowRight") {
+          event.preventDefault();
+          moveFocus("right");
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          moveFocus("up");
+        } else if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          moveFocus("left");
+        } else if (event.key === "Escape" || event.key === "Backspace" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+          event.preventDefault();
+          goBack();
+        }
+      });
+
+      document.addEventListener("focusin", (event) => {
+        const items = focusables();
+        const index = items.indexOf(event.target);
+        if (index >= 0) focusIndex = index;
+      });
+
+      statePicker.addEventListener("change", () => {
+        systemState = statePicker.value;
+        goHome();
+      });
+
+      function pollGamepad(time) {
+        const pad = navigator.getGamepads ? [...navigator.getGamepads()].find(Boolean) : null;
+        if (pad) {
+          const down = pad.buttons[13]?.pressed || pad.axes[1] > .6;
+          const up = pad.buttons[12]?.pressed || pad.axes[1] < -.6;
+          const right = pad.buttons[15]?.pressed || pad.axes[0] > .6;
+          const left = pad.buttons[14]?.pressed || pad.axes[0] < -.6;
+          const accept = pad.buttons[0]?.pressed;
+          const back = pad.buttons[1]?.pressed;
+          const active = down || up || right || left || accept || back;
+          if (active && (!gamepadHeld || time - lastGamepadInput > 320)) {
+            lastGamepadInput = time;
+            if (down) moveFocus("down");
+            else if (up) moveFocus("up");
+            else if (right) moveFocus("right");
+            else if (left) moveFocus("left");
+            else if (accept) activateFocused();
+            else if (back) goBack();
+          }
+          gamepadHeld = active;
+        }
+        requestAnimationFrame(pollGamepad);
+      }
+
+      goHome();
+      requestAnimationFrame(pollGamepad);
+    })();
+  </script>
+</body>
+</html>
