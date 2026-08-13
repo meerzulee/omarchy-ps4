@@ -1,7 +1,9 @@
 # Known-good XFCE baseline
 
-This records existing evidence from the sibling `linux-ps4` project. It is not
-yet a fresh reproduction performed by this repository.
+This records evidence from the historical local `linux-ps4` artifact
+workspace. The current authoritative kernel source and releases live in
+[`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4). This remains
+historical evidence rather than a fresh reproduction by this repository.
 
 ## Hardware and boot environment
 

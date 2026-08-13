@@ -118,14 +118,13 @@ does.
 
 | Repository | Owns | Does not own |
 |---|---|---|
-| `linux-ps4-kernel` | kernel patches, config, modules, reproducible kernel builds, patch provenance | desktop UX and distribution policy |
-| `omarchy-ps4` | rootfs, XFCE baseline, compatibility ladder, install/recovery UX, experiments | vendored kernel history or opaque payload binaries |
+| [`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4) (local checkout: `linux-ps4-kernel`) | kernel patches, config, modules, reproducible kernel builds, patch provenance | desktop UX and distribution policy |
+| [`meerzulee/omarchy-ps4`](https://github.com/meerzulee/omarchy-ps4) | rootfs, XFCE baseline, compatibility ladder, install/recovery UX, experiments | vendored kernel history or opaque payload binaries |
 | `ps4-uart` | continuous capture, bounded session extraction, local session index | compatibility decisions |
 
-`omarchy-ps4` is already a local Git repository on branch `main`, currently
-without a remote. Creating its public remote and pushing are later explicit
-release tasks after history, licensing, artifacts, and private evidence have
-been audited.
+`omarchy-ps4` is public with `master` as its default branch. Private build
+outputs, payload inputs, credentials and raw UART evidence remain local unless
+they pass a deliberate publication audit.
 
 ## Delegated-agent policy
 
