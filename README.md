@@ -6,6 +6,11 @@
 using Linux 6.18.44, Hyprland, the native package-owned Quickshell runtime and
 an external USB root.*
 
+Kernel source, patches and developer downloads live in
+[`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4). The exact
+Baikal B1 kernel shown here is available as the hardware-tested
+[`v6.18.44-ps4-baikal-r1` prerelease](https://github.com/meerzulee/linux-ps4/releases/tag/v6.18.44-ps4-baikal-r1).
+
 > The active, gate-driven execution roadmap is in
 > [`docs/PLAN.md`](docs/PLAN.md). The existing XFCE evidence is recorded in
 > [`docs/BASELINE.md`](docs/BASELINE.md), and all support claims are tracked in
@@ -158,10 +163,11 @@ The loader patches the Orbis kernel, installs a kexec-like path, loads the
 Linux kernel and initramfs into memory, and performs a controlled transition
 from Orbis OS to Linux.
 
-The Linux kernel must be selected for the console's southbridge. Current
-maintained open-source kernel work has distinct Aeolia/Belize and Baikal
-branches. Kernel binaries must always be distributed with the exact source,
-configuration, commit, and toolchain information used to build them.
+The Linux kernel must be selected for the console's southbridge. The
+[`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4) project owns
+this distribution's patch-based kernel source, configuration, provenance and
+test binaries. Kernel binaries must always be distributed with the exact
+source, configuration, commit, and toolchain information used to build them.
 
 ## Internal HDD design
 
