@@ -114,10 +114,15 @@ and optical path remain correct.
 
 ## Splash and diagnostics
 
-The product profile omits `console=tty0` and starts a small static framebuffer
-splash from the installer initramfs. It is deliberately not Plymouth: the PS4
-uses a custom loader/initramfs path, and the splash only begins when AMDGPU
-provides `/dev/fb0`.
+The product profile omits `console=tty0` and starts a small framebuffer splash
+from the installer initramfs. It reuses the exact pinned Quattro Plymouth logo
+and Tokyo Night colors, but not the Plymouth daemon: the PS4 uses a custom
+loader/initramfs path. The renderer waits for AMDGPU `/dev/fb0`, animates a
+restrained progress line, periodically restores the frame if fbcon or a mode
+transition overwrites it, and remains alive until the root is ready. UART stays
+verbose throughout. A failed initramfs handoff leaves the logo up with an
+Omarchy-red status line instead of falsely showing a completed green boot; use
+the debug profile for visible HDMI error text.
 
 Baikal earlycon remains active at `0xC890E000`, so kernel and installer evidence
 continues flowing over UART even while HDMI shows the splash. If display or

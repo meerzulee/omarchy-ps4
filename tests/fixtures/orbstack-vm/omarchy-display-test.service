@@ -1,0 +1,9 @@
+[Unit]
+Description=OrbStack gift workflow display-manager sentinel
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/sleep infinity
+
+[Install]
+WantedBy=multi-user.target

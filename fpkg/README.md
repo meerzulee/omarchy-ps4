@@ -1,7 +1,9 @@
 # Omarchy PS4 Manager FPKG
 
-Status: UX and protocol draft with a staged private offline lab bundle. No FPKG
-has been installed or run on hardware.
+Status: UX and protocol draft with a staged private offline lab bundle. A
+presentation-only native FPKG can now be built for private UI review; it has not
+been installed or run on hardware and contains none of the manager's functional
+adapters.
 
 The manager is the single Orbis-side entry point for Omarchy PS4:
 
@@ -37,7 +39,15 @@ completes.
 
 - `docs/ARCHITECTURE.md` — trust, staging, payload and recovery boundaries.
 - `manifest/` — signed release-manifest contract and an illustrative draft.
-- `preview/` — controller/keyboard-driven 1080p UX mock using no web services.
+- `preview/fable5.html` — accepted controller/keyboard-driven 1080p UX mock
+  using no web services.
+- `ui-prototype/` — native OpenOrbis renderer for an installable UI-only FPKG.
+  All product actions are in-memory simulations; no loader or system adapter is
+  linked or packaged.
+- `docs/UI-PROTOTYPE.md` — exact prototype scope, screen flow, font/branding
+  decision, build procedure and hardware-review gate.
+- `tools/build-ui-prototype` — downloads and verifies the pinned OpenOrbis
+  release, builds the native UI shell and audits the resulting package.
 - `tools/validate-manifest` — dependency-free manifest policy validator.
 - `tools/vendor-loader` — locally stages the pinned loader ELF for a private
   FPKG build and records its provenance.
@@ -48,9 +58,10 @@ completes.
 - `vendor/` — ignored build inputs placed inside `/app0` by the future package
   build. Binary payloads and private keys are never committed.
 
-Open `preview/index.html` locally and use arrow keys plus Enter to exercise the
-draft. It deliberately simulates downloads; it never contacts a server or
-touches a console.
+Open `preview/fable5.html` locally and use arrow keys plus Enter to exercise the
+accepted draft. It deliberately simulates product actions; it never contacts a
+server or touches a console. Build its native UI-only companion with
+`./fpkg/tools/build-ui-prototype`.
 
 ## Full offline lab package
 

@@ -8,7 +8,17 @@ say() {
   printf '%s\n' "[omarchy-ps4-initramfs] $*" > /dev/kmsg 2>/dev/null || true
 }
 
+SPLASH_PID=""
+stop_splash() {
+  [ -n "$SPLASH_PID" ] || return 0
+  [ "${1:-complete}" != failed ] || : > /run/omarchy-splash.failed
+  : > /run/omarchy-splash.stop
+  wait "$SPLASH_PID" 2>/dev/null || true
+  SPLASH_PID=""
+}
+
 rescue() {
+  stop_splash failed
   say "$*"
   say "Dropping to a root rescue shell."
   exec /bin/sh
@@ -48,7 +58,9 @@ done
 export OMARCHY_SPLASH OMARCHY_ROOT_SPEC="$ROOT_SPEC" OMARCHY_BUNDLE_SPEC OMARCHY_ROOTFS_PATH OMARCHY_ALLOW_DEVELOPMENT_ROOTFS
 
 if [ "$OMARCHY_SPLASH" = 1 ] && [ -x /bin/omarchy-splash ]; then
+  rm -f /run/omarchy-splash.stop /run/omarchy-splash.failed
   /bin/omarchy-splash >/dev/null 2>&1 &
+  SPLASH_PID=$!
 fi
 
 say "Linux $(uname -r) reached the initramfs."
@@ -97,6 +109,7 @@ fi
 
 printf '%s\n' "$ROOT_DEVICE" > /run/ps4-root-device
 say "Root filesystem validated; starting systemd."
+stop_splash
 
 mkdir -p /newroot/dev /newroot/proc /newroot/sys /newroot/run
 mount --move /dev /newroot/dev || rescue "Could not move /dev."

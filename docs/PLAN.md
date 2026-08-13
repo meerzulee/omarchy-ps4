@@ -2,6 +2,10 @@
 
 Status date: 2026-08-13
 
+Current checkpoint: [`CHECKPOINT-2026-08-13.md`](CHECKPOINT-2026-08-13.md).
+The immediate next hardware action is A44's preflighted native RC3 foundation
+transaction. A45 is the following, separate splash boot experiment.
+
 This plan is the project sequence. Work moves forward by passing gates, not by
 installing the entire Omarchy stack and debugging all failures at once.
 
@@ -153,6 +157,41 @@ recovery path
 - Validate atomic modesetting and page flips before testing color management,
   DPMS, hotplug, additional modes, HDMI audio, or hardware video decoding.
 
+### Planned bounded experiment — G34WQC native ultrawide
+
+Keep this deferred until the current product work has passed its gates. Do not
+build, stage, or boot this candidate as part of an unrelated experiment.
+
+- Target **3440x1440 at 50 Hz**, not 30 Hz. Gigabyte documents a 48–144 Hz
+  operating range for the G34WQC, so 30 Hz is outside the monitor's specified
+  range. The supported-timing table lists native 60/100 Hz over HDMI, meaning
+  50 Hz remains a custom-timing acceptance test rather than a guaranteed mode.
+  Source: [G34WQC manual](https://download.gigabyte.com/FileList/Manual/GBT-G34WQC-UM-EN-20200616.pdf).
+- Use CVT reduced blanking: 265.310 MHz pixel clock; horizontal
+  `3440 3488 3520 3600`; vertical `1440 1443 1453 1474`; positive HSync,
+  negative VSync; effective refresh approximately 49.998 Hz.
+- Implement it as one removable experimental Liverpool patch after the proven
+  display chain. Expose only the test mode as preferred, admit it in bridge
+  mode validation, force the same adjusted GPU timing, and emit AVI VIC 0 for
+  the non-CEA raster. Preserve the firmware-trained DP transmitter and the
+  proven split MN864729 lane, HDMI-update, and PLL/finalize transactions.
+- Pair the kernel with test-only boot arguments requesting
+  `video=HDMI-A-1:3440x1440@50D`; do not reuse the forced 1080p EDID argument.
+- Treat GPU raster timing plus matching bridge metadata as one coherent changed
+  variable: changing only one side recreates the already-proven timing/VIC
+  mismatch and cannot answer the experiment question.
+- Before the console action, allocate a fresh `EXP-YYYYMMDD-NNN`, confirm UART
+  is continuously `READY`, record a 180-second display timeout and 420-second
+  userspace timeout, then start the bounded session. Required evidence is:
+  successful pixel-clock programming, retained bridge lane lock, successful
+  three-stage MN864729 completion without ICC timeout, monitor OSD reporting
+  3440x1440 near 50 Hz, and stable console/desktop scanout and page flips.
+- Roll back by booting the unchanged, known-good 1080p60 release kernel and its
+  boot arguments. Do not overwrite that artifact or console-internal storage.
+- If 50 Hz passes, test 3440x1440 at 60 Hz only in a new bounded experiment. If
+  it fails, close and conclude the 50 Hz session before changing anything; do
+  not fall back to 30 Hz, because it is below the monitor's specified range.
+
 Exit gate: Aquamarine acquires `DRM_CLIENT_CAP_ATOMIC` without its legacy
 fallback, HDMI and framebuffer output survive the defined cold-boot count, and
 `modetest` exposes the expected atomic CRTC and plane properties. CTM, gamma,
@@ -187,8 +226,8 @@ installer implementation, and real-hardware acceptance remain.
   keep formatting as a separate, explicit Linux-host preparation step.
 - Use the SATA-disabled product profile to avoid the internal-disk timeout,
   with the visible-log/no-SATA-change debug profile retained as rollback.
-- Show the custom framebuffer splash on HDMI while keeping Baikal earlycon on
-  UART; do not add Plymouth to the custom PS4 boot chain.
+- Show the persistent native-brand framebuffer splash on HDMI while keeping
+  Baikal earlycon on UART; do not add Plymouth to the custom PS4 boot chain.
 
 Exit gate: installation and recovery are understandable without a development
 machine, SSH session, or undocumented shell command.

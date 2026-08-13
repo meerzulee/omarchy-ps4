@@ -1,0 +1,17 @@
+[Unit]
+Description=Recoverable Omarchy PS4 first-owner rehearsal
+After=sshd.service systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/omarchy-ps4-owner-rehearsal run
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+Environment=TERM=linux
+Environment=HOME=/root
+Environment=OMARCHY_PATH=/usr/share/omarchy

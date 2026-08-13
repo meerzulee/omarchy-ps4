@@ -73,7 +73,6 @@ printf '[Service]\n' >"$target/usr/lib/systemd/system/omarchy-ps4-provision-owne
 printf '# setup form\n' >"$target/usr/share/omarchy/install/provisioning/setup-form.sh"
 chmod 0755 "$target/usr/bin/omarchy-ps4-provision-owner"
 
-real_findmnt=$(command -v findmnt)
 real_readlink=$(command -v readlink)
 cat >"$temporary/tools/findmnt" <<EOF
 #!/usr/bin/env bash
@@ -125,6 +124,20 @@ grep -q '^user-session=omarchy$' "$target/etc/lightdm/lightdm.conf.d/20-omarchy-
 [[ -f $target/var/lib/omarchy-ps4/provisioning/pending ]] || fail 'pending marker is missing'
 [[ -L $target/etc/systemd/system/multi-user.target.wants/omarchy-ps4-provision-owner.service ]] || \
   fail 'owner provisioning service is not armed'
+
+printf 'omarchy-recovery:x:1001:1001:Temporary recovery:/home/omarchy-recovery:/bin/bash\n' \
+  >>"$target/etc/passwd"
+if PATH="$temporary/tools:$PATH" "$prepare" --check "$target" 2>/dev/null; then
+  fail 'preparation accepted the temporary recovery account'
+fi
+sed -i '$d' "$target/etc/passwd"
+
+printf 'omarchy-recovery ALL=(root) NOPASSWD: /usr/local/sbin/omarchy-ps4-dev-recovery status\n' \
+  >"$target/etc/sudoers.d/91-omarchy-ps4-recovery"
+if PATH="$temporary/tools:$PATH" "$prepare" --check "$target" 2>/dev/null; then
+  fail 'preparation accepted the temporary recovery sudo rule'
+fi
+rm -f "$target/etc/sudoers.d/91-omarchy-ps4-recovery"
 
 printf 'owner:x:1001:1001:Real owner:/home/owner:/bin/bash\n' >>"$target/etc/passwd"
 if PATH="$temporary/tools:$PATH" "$prepare" --check "$target" 2>/dev/null; then

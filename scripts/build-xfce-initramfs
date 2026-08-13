@@ -10,6 +10,7 @@ readonly INIT_SOURCE="${REPO_DIR}/rootfs/initramfs/init"
 readonly INSTALL_SOURCE="${REPO_DIR}/rootfs/initramfs/install-rootfs"
 readonly TOOLS_DIR="${REPO_DIR}/output/initramfs-tools"
 readonly SPLASH_BIN="${TOOLS_DIR}/omarchy-splash"
+readonly SPLASH_LOGO="${TOOLS_DIR}/omarchy-logo.pgm"
 readonly ZSTD_BIN="${TOOLS_DIR}/zstd"
 readonly MUSL_LOADER="${TOOLS_DIR}/ld-musl-x86_64.so.1"
 readonly LIBZSTD="${TOOLS_DIR}/libzstd.so.1"
@@ -34,7 +35,7 @@ if [[ ! -x "${INSTALL_SOURCE}" ]]; then
   printf 'error: installer script is missing or not executable: %s\n' "${INSTALL_SOURCE}" >&2
   exit 1
 fi
-for tool_input in "${SPLASH_BIN}" "${ZSTD_BIN}" "${MUSL_LOADER}" "${LIBZSTD}"; do
+for tool_input in "${SPLASH_BIN}" "${SPLASH_LOGO}" "${ZSTD_BIN}" "${MUSL_LOADER}" "${LIBZSTD}"; do
   if [[ ! -f "${tool_input}" ]]; then
     printf 'error: missing initramfs tool: %s (run scripts/build-initramfs-tools)\n' "${tool_input}" >&2
     exit 1
@@ -92,6 +93,7 @@ install -m 0755 "${source_dir}/bin/busybox" "${root_dir}/bin/busybox"
 install -m 0755 "${init_source}" "${root_dir}/init"
 install -m 0755 "${install_source}" "${root_dir}/install-rootfs"
 install -m 0755 "${tools_dir}/omarchy-splash" "${root_dir}/bin/omarchy-splash"
+install -m 0644 "${tools_dir}/omarchy-logo.pgm" "${root_dir}/etc/omarchy-logo.pgm"
 install -m 0755 "${tools_dir}/zstd" "${root_dir}/bin/zstd"
 install -m 0755 "${tools_dir}/ld-musl-x86_64.so.1" "${root_dir}/lib/ld-musl-x86_64.so.1"
 install -m 0644 "${tools_dir}/libzstd.so.1" "${root_dir}/usr/lib/libzstd.so.1"

@@ -1,5 +1,11 @@
 # Omarchy PS4 Research and Architecture
 
+![Omarchy Quattro RC3 running on a Baikal B1 PS4](docs/assets/omarchy-ps4-quattro-rc3.png)
+
+*Omarchy Quattro RC3 running at 1920×1080 on the project’s Baikal B1 PS4,
+using Linux 6.18.44, Hyprland, the native package-owned Quickshell runtime and
+an external USB root.*
+
 > The active, gate-driven execution roadmap is in
 > [`docs/PLAN.md`](docs/PLAN.md). The existing XFCE evidence is recorded in
 > [`docs/BASELINE.md`](docs/BASELINE.md), and all support claims are tracked in
@@ -15,6 +21,8 @@
 > Quattro RC3 and its deferred-owner flow are tracked in
 > [`docs/QUATTRO-RC3.md`](docs/QUATTRO-RC3.md), while the package publication
 > design is in [`docs/PACKAGE-REPOSITORY.md`](docs/PACKAGE-REPOSITORY.md).
+> The current implementation, evidence boundary and ordered resume plan are in
+> [`docs/CHECKPOINT-2026-08-13.md`](docs/CHECKPOINT-2026-08-13.md).
 > The single-app Install/Boot/Repair protocol and offline UX draft are in
 > [`fpkg/`](fpkg/README.md).
 > The end-to-end jailbreak, USB, FPKG, installer, splash and first-owner path is

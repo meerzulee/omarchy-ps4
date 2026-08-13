@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    'Usage: install-foundation (--check|--apply) EXPERIMENT_ID' \
+    '' \
+    'Resolve or install the three checksum-verified native RC3 packages on' \
+    'the running external OMARCHY-PS4 development root.'
+}
+
+fail() {
+  printf 'install-foundation: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ $EUID -eq 0 ]] || fail 'must run as root'
+[[ $# -eq 2 ]] || {
+  usage >&2
+  exit 2
+}
+
+mode=$1
+experiment_id=$2
+case "$mode" in
+  --check|--apply) ;;
+  *) fail 'first argument must be --check or --apply' ;;
+esac
+[[ $experiment_id =~ ^EXP-[0-9]{8}-[0-9]{3}-A[0-9]+$ ]] || \
+  fail "invalid experiment ID: $experiment_id"
+
+bundle_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+"$bundle_dir/check" >/dev/null
+
+for command_name in \
+  awk comm cp date findmnt getent grep install lsblk mktemp pacman readlink \
+  runuser sort systemctl
+do
+  command -v "$command_name" >/dev/null 2>&1 || fail "missing command: $command_name"
+done
+
+root_source=$(findmnt -nro SOURCE --target /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source")
+[[ -b $root_device ]] || fail "root source is not a block device: $root_source"
+root_label=$(lsblk -dnro LABEL "$root_device")
+[[ $root_label == OMARCHY-PS4 ]] || \
+  fail "root label is '$root_label', expected OMARCHY-PS4"
+parent_name=$(lsblk -dnro PKNAME "$root_device")
+[[ -n $parent_name ]] || fail "cannot resolve the parent disk for $root_device"
+parent_device=/dev/$parent_name
+transport=$(lsblk -dnro TRAN "$parent_device")
+[[ $transport == usb ]] || fail "root parent uses '$transport', expected USB"
+
+recovery_user=omarchy-recovery
+recovery_control=/usr/local/sbin/omarchy-ps4-dev-recovery
+[[ -r /var/lib/omarchy-ps4/recovery/armed.env ]] || \
+  fail 'temporary recovery access must be armed before the foundation experiment'
+getent passwd "$recovery_user" >/dev/null || fail "recovery user $recovery_user is missing"
+[[ -x $recovery_control ]] || fail 'installed recovery command is missing'
+systemctl is-enabled --quiet sshd.service || fail 'sshd.service is not enabled'
+systemctl is-active --quiet sshd.service || fail 'sshd.service is not active'
+runuser -u "$recovery_user" -- sudo -n "$recovery_control" status >/dev/null || \
+  fail 'restricted recovery command is not usable by the recovery account'
+
+temporary=$(mktemp -d)
+trap 'rm -rf -- "$temporary"' EXIT
+chmod 0755 "$temporary"
+repository=$temporary/repository
+install -d -m 0755 "$repository"
+cp "$bundle_dir/packages/"*.pkg.tar.zst "$repository/"
+cp "$bundle_dir/packages/omarchy-ps4-dev.db" "$repository/"
+chmod 0644 "$repository/"*
+pacman_config=$temporary/pacman.conf
+cp /etc/pacman.conf "$pacman_config"
+cat >>"$pacman_config" <<EOF
+
+[omarchy-ps4-dev]
+SigLevel = Never
+Server = file://$repository
+EOF
+
+temporary_db=$temporary/db
+mkdir -p "$temporary_db"
+ln -s /var/lib/pacman/local "$temporary_db/local"
+
+packages=(
+  omarchy-ps4-settings
+  omarchy-ps4
+  omarchy-ps4-provisioning
+)
+
+pacman --config "$pacman_config" --dbpath "$temporary_db" -Sy --noconfirm >/dev/null
+preflight=$temporary/transaction.txt
+pacman --config "$pacman_config" --dbpath "$temporary_db" \
+  -Sp --needed --print-format '%n %v %l' -- "${packages[@]}" >"$preflight"
+[[ -s $preflight ]] || fail 'transaction is empty; packages may already be installed'
+
+forbidden_pattern='^(linux($|-)|linux-firmware|mkinitcpio|grub|limine|systemd-boot|plymouth|udisks2|udiskie|sddm|lightdm|gdm|mesa|lib32-mesa|libdrm|lib32-libdrm|vulkan-|lib32-vulkan-|xf86-video-)'
+if awk '{ print $1 }' "$preflight" | grep -E "$forbidden_pattern"; then
+  fail 'transaction includes a forbidden boot, storage, graphics, or display package'
+fi
+
+printf 'Root:       %s (%s, label %s)\n' "$root_device" "$transport" "$root_label"
+printf 'Experiment: %s\n' "$experiment_id"
+printf '%s\n' 'Resolved transaction:'
+cat "$preflight"
+
+if [[ $mode == --check ]]; then
+  printf '%s\n' 'Preflight passed; no persistent files or packages were changed.'
+  exit 0
+fi
+
+backup_root=/var/lib/omarchy-ps4/experiments
+backup_dir="$backup_root/${experiment_id}-$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 0700 "$backup_dir"
+pacman -Q >"$backup_dir/packages.before.txt"
+pacman -Qq | LC_ALL=C sort >"$backup_dir/package-names.before.txt"
+pacman -Qqe >"$backup_dir/explicit-packages.before.txt"
+pacman -Qqm >"$backup_dir/foreign-packages.before.txt" || true
+cp -a /var/log/pacman.log "$backup_dir/pacman.log.before"
+findmnt -no SOURCE,FSTYPE,OPTIONS / >"$backup_dir/root.before.txt"
+lsblk -o NAME,PATH,TRAN,VENDOR,MODEL,SIZE,FSTYPE,LABEL,MOUNTPOINTS \
+  >"$backup_dir/block-devices.before.txt"
+systemctl is-active display-manager.service >"$backup_dir/display-manager-active.before.txt"
+systemctl is-enabled display-manager.service >"$backup_dir/display-manager-enabled.before.txt"
+readlink -f /etc/systemd/system/display-manager.service \
+  >"$backup_dir/display-manager-unit.before.txt"
+runuser -u "$recovery_user" -- sudo -n "$recovery_control" status \
+  >"$backup_dir/recovery.before.txt"
+cp "$preflight" "$backup_dir/transaction.preflight.txt"
+
+pacman --config "$pacman_config" -Sy --noconfirm >/dev/null
+live_preview=$backup_dir/transaction.live.txt
+pacman --config "$pacman_config" -Sp --needed --print-format '%n %v %l' \
+  -- "${packages[@]}" >"$live_preview"
+awk '{ print $1, $2 }' "$preflight" | LC_ALL=C sort >"$temporary/preflight.names"
+awk '{ print $1, $2 }' "$live_preview" | LC_ALL=C sort >"$temporary/live.names"
+if [[ $(<"$temporary/preflight.names") != $(<"$temporary/live.names") ]]; then
+  fail "live transaction differs from preflight; evidence is in $backup_dir"
+fi
+
+pacman --config "$pacman_config" -S --needed --noconfirm --ask 4 -- "${packages[@]}"
+
+pacman -Q >"$backup_dir/packages.after.txt"
+pacman -Qq | LC_ALL=C sort >"$backup_dir/package-names.after.txt"
+LC_ALL=C comm -13 \
+  "$backup_dir/package-names.before.txt" "$backup_dir/package-names.after.txt" \
+  >"$backup_dir/new-packages.txt"
+cp -a /var/log/pacman.log "$backup_dir/pacman.log.after"
+
+for package_name in "${packages[@]}"; do
+  installed_version=$(pacman -Q "$package_name" | awk '{ print $2 }')
+  [[ $installed_version == 4.0.0rc3-1 ]] || \
+    fail "$package_name is $installed_version, expected 4.0.0rc3-1"
+done
+systemctl is-active --quiet display-manager.service || \
+  fail 'display manager stopped during the package transaction'
+[[ ! -e /var/lib/omarchy-ps4/provisioning/pending ]] || \
+  fail 'owner provisioning was unexpectedly armed'
+[[ ! -e /etc/systemd/system/multi-user.target.wants/omarchy-ps4-provision-owner.service ]] || \
+  fail 'owner provisioning service was unexpectedly enabled'
+systemctl is-active --quiet sshd.service || fail 'sshd stopped during the package transaction'
+runuser -u "$recovery_user" -- sudo -n "$recovery_control" status \
+  >"$backup_dir/recovery.after.txt"
+
+{
+  printf '%s\n' 'Rollback preview; inspect new-packages.txt before running:'
+  printf '%s\n' 'sudo /usr/local/sbin/omarchy-ps4-dev-recovery rollback-foundation'
+} >"$backup_dir/ROLLBACK.txt"
+
+printf 'Installed native RC3 foundation. Evidence: %s\n' "$backup_dir"
+printf '%s\n' 'No package configuration, service, boot asset, or gift finalization was activated.'

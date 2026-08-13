@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+case "$*" in
+  *' LABEL '*) printf '%s\n' 'OMARCHY-PS4' ;;
+  *' PKNAME '*) printf '%s\n' 'omarchy-test-parent' ;;
+  *' TRAN '*) printf '%s\n' 'usb' ;;
+  *) exec /usr/bin/lsblk "$@" ;;
+esac

@@ -5003,17 +5003,85 @@ but they are not evidence of a Linux 6.18 boot.
 - next action: install the three locally built RC3 PS4 packages as A44 without
   restarting the active portable session
 
+### EXP-20260814-001-A1 — arm temporary RC3 recovery access
+
+- state: complete — pass
+- question: can a second, key-only recovery account survive the native package
+  test and invoke only status or the exact RC3 package rollback while the
+  existing `ps4` login, desktop and boot state remain unchanged?
+- changed variable: development recovery access only — create human account
+  `omarchy-recovery`, copy the already-pinned operator ED25519 public key,
+  install a user-specific public-key-only SSH policy, install two exact
+  command-specific sudo rules, and keep the already-enabled system
+  `sshd.service` persistent. Do not install the RC3 packages in this action
+- source evidence: the isolated OrbStack/Arch fixture created the account,
+  exercised restricted status and rollback, rejected general sudo, and
+  confirmed `PasswordAuthentication no`, public-key-only authentication and
+  disabled TCP/agent/X11 forwarding for this user. The owner-finalization
+  fixture refuses both the extra human account and its temporary `NOPASSWD`
+  rule. Booted OrbStack machine `omarchy-gift-rc3-test` additionally passed a
+  real network SSH login, real systemd sshd enablement, exact RC3 install,
+  reboot persistence and remote restricted rollback; see
+  `docs/GIFT-DEV-VM-TEST-2026-08-14.md`. USB/label guards were simulated and
+  the VM was arm64, so neither replaces PS4 acceptance
+- expected evidence: account UID is in the human range and its SSH key has
+  fingerprint `SHA256:N64LAFp/1IpDOVOrMNVY3Bd6JHn2qxAyvT0/8FZ3T0M`;
+  `sshd.service` remains enabled and active; a fresh remote key login as
+  `omarchy-recovery` succeeds; restricted status succeeds; arbitrary sudo is
+  denied; `ps4`, Hyprland and Quickshell remain healthy
+- timeout: 5 minutes
+- rollback: from the still-working `ps4` administration path, remove only the
+  recovery account/home, `/etc/sudoers.d/91-omarchy-ps4-recovery`,
+  `/etc/ssh/sshd_config.d/30-omarchy-ps4-recovery.conf`,
+  `/usr/local/sbin/omarchy-ps4-dev-recovery`, and
+  `/var/lib/omarchy-ps4/recovery`, validate `sshd -t`, then reload sshd
+- stop condition: no native package transaction, owner provisioning, desktop
+  reload, boot-file change, restart or payload belongs to this experiment. A
+  failed real SSH login closes the action without beginning A44
+- operator action: none
+- staged bundle: developer gift archive SHA-256
+  `2eb7a02d047314db215c6d059368aa89b88f2989a11f5131905b536672767e1b`
+  was copied to the `ps4` development home, verified in place and extracted;
+  its internal policy check passed
+- in-progress hardware evidence: continuous UART generation
+  `f9d6fea5361b45449a0948ab0457f00c` is valid and ready. The unmodified root
+  resolved to USB `/dev/sda2`, ext4 label `OMARCHY-PS4`; `sshd.service` was
+  already enabled and active; Hyprland PID 439 and Quickshell PID 5621 were
+  healthy before the change. Guarded check and apply created
+  `omarchy-recovery` with the pinned fingerprint. A fresh network login passed,
+  restricted status passed, arbitrary sudo was denied, provisioning remained
+  unarmed, sshd remained enabled/active and both desktop PIDs remained
+  unchanged
+- bounded UART context:
+  [`20260814_022120_506838-exp-20260814-001-a1-arm-temporary-rc3-recovery-access-95ea71b5.md`](../../ps4-uart/sessions/20260814_022120_506838-exp-20260814-001-a1-arm-temporary-rc3-recovery-access-95ea71b5.md),
+  with exact 4,039-byte `.raw` slice and empty logger-event sidecar
+- operator result: pass — Omarchy remained visible and responsive; no visible
+  regression was reported
+- UART conclusion: completed continuity on capture generation
+  `f9d6fea5361b45449a0948ab0457f00c`. UART shows the expected systemd manager
+  reload, successful OpenSSH reload and clean UID 1001 recovery login session
+  lifecycle. No GPU, kernel, ext4, USB or service failure appeared. Periodic
+  MT7668 P2P trace messages were unchanged background behavior
+- rollback: not applied. Recovery account `omarchy-recovery`, its restricted
+  command and persistent key-only SSH remain intentionally armed as the A44
+  safety path. Gift finalization must continue to refuse this development state
+- next action: A44 may begin in a new bounded session; resolve the full Pacman
+  transaction first and do not proceed if it contains a forbidden or unreviewed
+  dependency
+
 ### EXP-20260813-001-A44 — install native RC3 PS4 package foundation
 
-- state: planned
+- state: complete — inconclusive; no package transaction began and the root
+  package set remained unchanged
 - question: do the three verified local RC3 packages install cleanly on the
   external root without enabling provisioning or disturbing the active portable
   desktop?
-- changed variable: native PS4 package foundation only — install exactly the
-  locally built `omarchy-ps4`, `omarchy-ps4-settings` and
-  `omarchy-ps4-provisioning` RC3 package files in one Pacman transaction. Do not
-  install other packages, enable services, activate provisioning, switch user
-  symlinks or restart/reload the desktop
+- changed variable: native PS4 package foundation only — first resolve and
+  record Pacman's complete transaction, then install the locally built
+  `omarchy-ps4`, `omarchy-ps4-settings` and `omarchy-ps4-provisioning` RC3
+  package files plus only their explicitly reviewed missing dependencies in one
+  Pacman transaction. Do not enable services, activate provisioning, switch
+  user symlinks or restart/reload the desktop
 - source evidence: the rebuilt package SHA-256 values are runtime
   `1d02e1799e825ebd6fe275ac9bd483c53b62e8d50b5df6c3073470266339c025`,
   settings
@@ -5021,18 +5089,284 @@ but they are not evidence of a Linux 6.18 boot.
   and provisioning
   `295afa9789ca770471dc11238dc2710e57dcf3068a8747ad889d3696675e87cf`;
   package content and prepare-for-owner fixture tests passed in the pinned
-  OrbStack/Arch build
+  OrbStack/Arch build. The private developer gift archive is
+  `omarchy-ps4-gift-dev-rc3.tar.zst`, SHA-256
+  `2eb7a02d047314db215c6d059368aa89b88f2989a11f5131905b536672767e1b`;
+  its extracted manifest passed, a clean rebuild produced the same content
+  manifest, and Pacman listed exactly the three expected `4.0.0rc3-1` entries
+  from its normalized local database
 - expected evidence: Pacman reports all three at `4.0.0rc3-1`; no provisioning
   service or pending marker is enabled/created; active runtime stays portable
   commit `144f4d1e`; Hyprland PID 439 and Quickshell PID 5621 remain; display and
-  system stay healthy
+  system stay healthy; `sshd.service` and the independently verified
+  `omarchy-recovery` status command remain available
+- preflight rejection: abort before installation if the resolved transaction
+  includes a kernel, bootloader, Plymouth, UDisks, display-manager takeover,
+  graphics-stack replacement or any package outside the reviewed closure
 - timeout: 6 minutes
 - rollback: uninstall only the three local packages with `pacman -Rns` if the
   transaction succeeds but violates the gates; the portable runtime remains the
   desktop fallback
-- stop condition: no repository package, Pacman upgrade, service enablement,
-  config activation, restart or second transaction belongs to A44
+- stop condition: no full Pacman upgrade, service enablement, config
+  activation, restart or second transaction belongs to A44. A rejected
+  dependency closure closes A44 without modifying the root
 - operator action: none
+- bounded UART context:
+  [`20260814_023335_582257-exp-20260813-001-a44-install-native-rc3-ps4-package-foundation-902ce3e2.md`](../../ps4-uart/sessions/20260814_023335_582257-exp-20260813-001-a44-install-native-rc3-ps4-package-foundation-902ce3e2.md),
+  with exact 1,725-byte `.raw` slice and empty logger-event sidecar
+- result: inconclusive before transaction resolution. Attempt 1 exposed that
+  the PS4 baseline lacks optional `cmp`; the comparison was replaced with a
+  Bash built-in. Attempt 2 proved Pacman's `alpm` download sandbox cannot
+  traverse a root-only temporary ancestor; the ancestor was changed to mode
+  0755 without disabling sandboxing. Attempt 3 proved `alpm` also cannot
+  traverse the private `ps4` home to read the local repository. All three
+  attempts stopped during guarded setup or database synchronization before a
+  dependency closure or package transaction existed
+- UART conclusion: completed continuity on generation
+  `f9d6fea5361b45449a0948ab0457f00c`. Only clean `ps4` SSH session lifecycle
+  and unchanged MT7668 background warnings appeared; there was no GPU, kernel,
+  ext4, USB, display-manager, service or package-transaction fault
+- rollback: not required because Pacman never began a transaction. The
+  temporary recovery account and persistent SSH from A1 remain healthy. The
+  staged development bundle remains under the `ps4` development home
+- next action: copy the checksum-verified local repository into a temporary
+  0755/0644 sandbox-readable directory, prove preflight from a private bundle
+  path in the booted OrbStack VM, rebuild the bundle, then use fresh bounded
+  experiment `EXP-20260814-001-A2`. Do not repeat A44 without that new evidence
+
+### EXP-20260814-001-A2 — install native RC3 foundation after sandbox fixes
+
+- state: complete — pass
+- question: with the verified local repository copied to an ephemeral
+  sandbox-readable directory, do the three RC3 packages resolve and install on
+  the external PS4 root without changing the portable desktop or recovery SSH?
+- changed variable: native RC3 package foundation only, identical to A44. The
+  installer implementation changes only how already-checksummed local package
+  files are exposed to Pacman's unprivileged download sandbox. Do not disable
+  Pacman sandboxing or add a test-only dependency
+- source evidence: developer gift archive SHA-256
+  `abf563b0a23dc0978a1aa37247d1c81877bd909bb2f10b931aaa913e352ed931`;
+  archive extraction, package policy, shell checks, recovery fixture and clean
+  rebuild manifest comparison passed. On booted OrbStack machine
+  `omarchy-gift-rc3-test`, the bundle was copied beneath mode-0700 `/root`, all
+  cached Omarchy PS4 package files were moved aside temporarily, and Pacman
+  still resolved exactly the three `4.0.0rc3-1` package URLs from the copied
+  `/tmp/.../repository` while retaining its download sandbox. This directly
+  reproduces and closes A44's private-parent traversal failure
+- expected evidence: isolated and live transaction name/version sets match;
+  the reviewed closure contains no forbidden component; exact three project
+  packages report `4.0.0rc3-1`; provisioning remains unarmed; sshd and
+  `omarchy-recovery` remain healthy; Hyprland PID 439, Quickshell PID 5621 and
+  the visible responsive desktop remain unchanged
+- timeout: 6 minutes
+- rollback: from the independently verified recovery login, run only
+  `sudo /usr/local/sbin/omarchy-ps4-dev-recovery rollback-foundation`; retain
+  dependencies and portable runtime
+- stop condition: no full upgrade, service activation, desktop reload, restart,
+  boot-file change, splash or payload. Any transaction mismatch or unreviewed
+  dependency closes A2 before installation
+- operator action: none
+- reviewed transaction: exact three project packages plus `fakeroot`, `git`,
+  `pacman-contrib`, `perl-error`, `perl-timedate`, `perl-mailtools` and
+  `zlib-ng`; 123.52 MiB downloaded and 155.58 MiB installed. No kernel,
+  bootloader, Plymouth, UDisks, display manager, Mesa, libdrm, Vulkan, Xorg
+  driver or service package was present
+- result: Pacman installed `omarchy-ps4`, `omarchy-ps4-settings` and
+  `omarchy-ps4-provisioning` at exactly `4.0.0rc3-1`. The transaction created
+  only the standard locked `git` system account through its package hook; no
+  service was enabled. Existing `/etc/sudoers.d` mode 0750 was retained despite
+  the package archive declaring 0755
+- postcheck: the package transaction completed, then the first evidence pass
+  stopped because `comm` used the host locale against byte-sorted package
+  lists. No second transaction ran. Package versions, recovery status,
+  provisioning markers, services, portable release and desktop PIDs were
+  checked read-only. The evidence directory
+  `/var/lib/omarchy-ps4/experiments/EXP-20260814-001-A2-20260813T204418Z`
+  was completed with correctly byte-sorted before/after lists,
+  `new-packages.txt`, final Pacman log, recovery status and rollback command.
+  The source installer now sorts and compares all three operations with
+  `LC_ALL=C`. The post-A2 canonical archive containing that evidence fix is
+  SHA-256
+  `1a24445cf1409d3b523586e528b63157779aa0df6b79e09f6ca1cd6636aae28a`;
+  clean-rebuild manifest, package policy and recovery fixture passed. Its three
+  package payloads are unchanged from the hardware-tested archive
+- expected-state evidence: provisioning marker and service are absent;
+  LightDM and sshd are active; sshd is enabled; a fresh
+  `omarchy-recovery` login reports all three versions and restricted rollback
+  remains available; portable release still resolves to upstream commit
+  `144f4d1e`; Hyprland PID 439 and Quickshell PID 5621 are unchanged
+- bounded UART context:
+  [`20260814_024213_769517-exp-20260814-001-a2-install-native-rc3-foundation-after-sandbox--0b7c0ed6.md`](../../ps4-uart/sessions/20260814_024213_769517-exp-20260814-001-a2-install-native-rc3-foundation-after-sandbox--0b7c0ed6.md),
+  with exact 2,513-byte `.raw` slice and empty logger-event sidecar
+- operator result: pass — the Omarchy desktop remained visible and responsive;
+  nothing changed on the monitor, which is the expected foundation-only result
+- UART conclusion: completed continuity on generation
+  `f9d6fea5361b45449a0948ab0457f00c`. UART shows expected system and user
+  manager reloads plus a clean UID 1001 recovery SSH session. No GPU, kernel,
+  USB, ext4, display-manager, service or package fault appeared. The isolated
+  MT7668 warning was unchanged background behavior
+- rollback: not applied. The three RC3 packages remain installed, the portable
+  desktop remains active and the restricted recovery rollback stays armed
+- next action: stop for owner direction. Installing and launching the UI-only
+  FPKG from Orbis is a separate hardware experiment and requires returning to
+  the PS4 system software; persistent native splash A45 also remains separate
+
+### EXP-20260814-001-A3 — stage native RC3 session with remote rollback
+
+- state: complete — inconclusive before privileged staging; active desktop and
+  native package foundation unchanged
+- question: can the already-installed native RC3 profile be staged for the
+  existing `ps4` user, together with an exact recovery-account rollback,
+  without changing or reloading the active portable desktop?
+- changed variable: inactive native-session staging and its restricted rollback
+  control only. Copy the package-owned `/usr/share/omarchy/config` into a
+  versioned user-owned candidate, preserve the current portable path map, and
+  authorize `omarchy-recovery` for only the exact native-session status and
+  rollback commands. Do not switch a live symlink, reload Hyprland or
+  Quickshell, restart LightDM, change packages, services, boot files, storage,
+  display settings or owner provisioning
+- expected evidence: all three project packages remain exactly `4.0.0rc3-1`;
+  the candidate is derived from the installed native files; its activation and
+  rollback paths validate offline; a fresh restricted recovery SSH login can
+  run native-session status but cannot activate it or obtain arbitrary sudo;
+  active `OMARCHY_PATH`, Hyprland and Quickshell PIDs remain on portable commit
+  `144f4d1e`; the visible desktop remains unchanged and responsive
+- timeout: 5 minutes
+- rollback: remove only the inactive native candidate, control command and its
+  exact new sudo authorization. Because no live pointer or process changes in
+  A3, rollback must not restart the graphical session
+- stop condition: close and review A3 before session activation. Any live
+  configuration pointer change, compositor/shell reload, LightDM restart,
+  package transaction, payload or reboot is outside A3
+- operator action: do not interact with the desktop during staging; when asked,
+  confirm that the existing Omarchy desktop did not visibly change
+- bounded UART context:
+  [`20260814_025833_602853-exp-20260814-001-a3-stage-native-rc3-session-with-remote-rollbac-0ed206ed.md`](../../ps4-uart/sessions/20260814_025833_602853-exp-20260814-001-a3-stage-native-rc3-session-with-remote-rollbac-0ed206ed.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- result: preflight inspection passed: all three packages are `4.0.0rc3-1`,
+  native runtime/config files exist, provisioning is unarmed, LightDM/sshd are
+  active, sshd is enabled, and Hyprland PID 439 plus Quickshell PID 5621 still
+  resolve to portable commit `144f4d1e`. Two inactive control sources were
+  copied into the existing developer bundle directory, but `sudo` correctly
+  required the `ps4` account password before either guarded check or apply
+  could run. No native candidate, `/usr/local` command, sudo policy, live
+  pointer or process changed
+- UART conclusion: completed continuity with routine `ps4` and recovery SSH
+  session lifecycles plus unchanged MT7668 P2P trace messages. No GPU, kernel,
+  ext4, USB, display-manager or service fault appeared
+- rollback: not required. The two inert user-owned source files may remain in
+  the private development bundle; neither is referenced by the session
+- next action: A4 may switch only the visible Quattro shell from the portable
+  runtime to the installed `/usr/share/omarchy` runtime without root or a
+  LightDM restart. Full native UWSM-profile activation remains a later action
+  requiring an interactive sudo authentication or separately authorized root
+  control
+
+### EXP-20260814-001-A4 — launch installed native RC3 Quattro shell
+
+- state: complete — pass for native shell activation; first-owner setup was
+  deliberately not armed or exercised
+- question: does the already-installed `/usr/share/omarchy` RC3 runtime launch
+  the visible Quattro shell successfully inside the current accepted Hyprland
+  session while persistent SSH remains available?
+- changed variable: Quattro shell runtime only — stop the current portable
+  `omarchy-launch-shell` supervisor and start one user-owned transient service
+  with `OMARCHY_PATH=/usr/share/omarchy`, `/usr/bin` commands and the installed
+  shell tree. Keep Hyprland PID 439, its portable configuration, LightDM,
+  packages, services, display settings, boot files, storage and provisioning
+  unchanged
+- source evidence: installed and portable `omarchy-launch-shell` files have the
+  same SHA-256
+  `484f3af00ee3d13b8f4e33b118d9b7355c72d254a631fc740a160f5f1d140cff`;
+  both derive from pinned commit `144f4d1e`, while the new process path and
+  environment will independently prove consumption of the package-owned tree
+- expected evidence: one new Quickshell process runs with
+  `OMARCHY_PATH=/usr/share/omarchy` and `-p /usr/share/omarchy/shell`; shell IPC
+  returns `ok`; Hyprland PID 439, LightDM, sshd and recovery access remain;
+  the top bar/menu are visible and the operator reports a responsive desktop;
+  UART has no GPU reset, page fault, kernel panic, ext4 or USB fault
+- timeout: 4 minutes
+- rollback: after closing A4, stop only the native transient user service and
+  start one portable transient service with the accepted portable
+  `OMARCHY_PATH`, PATH, launcher and shell tree. Do not restart LightDM
+- stop condition: one shell stop/start only. No compositor reload/restart,
+  config pointer change, package transaction, service/system change, reboot,
+  payload or retry belongs to A4
+- operator action: after the shell returns, move the pointer and press
+  `Super+Space` once; report whether the top bar, Omarchy menu and desktop are
+  visible and responsive
+- result: the portable launcher PID 5616 and Quickshell PID 5621 stopped once.
+  Transient user unit `omarchy-ps4-native-shell.service` then started installed
+  `/usr/bin/omarchy-launch-shell` PID 19768 and Quickshell PID 19771 with exact
+  command `quickshell -n -p /usr/share/omarchy/shell`,
+  `OMARCHY_PATH=/usr/share/omarchy` and native-first PATH. Shell IPC returned
+  `ok`; `omarchy-background` and `omarchy-bar` layers exist; `hyprctl
+  configerrors` is empty; Hyprland PID 439, LightDM, sshd and recovery status
+  remained healthy; no new coredump appeared
+- operator result: the operator observed no initial password/setup prompt. This
+  is expected for A4: it replaced only the shell inside the existing `ps4`
+  development session. Owner provisioning remained intentionally unarmed and
+  no development account, autologin, SSH identity or recovery path was removed
+- bounded UART context:
+  [`20260814_030341_403490-exp-20260814-001-a4-launch-installed-native-rc3-quattro-shell-800819f9.md`](../../ps4-uart/sessions/20260814_030341_403490-exp-20260814-001-a4-launch-installed-native-rc3-quattro-shell-800819f9.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- UART conclusion: completed continuity with only expected SSH/recovery session
+  lifecycles. No GPU, kernel, ext4, USB, display-manager or service fault
+  appeared
+- rollback: not applied. The native shell transient remains active and the
+  exact portable runtime remains present. Recovery requires stopping only
+  `omarchy-ps4-native-shell.service` and starting one portable shell supervisor
+  in a new bounded action
+- next action: owner direction is required. A safe first-owner UX preview may
+  render the setup form without creating an account or touching the current
+  root. Actual gift finalization remains clone-only because it removes the
+  development account, autologin, SSH host identity and machine identity
+
+### EXP-20260814-001-A5 — capture current native RC3 desktop for README
+
+- state: complete — pass
+- question: can the accepted live 1920×1080 Omarchy desktop be captured through
+  the existing Wayland session for project documentation without changing the
+  visible session or hardware state?
+- changed variable: none; read-only screenshot export only. Run the installed
+  screenshot client inside the current `ps4` Wayland environment, write one
+  temporary PNG, copy it to the repository and remove the temporary file. Do
+  not open a menu, move input, reload shell/compositor, change configuration,
+  install a package, restart a service, reboot or send a payload
+- expected evidence: PNG is exactly 1920×1080 and visually shows the current
+  Quattro RC3 desktop; Hyprland PID 439 and native Quickshell PID 19771 remain;
+  shell IPC, LightDM, sshd and recovery status stay healthy; UART continuity is
+  completed with no GPU, filesystem or USB fault
+- timeout: 2 minutes
+- rollback: remove only the temporary remote PNG if copying fails. The final
+  repository image is documentation and does not affect the console
+- stop condition: if no installed Wayland screenshot client exists, close A5
+  without installing one. Any visual composition or desktop interaction is a
+  separate experiment
+- operator action: none; leave the displayed desktop untouched during capture
+- result: installed `/usr/bin/grim` captured one exact 1920×1080, 8-bit RGB PNG
+  from the existing Wayland display. Local and remote SHA-256 both equal
+  `79938b462f8f34177dd8f814bf4856c50acac7906d0ca36a104d5d78abf65941`.
+  Visual review shows the current Tokyo Night Quattro desktop, top bar and PS4
+  Fastfetch identity; no menu or window was opened for composition
+- preservation evidence: Hyprland PID 439 and native Quickshell PID 19771 with
+  `-p /usr/share/omarchy/shell` remained; shell IPC returned `ok`; LightDM and
+  sshd remained active. The remote temporary PNG was removed after its verified
+  copy became `docs/assets/omarchy-ps4-quattro-rc3.png`
+- bounded UART context:
+  [`20260814_032728_511428-exp-20260814-001-a5-capture-current-native-rc3-desktop-for-readm-e0806ec2.md`](../../ps4-uart/sessions/20260814_032728_511428-exp-20260814-001-a5-capture-current-native-rc3-desktop-for-readm-e0806ec2.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `f9d6fea5361b45449a0948ab0457f00c`, epoch `1`
+- UART conclusion: completed continuity with three clean `ps4` SSH session
+  lifecycles only. No GPU, kernel, ext4, USB, display-manager or service fault
+  appeared
+- rollback: not required. The screenshot is documentation only and the console
+  remains on the accepted native RC3 shell
+- next action: publish the reviewed repository changes and screenshot on the
+  existing `agent/full-omarchy-port` branch, after local validation and secret
+  review
 
 ### EXP-20260813-001-A31 — disable Quattro automatic idle service
 
@@ -5072,6 +5406,41 @@ but they are not evidence of a Linux 6.18 boot.
 - rollback: not applied. Exact prior JSON is preserved under
   `/home/ps4/.local/state/omarchy-ps4/portable/EXP-20260813-001-A31-20260813T161900Z/`
 - next action: initialize Tokyo Night plus one wallpaper as A32
+
+### EXP-20260813-001-A45 — accept persistent native Omarchy boot splash
+
+- state: planned; do not begin while A44 remains planned/active
+- question: does the initramfs renderer keep the native Omarchy wordmark and
+  progress line visible through framebuffer mode changes until the validated
+  root hands off to systemd, without hiding UART evidence or blocking boot?
+- changed variable: boot initramfs only — stage the locally verified artifact
+  with SHA-256
+  `acc08b4bbcb0535780161537033dc4a58d5b99a9fba659e23466bea95329d0ab`.
+  Keep the accepted kernel, product boot arguments, root filesystem, VRAM,
+  packages, display configuration and monitor settings unchanged
+- source evidence: final renderer SHA-256 is
+  `2124d28c21de2b2d96d0e9296fd51a9ccaf901bd8395645b3ee9df950bb11cc9`;
+  embedded alpha mask is
+  `fe3b19a33bae79976f8cb27269facee14aff23a5f73739fde8d7d18717b88eac`;
+  its source PNG is the exact Quattro RC3 native Plymouth logo at upstream
+  commit `144f4d1e31d6ddc2cba5dfd69278cabf02bafd05`, SHA-256
+  `ba8f1547a02ab5db64fe3923d0b834a220e2c3798c1674374a0eb92a18dfddfb`
+- expected evidence: HDMI displays a centered green `OMARCHY` wordmark on the
+  Tokyo Night background and a restrained progress line; transient fbcon or
+  modeset writes are repainted within one second; the splash stops immediately
+  before `switch_root`; graphical Linux reaches the accepted session; UART
+  retains kernel/initramfs messages and contains no new GPU, USB, ext4 or boot
+  fault
+- timeout: 4 minutes after payload delivery
+- rollback: restore the exact pre-A45 initramfs and its manifest entry from the
+  bounded staging backup, leaving kernel and boot arguments untouched
+- stop condition: no kernel, command-line, rootfs, package, session or monitor
+  change belongs to A45. If the red failure state appears, preserve UART
+  evidence rather than retrying; use the unchanged debug profile later if HDMI
+  error text is required
+- operator action: after the bounded session is active and the artifact is
+  staged, boot Linux once and report the splash appearance, whether anything
+  overwrites it for longer than one second, and the final desktop outcome
 
 ## Session-close checklist
 

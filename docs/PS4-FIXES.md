@@ -24,7 +24,7 @@ remain in [`docs/COMPATIBILITY.md`](COMPATIBILITY.md).
 | Accepted | Use Baikal early UART at `0xC890E000`, keep UART logging, apply `pci=nocrs intremap=off`, force the proven `HDMI-A-1:1920x1080@60D` mode, and carry the pinned EDID firmware. | `fpkg/bootargs/` |
 | Candidate | Disable only internal ATA target `1.00` with `libata.force=1.00:disable` in the product profile. The debug profile deliberately leaves SATA unchanged. | `fpkg/bootargs/6.18-baikal-product-splash.txt` |
 | Design | Install only to a preformatted external USB root and refuse automatic formatting or internal-disk targets. | `scripts/prepare-usb-linux`, `rootfs/initramfs/install-rootfs` |
-| Design | Use the small PS4 framebuffer splash, not Plymouth, while early logs continue over UART. | `rootfs/initramfs/omarchy-splash.c`, product bootargs |
+| Candidate | Render the pinned native Omarchy logo and Tokyo Night colors directly to the PS4 framebuffer; keep repainting through initramfs so mode changes cannot permanently overwrite it, while early logs continue over UART. Do not install Plymouth into the custom loader chain. | `rootfs/initramfs/omarchy-splash.c`, product bootargs |
 
 ## Display and desktop
 

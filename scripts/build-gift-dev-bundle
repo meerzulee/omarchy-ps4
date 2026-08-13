@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    'Usage: build-gift-dev-bundle [--output DIRECTORY]' \
+    '' \
+    'Assemble the private Quattro RC3 developer gift bundle.'
+}
+
+fail() {
+  printf 'build-gift-dev-bundle: %s\n' "$1" >&2
+  exit 2
+}
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+repo_dir=$(cd -- "$script_dir/.." && pwd)
+output=''
+
+while (( $# > 0 )); do
+  case "$1" in
+    --output)
+      (( $# >= 2 )) || fail '--output requires a directory'
+      output=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *) fail "unknown argument: $1" ;;
+  esac
+done
+
+output=${output:-"$repo_dir/output/gift-dev/omarchy-ps4-gift-dev-rc3"}
+[[ ! -e $output ]] || fail "output already exists: $output"
+
+package_source=$repo_dir/output/omarchy-packages-rc3-candidate
+portable_source=$repo_dir/output/portable/omarchy-ps4-portable-4.0.0rc3-144f4d1.tar.zst
+fpkg_source=$repo_dir/output/fpkg-ui-prototype/IV0000-BREW09004_00-OMARCHYPS4UI0000.pkg
+
+declare -A expected_hashes=(
+  [omarchy-ps4-4.0.0rc3-1-any.pkg.tar.zst]=1d02e1799e825ebd6fe275ac9bd483c53b62e8d50b5df6c3073470266339c025
+  [omarchy-ps4-settings-4.0.0rc3-1-any.pkg.tar.zst]=e1fa55f97605ac403c1bf7d1d3b0c60fedd93637afe524a47033ff404907190a
+  [omarchy-ps4-provisioning-4.0.0rc3-1-any.pkg.tar.zst]=295afa9789ca770471dc11238dc2710e57dcf3068a8747ad889d3696675e87cf
+  [omarchy-ps4-portable-4.0.0rc3-144f4d1.tar.zst]=b3d648605e4e04b411079adeb881cc8d5bafde8af06e99f31f991fee5f602ca5
+)
+
+for name in "${!expected_hashes[@]}"; do
+  if [[ $name == omarchy-ps4-portable-* ]]; then
+    source_path=$portable_source
+  else
+    source_path=$package_source/$name
+  fi
+  [[ -f $source_path ]] || fail "missing artifact: $source_path"
+  actual=$(shasum -a 256 "$source_path" | awk '{ print $1 }')
+  [[ $actual == "${expected_hashes[$name]}" ]] || \
+    fail "hash mismatch for $name: $actual"
+done
+[[ -f $fpkg_source ]] || fail "missing UI-only FPKG: $fpkg_source"
+
+command -v docker >/dev/null 2>&1 || fail 'Docker CLI is not installed'
+[[ $(docker context show) == orbstack ]] || fail 'Docker context must be orbstack'
+docker info >/dev/null 2>&1 || fail 'OrbStack Docker engine is not running'
+
+mkdir -p \
+  "$output/packages" \
+  "$output/portable" \
+  "$output/fpkg" \
+  "$output/docs" \
+  "$output/licenses"
+
+cp "$package_source"/*.pkg.tar.zst "$output/packages/"
+cp "$portable_source" "$output/portable/"
+cp "$portable_source.sha256" "$output/portable/"
+cp "$fpkg_source" "$output/fpkg/"
+cp "$repo_dir/gift-dev/README.md" "$output/README.md"
+cp "$repo_dir/gift-dev/check" "$output/check"
+cp "$repo_dir/gift-dev/arm-recovery" "$output/arm-recovery"
+cp "$repo_dir/gift-dev/dev-recovery" "$output/dev-recovery"
+cp "$repo_dir/gift-dev/install-foundation" "$output/install-foundation"
+cp "$repo_dir/gift-dev/owner-rehearsal" "$output/owner-rehearsal"
+cp "$repo_dir/gift-dev/owner-rehearsal.service" "$output/owner-rehearsal.service"
+chmod 0755 \
+  "$output/check" \
+  "$output/arm-recovery" \
+  "$output/dev-recovery" \
+  "$output/install-foundation" \
+  "$output/owner-rehearsal"
+cp "$repo_dir/docs/QUATTRO-RC3.md" "$output/docs/"
+cp "$repo_dir/docs/GIFT-DEV-VM-TEST-2026-08-14.md" "$output/docs/"
+cp "$repo_dir/fpkg/docs/UI-PROTOTYPE.md" "$output/docs/"
+cp "$repo_dir/fpkg/CREDITS.md" "$output/docs/"
+cp "$repo_dir/fpkg/THIRD_PARTY.md" "$output/docs/"
+cp "$repo_dir/cache/omarchy-quattro/LICENSE" "$output/licenses/Omarchy-MIT.txt"
+
+toolchain_dir=$repo_dir/cache/openorbis-v0.5.4/OpenOrbis/PS4Toolchain
+[[ -f $toolchain_dir/LICENSE ]] || fail 'verified OpenOrbis license source is missing'
+cp "$toolchain_dir/LICENSE" "$output/licenses/OpenOrbis-GPL-3.0.txt"
+cp "$toolchain_dir/bin/macos/LICENSE.txt" "$output/licenses/LibOrbisPkg-LGPL-3.0.txt"
+cp "$toolchain_dir/samples/font/assets/fonts/OFL.txt" "$output/licenses/Gontserrat-OFL-1.1.txt"
+
+docker run --rm --platform linux/amd64 \
+  -v "$output/packages:/packages" \
+  -w /packages \
+  archlinux:base \
+  bash -lc '
+    set -euo pipefail
+    repo-add omarchy-ps4-dev.db.tar.gz ./*.pkg.tar.zst
+    normalized=$(mktemp -d)
+    bsdtar -xf omarchy-ps4-dev.db.tar.gz -C "$normalized"
+    find "$normalized" -exec touch -h -d @1786233600 {} +
+    (
+      cd "$normalized"
+      find . -mindepth 1 -maxdepth 1 -type d -printf "%P\0" |
+        LC_ALL=C sort -z |
+        tar --null --files-from=- --sort=name --mtime=@1786233600 \
+          --owner=0 --group=0 --numeric-owner -cf -
+    ) | gzip -n >omarchy-ps4-dev.db.tar.gz.normalized
+    mv omarchy-ps4-dev.db.tar.gz.normalized omarchy-ps4-dev.db.tar.gz
+  ' >/dev/null
+
+database_target=$(readlink "$output/packages/omarchy-ps4-dev.db")
+[[ -n $database_target && -f $output/packages/$database_target ]] || \
+  fail 'repo-add did not create the expected database'
+cp "$output/packages/$database_target" "$output/packages/omarchy-ps4-dev.db.regular"
+rm "$output/packages/omarchy-ps4-dev.db"
+mv "$output/packages/omarchy-ps4-dev.db.regular" "$output/packages/omarchy-ps4-dev.db"
+rm -f "$output/packages/omarchy-ps4-dev.files" "$output/packages/omarchy-ps4-dev.files.tar.gz"
+
+cat >"$output/BUNDLE.env" <<EOF
+schema=1
+mode=gift-dev-online-dependencies
+release=4.0.0rc3
+upstream_commit=144f4d1e31d6ddc2cba5dfd69278cabf02bafd05
+native_package_count=3
+ui_fpkg_content_id=IV0000-BREW09004_00-OMARCHYPS4UI0000
+gift_finalization=offline-cloned-root-only
+temporary_recovery=required-before-foundation-install
+recoverable_owner_rehearsal=available-in-development-mode
+EOF
+
+manifest_temporary=$(mktemp "${TMPDIR:-/tmp}/omarchy-gift-manifest.XXXXXX")
+(
+  cd "$output"
+  find . -type f ! -name MANIFEST.sha256 -print0 |
+    LC_ALL=C sort -z |
+    xargs -0 shasum -a 256
+) >"$manifest_temporary"
+mv "$manifest_temporary" "$output/MANIFEST.sha256"
+
+(cd "$output" && ./check >/dev/null)
+
+archive=$output.tar.zst
+COPYFILE_DISABLE=1 bsdtar -acf "$archive" -C "$(dirname -- "$output")" "$(basename -- "$output")"
+printf 'Gift developer bundle: %s\n' "$output"
+printf 'Archive: %s\n' "$archive"
+shasum -a 256 "$archive"
