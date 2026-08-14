@@ -19,7 +19,7 @@ remain in [`docs/COMPATIBILITY.md`](COMPATIBILITY.md).
 
 | Status | PS4 delta | Image/install owner |
 |---|---|---|
-| Degraded | Boot the PS4-patched 6.18.44 Baikal kernel from `linux-ps4-kernel/`; never install or update it as stock Arch `linux`. | FPKG boot bundle and signed release manifest |
+| Degraded | Boot the PS4-patched 6.18.44 Baikal kernel from [`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4); never install or update it as stock Arch `linux`. | FPKG boot bundle and signed release manifest |
 | Accepted | Resolve the Linux root as `LABEL=OMARCHY-PS4`; never persist `/dev/sdX`. | `rootfs/initramfs/init`, `rootfs/xfce/overlay/etc/fstab`, installer preflight |
 | Accepted | Use Baikal early UART at `0xC890E000`, keep UART logging, apply `pci=nocrs intremap=off`, force the proven `HDMI-A-1:1920x1080@60D` mode, and carry the pinned EDID firmware. | `fpkg/bootargs/` |
 | Candidate | Disable only internal ATA target `1.00` with `libata.force=1.00:disable` in the product profile. The debug profile deliberately leaves SATA unchanged. | `fpkg/bootargs/6.18-baikal-product-splash.txt` |

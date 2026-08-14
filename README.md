@@ -6,6 +6,11 @@
 using Linux 6.18.44, Hyprland, the native package-owned Quickshell runtime and
 an external USB root.*
 
+Kernel source, patches and developer downloads live in
+[`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4). The exact
+Baikal B1 kernel shown here is available as the hardware-tested
+[`v6.18.44-ps4-baikal-r1` prerelease](https://github.com/meerzulee/linux-ps4/releases/tag/v6.18.44-ps4-baikal-r1).
+
 > The active, gate-driven execution roadmap is in
 > [`docs/PLAN.md`](docs/PLAN.md). The existing XFCE evidence is recorded in
 > [`docs/BASELINE.md`](docs/BASELINE.md), and all support claims are tracked in
@@ -158,10 +163,11 @@ The loader patches the Orbis kernel, installs a kexec-like path, loads the
 Linux kernel and initramfs into memory, and performs a controlled transition
 from Orbis OS to Linux.
 
-The Linux kernel must be selected for the console's southbridge. Current
-maintained open-source kernel work has distinct Aeolia/Belize and Baikal
-branches. Kernel binaries must always be distributed with the exact source,
-configuration, commit, and toolchain information used to build them.
+The Linux kernel must be selected for the console's southbridge. The
+[`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4) project owns
+this distribution's patch-based kernel source, configuration, provenance and
+test binaries. Kernel binaries must always be distributed with the exact
+source, configuration, commit, and toolchain information used to build them.
 
 ## Internal HDD design
 
@@ -381,7 +387,8 @@ Linux, but that is not enough to establish Quattro compatibility.
 
 The first technical milestone must test:
 
-1. Current open-source PS4 kernel on a known Aeolia or Belize console.
+1. A pinned [`linux-ps4`](https://github.com/meerzulee/linux-ps4) kernel
+   release on the declared target console.
 2. Current PS4-patched Mesa and libdrm packages.
 3. DRM/KMS output at 1080p over HDMI.
 4. Bare Hyprland without Omarchy configuration.
@@ -435,8 +442,9 @@ hardware.
 
 ### Phase 0: Hardware proof
 
-- Select one known Aeolia or Belize test console and firmware.
-- Boot a minimal Arch rootfs with the maintained PS4 kernel and initramfs.
+- Select one declared test console revision and firmware.
+- Boot a minimal Arch rootfs with a pinned
+  [`linux-ps4`](https://github.com/meerzulee/linux-ps4) kernel and initramfs.
 - Validate patched Mesa, Hyprland, Quickshell, input, audio, and networking.
 - Record kernel commit, southbridge, firmware, model, and all test results.
 
@@ -534,7 +542,8 @@ Exit condition: failed updates recover without reinstalling the distro.
 - Quattro update process: https://github.com/basecamp/omarchy/blob/quattro/docs/update-process.md
 - Quattro Pacman configuration: https://github.com/basecamp/omarchy/blob/quattro/default/pacman/pacman-stable.conf
 - PS4 Linux loader: https://github.com/ps4-linux/ps4-linux-loader
-- Maintained PS4 kernel: https://github.com/rmuxnet/linux
+- Omarchy PS4 kernel project: https://github.com/meerzulee/linux-ps4
+- Upstream PS4 kernel reference: https://github.com/rmuxnet/linux
 - PS4 Linux compatibility database: https://github.com/ps4-linux/ps4-linux.github.io
 - PS4 Linux installation guide: https://github.com/DionKill/ps4-linux-tutorial
 - PS4 Arch graphics packages: https://github.com/DionKill/ps4-video-archlinux

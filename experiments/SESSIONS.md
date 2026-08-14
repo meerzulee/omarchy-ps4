@@ -34,16 +34,19 @@ This is the resume point for the project. Read this file, `docs/PLAN.md`, and
   identifiers must still be rechecked before every action
 - known-good rollback: internal Linux `5.4.247-neocine-1.1` boot set plus FAT
   `recovery/` files on the prepared USB
-- authoritative kernel repository: `linux-ps4-kernel`, branch
-  `port/6.18.44-baikal`
-- distribution repository: `omarchy-ps4`, local branch `main`, no remote yet
+- authoritative kernel repository:
+  [`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4), with
+  `v6.18.44-ps4-baikal-r1` released from `master`
+- distribution repository:
+  [`meerzulee/omarchy-ps4`](https://github.com/meerzulee/omarchy-ps4), default
+  branch `master`
 
 ## Work-session history
 
 | Session | State | Outcome | Evidence/resume pointer |
 |---|---|---|---|
 | `DEV-20260810-001` | complete | Refreshed PS4 Linux ecosystem and recorded current projects/gaps | [`knowledge/2026-08-10/`](../knowledge/2026-08-10/) |
-| `DEV-20260810-002` | complete | Ported patch stack to Linux 6.18.44 LTS; 47 patches apply and kernel/modules build reproducibly | [`6.18-PORT.md`](../../linux-ps4-kernel/docs/6.18-PORT.md) and local kernel output |
+| `DEV-20260810-002` | complete | Ported patch stack to Linux 6.18.44 LTS; 47 patches apply and kernel/modules build reproducibly | [`6.18-PORT.md`](https://github.com/meerzulee/linux-ps4/blob/master/docs/6.18-PORT.md) and local kernel output |
 | `DEV-20260810-003` | complete | Built clean pinned Arch/XFCE rootfs and label-aware initramfs | [`docs/BUILDING.md`](../docs/BUILDING.md) and local ignored output |
 | `DEV-20260810-004` | complete | Prepared confirmed Kingston USB: 1GiB FAT32 boot plus ext4 `OMARCHY-PS4`; offline filesystem checks passed | [`docs/FIRST-BOOT-6.18-XFCE.md`](../docs/FIRST-BOOT-6.18-XFCE.md) |
 | `DEV-20260810-005` | complete | Added continuous UART logger and bounded raw/LLM session extraction | [`ps4-uart/README.md`](../../ps4-uart/README.md); live logger PID is runtime state, not durable evidence |
@@ -51,10 +54,10 @@ This is the resume point for the project. Read this file, `docs/PLAN.md`, and
 | `DEV-20260810-007` | complete | Backed up existing `/data/linux/boot` through read-only FTP and identified Linux 5.4.247-neocine rollback | [`backups/ps4-data-linux-boot/2026-08-10-fw12.02/`](../../backups/ps4-data-linux-boot/2026-08-10-fw12.02/) |
 | `DEV-20260810-008` | complete | Independent UART workflow audit accepted; hardened exact-byte capture, readiness, continuity, collision safety, and storage guards | [`ps4-uart/README.md`](../../ps4-uart/README.md); automated suite and live capture report `READY` |
 | `DEV-20260810-009` | complete | Final read-only audit found capture-drain, concurrent-start, cleanup, durability, storage-error, and recovery races; all accepted findings were fixed, 22 tests pass, and a live capture fence was acknowledged | `ps4-uart` generation `1307aff7e5324e438f69fdeee53d995b`; audit was advice only and touched no hardware |
-| `DEV-20260811-010` | complete | Restored rmux-derived Baikal MSI patches 0007+0008+0009 as one treatment; strict gate applied 50/50 and clean OrbStack build/checksums passed | [`6.18-PORT.md`](../../linux-ps4-kernel/docs/6.18-PORT.md); bzImage SHA-256 `0d7cd17af71495df3e54f49fcfd31d41020ec096505f50e1938a4e92cb96f97b` |
-| `DEV-20260811-011` | complete | Ported the PS4 DRM bridge to Linux 6.18's managed lifetime after A25 isolated the kref defect; strict gate applied 52/52 and clean OrbStack build/checksums passed | [`6.18-PORT.md`](../../linux-ps4-kernel/docs/6.18-PORT.md); bzImage SHA-256 `f1a6eabe49f12853a0cc93af462b2153dc09b58de0c5bfc28bb2d6cc50fdc1dd` |
-| `DEV-20260811-012` | complete | Replaced the incompatible archived HDMI diagnostic with pointer-safe post-0034 patch 0035; strict gate applied 53/53 and clean OrbStack build/checksums passed | [`6.18-PORT.md`](../../linux-ps4-kernel/docs/6.18-PORT.md); A29 bzImage SHA-256 `ab754ca139d8c4a09fb6c57e81c07b3dfde618d31146e15b7ca6d1fa5de0d46e` |
-| `DEV-20260811-013` | complete | Audited Vue After Free 2.0 PSN-prompt recovery and compared the exact 6.18 A29 hardware paths with rmux Baikal 7.0.8; identified loader-provided dynamic EDID as the clearest isolated display gap and corrected managed-bridge prior-art attribution | [`VUE-AFTER-2-RECOVERY.md`](../knowledge/2026-08-11/VUE-AFTER-2-RECOVERY.md); [`RMUX-7.0-BAIKAL-COMPARISON.md`](../../linux-ps4-kernel/docs/RMUX-7.0-BAIKAL-COMPARISON.md) |
+| `DEV-20260811-010` | complete | Restored rmux-derived Baikal MSI patches 0007+0008+0009 as one treatment; strict gate applied 50/50 and clean OrbStack build/checksums passed | [`6.18-PORT.md`](https://github.com/meerzulee/linux-ps4/blob/master/docs/6.18-PORT.md); bzImage SHA-256 `0d7cd17af71495df3e54f49fcfd31d41020ec096505f50e1938a4e92cb96f97b` |
+| `DEV-20260811-011` | complete | Ported the PS4 DRM bridge to Linux 6.18's managed lifetime after A25 isolated the kref defect; strict gate applied 52/52 and clean OrbStack build/checksums passed | [`6.18-PORT.md`](https://github.com/meerzulee/linux-ps4/blob/master/docs/6.18-PORT.md); bzImage SHA-256 `f1a6eabe49f12853a0cc93af462b2153dc09b58de0c5bfc28bb2d6cc50fdc1dd` |
+| `DEV-20260811-012` | complete | Replaced the incompatible archived HDMI diagnostic with pointer-safe post-0034 patch 0035; strict gate applied 53/53 and clean OrbStack build/checksums passed | [`6.18-PORT.md`](https://github.com/meerzulee/linux-ps4/blob/master/docs/6.18-PORT.md); A29 bzImage SHA-256 `ab754ca139d8c4a09fb6c57e81c07b3dfde618d31146e15b7ca6d1fa5de0d46e` |
+| `DEV-20260811-013` | complete | Audited Vue After Free 2.0 PSN-prompt recovery and compared the exact 6.18 A29 hardware paths with rmux Baikal 7.0.8; identified loader-provided dynamic EDID as the clearest isolated display gap and corrected managed-bridge prior-art attribution | [`VUE-AFTER-2-RECOVERY.md`](../knowledge/2026-08-11/VUE-AFTER-2-RECOVERY.md); [`RMUX-7.0-BAIKAL-COMPARISON.md`](https://github.com/meerzulee/linux-ps4/blob/master/docs/RMUX-7.0-BAIKAL-COMPARISON.md) |
 
 The two older files under `experiments/uart/` captured the continuous OrbisOS
 stream before this bounded-session protocol. They are useful background logs,
@@ -62,8 +65,9 @@ but they are not evidence of a Linux 6.18 boot.
 
 ## Release and repository queue
 
-- `omarchy-ps4` remains local with no remote; public creation/push is an
-  explicit later release action.
+- `omarchy-ps4` is public at
+  [`meerzulee/omarchy-ps4`](https://github.com/meerzulee/omarchy-ps4); private
+  build outputs and raw evidence remain intentionally unpublished.
 - `linux-ps4-kernel` `origin/master` and current `HEAD` contain only Meerzulee
   as a commit author and no Claude/Anthropic co-author trailers; the current
   README also has no Claude tooling credit. The remote branch

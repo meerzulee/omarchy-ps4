@@ -7,6 +7,12 @@ Baikal B1, firmware 12.02, external USB root. It records the intended product
 flow and the commands available today. The native FPKG and release owner image
 are not finished yet.
 
+Developers can download the exact hardware-tested Baikal B1 `bzImage`, config
+and checksums from the
+[`v6.18.44-ps4-baikal-r1` kernel prerelease](https://github.com/meerzulee/linux-ps4/releases/tag/v6.18.44-ps4-baikal-r1).
+That release is a kernel test artifact, not the unfinished Omarchy installer:
+it intentionally contains no payload, initramfs or root filesystem.
+
 ## What the user needs
 
 - a PS4 already supported by a firmware-appropriate jailbreak;
