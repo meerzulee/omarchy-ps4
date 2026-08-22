@@ -3,7 +3,7 @@
 set -euo pipefail
 
 image_path=${1:-}
-expected_provisioning=${2:-4.0.0-14}
+expected_provisioning=${2:-4.0.0-15}
 
 fail() {
   printf 'usb-image-artifact-test: %s\n' "$1" >&2

@@ -2,7 +2,7 @@
 
 pkgname=omarchy-ps4
 pkgver=4.0.0
-pkgrel=5
+pkgrel=6
 pkgdesc='Pinned Omarchy Quattro runtime adapted for PlayStation 4 Linux'
 arch=('any')
 url='https://github.com/meerzulee/omarchy-ps4'
@@ -55,7 +55,7 @@ sha256sums=(
   '622c372b581119f4346ad19e2615e343f437506d5b65eadc7a9f6c5b8530dc58'
   '122db1123d9fe1f8c679b87b6b5f7c00316079d9f294deaff097324a38a77393'
   'd78a147033bef36e2167041b668a423d5544fb872bc497bf072081adf31807cf'
-  'ecf4a720f6ff6d292b4f7857d06778a2a7058699eaf5eadc259ff60996c969a3'
+  '482a0698be408e38376ae50f1a555ff538546241eb6d7b0dd35862e10d42f46f'
   'a0dd0aca3a39203085ee4af6f2727b47b6c53966f99a1feb8de6d0c8c3b24fd6'
 )
 

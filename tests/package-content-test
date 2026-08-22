@@ -44,8 +44,10 @@ grep -Fq 'Model.findWifiStationDevice(' "$network_panel" ||
   fail 'network panel does not select Wi-Fi through the station-device helper'
 grep -Fq 'WifiDeviceMode.Station' "$network_panel" ||
   fail 'network panel does not reject PS4 access-point-mode interfaces'
-grep -Fq 'function findWifiStationDevice(devices, wifiType, stationMode)' "$network_model" ||
+grep -Fq 'function findWifiStationDevice(devices, wifiType, stationMode, accessPointMode)' "$network_model" ||
   fail 'network model lacks the PS4 station-device selector'
+grep -Fq 'var stationInterface = /^wl/i.test(name)' "$network_model" ||
+  fail 'network model drops a disconnected station after forgetting its profile'
 grep -Fq 'findWifiStationDevice: findWifiStationDevice' "$network_model" ||
   fail 'network model does not export the station-device selector for tests'
 grep -Fq 'if ! iptables -V >/dev/null 2>&1; then' \

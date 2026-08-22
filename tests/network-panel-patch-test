@@ -31,24 +31,32 @@ function assert(condition, message) {
 const wifi = 2
 const station = 1
 const accessPoint = 2
+const unknown = 4
 const ap0 = { name: 'ap0', type: wifi, mode: accessPoint, connected: true }
 const ap1 = { name: 'ap1', type: wifi, mode: accessPoint, connected: false }
 const wlan0 = { name: 'wlan0', type: wifi, mode: station, connected: false }
+const forgottenWlan0 = { name: 'wlan0', type: wifi, mode: unknown, connected: false }
+const unknownAp0 = { name: 'ap0', type: wifi, mode: unknown, connected: false }
 const usbWifi = { name: 'wlan1', type: wifi, mode: station, connected: true }
 
 assert(
-  model.findWifiStationDevice([ap0, ap1, wlan0], wifi, station) === wlan0,
+  model.findWifiStationDevice([ap0, ap1, wlan0], wifi, station, accessPoint) === wlan0,
   'access-point devices must never replace the disconnected PS4 station'
 )
 assert(
-  model.findWifiStationDevice([wlan0, usbWifi], wifi, station) === usbWifi,
+  model.findWifiStationDevice([wlan0, usbWifi], wifi, station, accessPoint) === usbWifi,
   'a connected station should win over a disconnected station'
 )
 assert(
-  model.findWifiStationDevice([ap0, ap1], wifi, station) === null,
+  model.findWifiStationDevice([ap0, ap1], wifi, station, accessPoint) === null,
   'an AP-only device list must not claim station Wi-Fi is available'
 )
+assert(
+  model.findWifiStationDevice([unknownAp0, forgottenWlan0], wifi, station, accessPoint) === forgottenWlan0,
+  'a forgotten wlan0 must remain scan-capable while its mode is Unknown'
+)
 assert(panel.includes('WifiDeviceMode.Station'), 'Panel.qml must pass the Quickshell station enum')
+assert(panel.includes('WifiDeviceMode.AccessPoint'), 'Panel.qml must reject the Quickshell access-point enum')
 assert(!panel.includes('wifiDevice: findDevice(DeviceType.Wifi)'), 'Panel.qml must not use the generic first-device fallback')
 JS
 

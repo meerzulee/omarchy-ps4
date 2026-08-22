@@ -9173,6 +9173,68 @@ but they are not evidence of a Linux 6.18 boot.
 - next action: when the operator is present, open a fresh A4 session, run the
   one privileged command and verify synchronization before any LightDM work
 
+### EXP-20260823-020-A1 — stage Wi-Fi forget-path package update over SSH
+
+- state: complete — inconclusive; SSH path unavailable
+- question: can the locally verified Wi-Fi selector packages be staged on the
+  running USB root without changing the installed system or desktop session?
+- changed variable: create one temporary owner-writable staging directory and
+  copy exactly `omarchy-ps4-4.0.0-6` plus its dependency-matched
+  `omarchy-ps4-provisioning-4.0.0-15` package; do not install, reload the shell,
+  change NetworkManager state or forget another connection
+- expected evidence: key-only SSH succeeds, both remote sizes and SHA-256
+  digests match the OrbStack-built artifacts, and UART continuity stays valid
+- timeout: 60 seconds; stop on SSH failure, checksum mismatch, network loss or
+  logger discontinuity
+- rollback: remove only the temporary staged package directory; the installed
+  package database and active shell remain unchanged
+- operator action: none; keep the current desktop and network state unchanged
+- result: inconclusive with no mutation. The first key-only SSH connection
+  timed out before the remote staging directory was created, so neither package
+  was copied and no checksum or install command ran. This is consistent with
+  the reported forgotten/disconnected Wi-Fi profile; no retry was attempted
+- bounded UART context:
+  [`20260823_005306_062530-exp-20260823-020-a1-stage-wi-fi-forget-path-package-update-over--df288ff9.md`](../../ps4-uart/sessions/20260823_005306_062530-exp-20260823-020-a1-stage-wi-fi-forget-path-package-update-over--df288ff9.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: the valid bounded slice is empty and contains no logger or
+  hardware fault; it cannot establish live network state
+- rollback: none required because the connection failed before any remote write
+- next action: reconnect the existing Wi-Fi profile with `nmtui` in a fresh A2
+  operator session, without forgetting or changing any other network; then
+  stage the already-built packages in a new action
+
+### EXP-20260823-020-A2 — restore one Wi-Fi connection through nmtui
+
+- state: complete — inconclusive; bounded session aborted before outcome
+- question: can NetworkManager reconnect the operator-selected Wi-Fi through
+  `nmtui` so the existing SSH path returns without relying on the broken panel?
+- changed variable: activate or recreate exactly one Wi-Fi connection through
+  `nmtui`; do not forget another profile, restart NetworkManager, install a
+  package, reload Quickshell or change DNS
+- expected evidence: `nmtui` reports activation, the desktop regains network,
+  one bounded SSH probe succeeds, and UART shows association without a driver
+  crash or disconnect loop
+- timeout: 3 minutes; stop on authentication failure, no visible networks,
+  network-service error, logger discontinuity or successful connection
+- rollback: use `nmtui` to disconnect only the newly activated profile if it is
+  the wrong network; otherwise retain it for package staging
+- operator action: open a terminal, run `nmtui`, choose **Activate a
+  connection**, select the intended Wi-Fi and connect; do not delete any other
+  profile, then report `connected`
+- result: inconclusive. No operator completion or visible outcome was reported
+  before the three-minute timeout, no SSH probe was made, and the session was
+  aborted rather than treating silence as a connection result
+- bounded UART context:
+  [`20260823_005429_390275-exp-20260823-020-a2-restore-one-wi-fi-connection-through-nmtui-cffba7cf.md`](../../ps4-uart/sessions/20260823_005429_390275-exp-20260823-020-a2-restore-one-wi-fi-connection-through-nmtui-cffba7cf.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `aborted`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: the valid slice is empty and contains no logger or hardware
+  fault; it cannot prove that the operator opened or completed `nmtui`
+- rollback: none required because no changed state was observed
+- next action: after the operator explicitly reports that Wi-Fi is connected,
+  open a fresh A3 session and stage the exact two package artifacts once
+
 ## Session-close checklist
 
 - [ ] Bounded UART session stopped or explicitly aborted with reason.

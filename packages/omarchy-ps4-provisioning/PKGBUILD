@@ -2,7 +2,7 @@
 
 pkgname=omarchy-ps4-provisioning
 pkgver=4.0.0
-pkgrel=14
+pkgrel=15
 pkgdesc='External-root first-boot owner setup for Omarchy PS4'
 arch=('any')
 url='https://github.com/meerzulee/omarchy-ps4'
@@ -13,7 +13,7 @@ depends=(
   'e2fsprogs'
   'git'
   'gum'
-  'omarchy-ps4=4.0.0-5'
+  'omarchy-ps4=4.0.0-6'
   'openssh'
   'shadow'
   'sudo'

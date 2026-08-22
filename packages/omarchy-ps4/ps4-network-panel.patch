@@ -2,14 +2,20 @@ diff --git a/shell/plugins/panels/network/Model.js b/shell/plugins/panels/networ
 index 3a66610..6ee416f 100644
 --- a/shell/plugins/panels/network/Model.js
 +++ b/shell/plugins/panels/network/Model.js
-@@ -1,3 +1,17 @@
-+function findWifiStationDevice(devices, wifiType, stationMode) {
+@@ -1,3 +1,23 @@
++function findWifiStationDevice(devices, wifiType, stationMode, accessPointMode) {
 +  var values = devices || []
 +  var fallback = null
 +
 +  for (var i = 0; i < values.length; i++) {
 +    var device = values[i]
-+    if (!device || device.type !== wifiType || device.mode !== stationMode) continue
++    if (!device || device.type !== wifiType) continue
++
++    var name = String(device.name || "")
++    var stationInterface = /^wl/i.test(name)
++    if (device.mode === accessPointMode || /^ap[0-9]+$/i.test(name)) continue
++    if (device.mode !== stationMode && !stationInterface) continue
++
 +    if (device.connected) return device
 +    if (!fallback) fallback = device
 +  }
@@ -20,7 +26,7 @@ index 3a66610..6ee416f 100644
  function parseNetworkStatus(raw) {
    var parts = String(raw || "disconnected\t\t\t").replace(/\r?\n+$/, "").split("\t")
    return {
-@@ -339,6 +353,7 @@ function shouldRepromptPassphrase(reason, isProtected, reasons) {
+@@ -339,6 +359,7 @@ function shouldRepromptPassphrase(reason, isProtected, reasons) {
 -
 +
  if (typeof module !== "undefined") {
@@ -33,19 +39,21 @@ diff --git a/shell/plugins/panels/network/Panel.qml b/shell/plugins/panels/netwo
 index 07c2e60..d65dc55 100644
 --- a/shell/plugins/panels/network/Panel.qml
 +++ b/shell/plugins/panels/network/Panel.qml
-@@ -67,6 +67,10 @@ Panel {
+@@ -67,6 +67,12 @@ Panel {
    readonly property bool networkManagerAvailable: Networking.backend === NetworkBackendType.NetworkManager
    readonly property var networkDevices: Networking.devices ? Networking.devices.values : []
 -  readonly property var wifiDevice: findDevice(DeviceType.Wifi)
-+  // PS4 exposes AP-mode ap0/ap1 devices before the real wlan0 station. Never
-+  // bind scanning or connection rows to an access-point interface.
++  // PS4 exposes ap0/ap1 before wlan0, and NetworkManager can report wlan0's
++  // mode as Unknown after its saved connection is forgotten. Keep a Linux
++  // wl* station available for scanning while rejecting hotspot interfaces.
 +  readonly property var wifiDevice: Model.findWifiStationDevice(
-+    networkDevices, DeviceType.Wifi, WifiDeviceMode.Station
++    networkDevices, DeviceType.Wifi,
++    WifiDeviceMode.Station, WifiDeviceMode.AccessPoint
 +  )
    readonly property var wifiNetworkObjects: wifiDevice && wifiDevice.networks ? wifiDevice.networks.values : []
    readonly property var connectedWifiNetwork: findConnectedWifiNetwork()
    property var wifiNetworks: []
-@@ -568,21 +572,6 @@ Panel {
+@@ -568,21 +574,6 @@ Panel {
      return Model.formatPacketLoss(percent, hasInternetPing)
    }
 -
