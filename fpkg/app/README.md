@@ -8,7 +8,8 @@ states and provide these reviewed adapters:
 - HTTPS Range downloads with ETag persistence;
 - Ed25519 manifest-signature and SHA-256 artifact verification;
 - atomic boot-set staging with last-known-good rollback;
-- loopback PayLoader transport that handles partial writes to port 9090;
+- loopback PayLoader transport that proves the complete ELF fits its socket
+  send buffer, then performs exactly one application write to port 9090;
 - redacted diagnostics and exact provenance display.
 
 The native package map for the offline prototype is:

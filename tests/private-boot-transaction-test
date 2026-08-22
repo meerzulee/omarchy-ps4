@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+temporary=$(mktemp -d /tmp/omarchy-ps4-private-boot.XXXXXX)
+trap 'rm -rf -- "$temporary"' EXIT
+
+app_misc=$temporary/app-misc
+boot_parent=$temporary/data/linux
+mkdir -p "$app_misc" "$temporary/data"
+for artifact in bzImage initramfs.cpio.gz bootargs.txt vram.txt; do
+  install -m 0644 "$repo_dir/fpkg/vendor/internal-boot/$artifact" \
+    "$app_misc/$artifact"
+done
+
+compiler=${CXX:-c++}
+"$compiler" \
+  -std=c++17 \
+  -O2 \
+  -Wall \
+  -Wextra \
+  -Wpedantic \
+  -Werror \
+  -DOMARCHY_INTERNAL_BOOT=1 \
+  -DOMARCHY_APP_MISC_PREFIX="\"$app_misc\"" \
+  -DOMARCHY_BOOT_PARENT_PATH="\"$boot_parent\"" \
+  -I"$repo_dir/fpkg/ui-prototype" \
+  "$repo_dir/fpkg/ui-prototype/private_boot.cpp" \
+  "$repo_dir/fpkg/ui-prototype/sha256.cpp" \
+  "$repo_dir/fpkg/ui-prototype/private_boot_transaction_test.cpp" \
+  -o "$temporary/private-boot-transaction-test"
+
+"$temporary/private-boot-transaction-test"

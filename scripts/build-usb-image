@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+repo_dir=$(cd -- "$script_dir/.." && pwd)
+
+rootfs_archive=''
+output_path="$repo_dir/output/usb-image/omarchy-ps4-usb-4.0.0.img.xz"
+image_size_gib=16
+allow_development_rootfs=false
+keep_raw=false
+
+usage() {
+  cat <<EOF
+Usage: ./scripts/build-usb-image --rootfs ROOTFS.tar.zst [options]
+
+Build a flashable whole-device ext4 image in OrbStack.
+
+Options:
+  --output PATH                 Output .img.xz path
+  --image-size-gib N            Uncompressed base image size (default: 16)
+  --allow-development-rootfs    Permit a root without deferred-owner state
+  --keep-raw                    Keep the uncompressed sibling .img
+  -h, --help                    Show this help
+
+The resulting USB has no partition table and no PS4BOOT filesystem. The FPKG
+owns the kernel, initramfs and loader; this image contains only Omarchy Linux.
+EOF
+}
+
+fail() {
+  printf 'build-usb-image: %s\n' "$1" >&2
+  exit 1
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    --rootfs)
+      (( $# >= 2 )) || fail '--rootfs requires a path'
+      rootfs_archive=$2
+      shift 2
+      ;;
+    --output)
+      (( $# >= 2 )) || fail '--output requires a path'
+      output_path=$2
+      shift 2
+      ;;
+    --image-size-gib)
+      (( $# >= 2 )) || fail '--image-size-gib requires a value'
+      image_size_gib=$2
+      shift 2
+      ;;
+    --allow-development-rootfs)
+      allow_development_rootfs=true
+      shift
+      ;;
+    --keep-raw)
+      keep_raw=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown option: $1"
+      ;;
+  esac
+done
+
+[[ -n $rootfs_archive ]] || fail '--rootfs is required'
+rootfs_archive=$(cd -- "$(dirname -- "$rootfs_archive")" && pwd)/$(basename -- "$rootfs_archive")
+[[ -f $rootfs_archive ]] || fail "rootfs archive not found: $rootfs_archive"
+[[ $output_path == *.img.xz ]] || fail '--output must end in .img.xz'
+[[ $image_size_gib =~ ^[0-9]+$ ]] || fail '--image-size-gib must be an integer'
+(( image_size_gib >= 12 && image_size_gib <= 28 )) || \
+  fail '--image-size-gib must be between 12 and 28; the release target remains 32 GB or larger'
+
+command -v orb >/dev/null 2>&1 || fail 'OrbStack CLI is required'
+[[ $(orb status) == Running ]] || fail 'OrbStack must be running'
+
+output_name=$(basename -- "$output_path")
+output_parent=$(dirname -- "$output_path")
+mkdir -p "$output_parent"
+output_parent=$(cd -- "$output_parent" && pwd)
+output_path=$output_parent/$output_name
+[[ ! -e $output_path ]] || fail "refusing to overwrite: $output_path"
+
+raw_output=${output_path%.xz}
+if [[ $keep_raw == true && -e $raw_output ]]; then
+  fail "refusing to overwrite: $raw_output"
+fi
+
+work_dir=$(mktemp -d "$output_parent/.omarchy-ps4-usb-image.XXXXXX")
+raw_staging=$work_dir/omarchy-ps4.img
+xz_staging=$work_dir/omarchy-ps4.img.xz
+manifest_staging=$work_dir/omarchy-ps4.img.manifest
+
+cleanup() {
+  rm -rf -- "$work_dir"
+}
+trap cleanup EXIT
+
+image_size_bytes=$((image_size_gib * 1024 * 1024 * 1024))
+
+orb -m ubuntu -u root bash -s -- \
+  "$rootfs_archive" \
+  "$raw_staging" \
+  "$xz_staging" \
+  "$image_size_bytes" \
+  "$allow_development_rootfs" <<'BUILD_IMAGE'
+set -euo pipefail
+
+rootfs_archive=$1
+raw_image=$2
+compressed_image=$3
+image_size_bytes=$4
+allow_development_rootfs=$5
+mount_dir=$(mktemp -d /tmp/omarchy-ps4-image-mount.XXXXXX)
+mounted=false
+
+cleanup_vm() {
+  if [[ $mounted == true ]]; then
+    umount "$mount_dir" 2>/dev/null || true
+  fi
+  rmdir "$mount_dir" 2>/dev/null || true
+}
+trap cleanup_vm EXIT
+
+for command_name in blkid e2fsck findmnt mkfs.ext4 mount resize2fs tar truncate tune2fs umount xz zstd; do
+  command -v "$command_name" >/dev/null 2>&1 || {
+    printf 'build-usb-image: OrbStack Ubuntu is missing %s\n' "$command_name" >&2
+    exit 1
+  }
+done
+
+truncate -s "$image_size_bytes" "$raw_image"
+mkfs.ext4 -q -F -L OMARCHY-PS4 -U random "$raw_image"
+mount -o loop "$raw_image" "$mount_dir"
+mounted=true
+
+zstd -dc "$rootfs_archive" | tar \
+  --extract \
+  --preserve-permissions \
+  --numeric-owner \
+  --acls \
+  --xattrs \
+  --xattrs-include='*' \
+  --file=- \
+  --directory="$mount_dir"
+
+# Runtime pseudo-filesystems are deliberately absent from the rootfs archive.
+# Recreate only their empty mountpoints in the final filesystem image.
+install -d -m 0755 "$mount_dir/dev" "$mount_dir/run"
+install -d -m 0555 "$mount_dir/proc" "$mount_dir/sys"
+
+[[ -e $mount_dir/etc/os-release ]] || {
+  printf '%s\n' 'build-usb-image: rootfs is missing /etc/os-release' >&2
+  exit 1
+}
+[[ -x $mount_dir/sbin/init ]] || {
+  printf '%s\n' 'build-usb-image: rootfs is missing executable /sbin/init' >&2
+  exit 1
+}
+
+pending=$mount_dir/var/lib/omarchy-ps4/provisioning/pending
+if [[ ! -e $pending && $allow_development_rootfs != true ]]; then
+  printf '%s\n' 'build-usb-image: release rootfs has no deferred-owner marker' >&2
+  exit 1
+fi
+if [[ $allow_development_rootfs != true ]]; then
+  for required_path in \
+    usr/bin/omarchy-ps4-grow-root \
+    usr/lib/systemd/system/omarchy-ps4-grow-root.service \
+    etc/systemd/system/multi-user.target.wants/omarchy-ps4-grow-root.service; do
+    [[ -e $mount_dir/$required_path || -L $mount_dir/$required_path ]] || {
+      printf 'build-usb-image: release rootfs is missing %s\n' "$required_path" >&2
+      exit 1
+    }
+  done
+fi
+
+install -d -m 0700 "$mount_dir/var/lib/omarchy-ps4"
+printf '%s\n' \
+  'schema=1' \
+  'layout=whole-device-filesystem' \
+  'filesystem=ext4' \
+  'label=OMARCHY-PS4' \
+  "base_image_bytes=$image_size_bytes" \
+  'auto_grow=1' \
+  >"$mount_dir/var/lib/omarchy-ps4/image-layout"
+chmod 0600 "$mount_dir/var/lib/omarchy-ps4/image-layout"
+rm -f "$mount_dir/var/lib/omarchy-ps4/storage-expanded"
+
+sync -f "$mount_dir" 2>/dev/null || sync
+umount "$mount_dir"
+mounted=false
+e2fsck -f -y "$raw_image" >/dev/null
+[[ $(blkid -s LABEL -o value "$raw_image") == OMARCHY-PS4 ]]
+[[ $(blkid -s TYPE -o value "$raw_image") == ext4 ]]
+
+xz -T0 -6 --check=crc64 --stdout "$raw_image" >"$compressed_image"
+BUILD_IMAGE
+
+raw_size=$(stat -f %z "$raw_staging" 2>/dev/null || stat -c %s "$raw_staging")
+compressed_size=$(stat -f %z "$xz_staging" 2>/dev/null || stat -c %s "$xz_staging")
+raw_sha256=$(shasum -a 256 "$raw_staging" | awk '{print $1}')
+compressed_sha256=$(shasum -a 256 "$xz_staging" | awk '{print $1}')
+rootfs_sha256=$(shasum -a 256 "$rootfs_archive" | awk '{print $1}')
+
+printf '%s\n' \
+  'schema=1' \
+  'layout=whole-device-filesystem' \
+  'filesystem=ext4' \
+  'label=OMARCHY-PS4' \
+  'contains_boot_files=0' \
+  'minimum_device_bytes=32000000000' \
+  'auto_grow=1' \
+  "rootfs_source=$(basename -- "$rootfs_archive")" \
+  "rootfs_sha256=$rootfs_sha256" \
+  "uncompressed_size=$raw_size" \
+  "uncompressed_sha256=$raw_sha256" \
+  "compressed_size=$compressed_size" \
+  "compressed_sha256=$compressed_sha256" \
+  >"$manifest_staging"
+
+mv "$xz_staging" "$output_path"
+mv "$manifest_staging" "$output_path.manifest"
+if [[ $keep_raw == true ]]; then
+  mv "$raw_staging" "$raw_output"
+fi
+
+printf 'USB image: %s\n' "$output_path"
+printf 'Compressed bytes: %s\nSHA-256: %s\n' "$compressed_size" "$compressed_sha256"
+printf 'Uncompressed bytes: %s\nSHA-256: %s\n' "$raw_size" "$raw_sha256"
+printf 'Release eligible: %s\n' "$([[ $allow_development_rootfs == true ]] && printf no || printf candidate)"

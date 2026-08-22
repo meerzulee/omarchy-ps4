@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'flash-usb-image-macos: %s\n' "$1" >&2
+  exit 2
+}
+
+(( $# == 8 )) || fail \
+  'expected IMAGE DEVICE MEDIA_NAME DEVICE_BYTES RAW_BYTES COMPRESSED_SHA RAW_SHA STATUS_FILE'
+
+image=$1
+whole_device=$2
+expected_media_name=$3
+expected_device_bytes=$4
+expected_raw_bytes=$5
+expected_compressed_sha256=$6
+expected_raw_sha256=$7
+status_file=$8
+
+[[ $(uname -s) == Darwin ]] || fail 'this helper is for macOS only'
+(( EUID == 0 )) || fail 'administrator privileges are required'
+[[ -r $image ]] || fail "image is not readable: $image"
+[[ $whole_device =~ ^/dev/disk([1-9][0-9]*)$ ]] || \
+  fail 'DEVICE must be an explicit nonzero whole disk such as /dev/disk10'
+[[ $expected_device_bytes =~ ^[0-9]+$ ]] || fail 'DEVICE_BYTES is invalid'
+[[ $expected_raw_bytes =~ ^[0-9]+$ ]] || fail 'RAW_BYTES is invalid'
+[[ $expected_compressed_sha256 =~ ^[0-9a-f]{64}$ ]] || \
+  fail 'COMPRESSED_SHA is invalid'
+[[ $expected_raw_sha256 =~ ^[0-9a-f]{64}$ ]] || fail 'RAW_SHA is invalid'
+[[ $status_file == /private/tmp/omarchy-ps4-flash-*.status ]] || \
+  fail 'STATUS_FILE must use the dedicated /private/tmp prefix'
+
+status() {
+  printf '%s\n' "$1" >"$status_file"
+  chmod 0644 "$status_file"
+}
+
+on_exit() {
+  local exit_code=$?
+  if (( exit_code != 0 )); then
+    status "failed exit_code=$exit_code"
+  fi
+}
+trap on_exit EXIT
+
+plist_value() {
+  local key=$1
+  /usr/sbin/diskutil info -plist "$whole_device" | \
+    /usr/bin/plutil -extract "$key" raw -o - -
+}
+
+identifier=$(plist_value DeviceIdentifier)
+[[ $whole_device == /dev/$identifier ]] || fail 'device identifier changed'
+[[ $(plist_value WholeDisk) == true ]] || fail 'target is not a whole disk'
+[[ $(plist_value BusProtocol) == USB ]] || fail 'target transport is not USB'
+[[ $(plist_value Internal) == false ]] || fail 'target is internal storage'
+[[ $(plist_value Removable) == true ]] || fail 'target is not removable'
+[[ $(plist_value Writable) == true ]] || fail 'target is read-only'
+[[ $(plist_value VirtualOrPhysical) == Physical ]] || fail 'target is not physical'
+[[ $(plist_value MediaName) == "$expected_media_name" ]] || \
+  fail 'target media name changed'
+[[ $(plist_value Size) == "$expected_device_bytes" ]] || \
+  fail 'target capacity changed'
+
+boot_disk=$(
+  /usr/sbin/diskutil info -plist / | \
+    /usr/bin/plutil -extract ParentWholeDisk raw -o - -
+)
+[[ $identifier != "$boot_disk" ]] || fail 'refusing to overwrite the macOS boot disk'
+(( expected_raw_bytes <= expected_device_bytes )) || \
+  fail 'image is larger than target device'
+(( expected_raw_bytes % 8388608 == 0 )) || \
+  fail 'raw image size is not divisible by the 8 MiB verification block size'
+
+actual_compressed_size=$(stat -f %z "$image")
+listed_sizes=$(
+  /opt/homebrew/bin/xz --robot --list "$image" | \
+    /usr/bin/awk -F '\t' '$1 == "totals" { print $4 " " $5 }'
+)
+read -r listed_compressed_size listed_raw_size <<<"$listed_sizes"
+[[ $listed_compressed_size == "$actual_compressed_size" ]] || \
+  fail 'compressed size metadata does not match the file'
+[[ $listed_raw_size == "$expected_raw_bytes" ]] || \
+  fail 'uncompressed image size does not match the manifest'
+actual_compressed_sha256=$(/usr/bin/shasum -a 256 "$image" | /usr/bin/awk '{print $1}')
+[[ $actual_compressed_sha256 == "$expected_compressed_sha256" ]] || \
+  fail 'compressed image digest does not match the manifest'
+/opt/homebrew/bin/xz --test "$image"
+
+status 'phase=unmounting'
+/usr/sbin/diskutil unmountDisk "$whole_device"
+
+raw_device=/dev/r$identifier
+status 'phase=writing'
+/opt/homebrew/bin/xz --decompress --stdout "$image" | \
+  /bin/dd of="$raw_device" bs=8m
+/bin/sync
+
+status 'phase=verifying-readback'
+verification_blocks=$((expected_raw_bytes / 8388608))
+actual_raw_sha256=$({
+  /bin/dd if="$raw_device" bs=8m count="$verification_blocks"
+} | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')
+[[ $actual_raw_sha256 == "$expected_raw_sha256" ]] || \
+  fail "read-back digest mismatch: $actual_raw_sha256"
+
+status "phase=verified sha256=$actual_raw_sha256"
+/usr/sbin/diskutil eject "$whole_device"
+status "phase=ejected sha256=$actual_raw_sha256"
+trap - EXIT
+printf 'Verified and ejected %s (%s, %s bytes)\n' \
+  "$whole_device" "$expected_media_name" "$expected_device_bytes"
+printf 'Read-back SHA-256: %s\n' "$actual_raw_sha256"

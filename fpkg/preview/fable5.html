@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>Omarchy PS4 Manager — Fable 5 Prototype</title>
+  <meta name="color-scheme" content="dark light">
+  <title>Omarchy Kernel Manager — Fable 5 Prototype</title>
   <style>
     @font-face {
       font-family: "Omarchy Mark";
@@ -25,6 +25,12 @@
       --green: #9ece6a;
       --warning: #e0af68;
       --error: #f7768e;
+      --wallpaper: url("../../cache/omarchy-quattro/themes/tokyo-night/backgrounds/0-winding-road.jpg");
+      --overlay-strong: rgba(14,14,20,.90);
+      --overlay-mid: rgba(14,14,20,.78);
+      --overlay-soft: rgba(14,14,20,.46);
+      --overlay-top: rgba(14,14,20,.16);
+      --overlay-bottom: rgba(14,14,20,.42);
       --safe-x: clamp(32px, 5.2vw, 100px);
       --safe-y: clamp(28px, 4.8vh, 52px);
       --radius: 14px;
@@ -58,8 +64,8 @@
       width: 100%;
       min-height: 100%;
       background:
-        linear-gradient(90deg, rgba(14,14,20,.98) 0%, rgba(14,14,20,.92) 46%, rgba(14,14,20,.62) 100%),
-        url("../../cache/omarchy-quattro/themes/tokyo-night/backgrounds/2-swirl-buck.jpg") center / cover no-repeat;
+        linear-gradient(90deg, var(--overlay-strong) 0%, var(--overlay-mid) 46%, var(--overlay-soft) 100%),
+        var(--wallpaper) center / cover no-repeat;
     }
 
     .shell::after {
@@ -67,7 +73,7 @@
       position: absolute;
       inset: 0;
       z-index: -1;
-      background: linear-gradient(180deg, rgba(14,14,20,.28), rgba(14,14,20,.72));
+      background: linear-gradient(180deg, var(--overlay-top), var(--overlay-bottom));
       pointer-events: none;
     }
 
@@ -83,24 +89,18 @@
 
     .brand {
       display: inline-flex;
-      align-items: flex-end;
-      gap: 15px;
+      align-items: center;
+      gap: 20px;
       min-width: 0;
     }
 
-    .brand img {
+    .omarchy-wordmark {
       display: block;
       width: clamp(180px, 15vw, 268px);
-      height: auto;
-    }
-
-    .brand small {
-      margin-bottom: .17em;
-      color: var(--blue);
-      font-size: clamp(14px, 1.15vw, 20px);
-      font-weight: 750;
-      letter-spacing: .18em;
-      line-height: 1;
+      aspect-ratio: 800 / 188;
+      background: var(--green);
+      -webkit-mask: url("../../cache/omarchy-quattro/default/plymouth/logo.png") center / contain no-repeat;
+      mask: url("../../cache/omarchy-quattro/default/plymouth/logo.png") center / contain no-repeat;
     }
 
     .prototype-tag {
@@ -118,26 +118,117 @@
       letter-spacing: .04em;
     }
 
-    .prototype-tag::before {
-      content: "";
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--warning);
-    }
-
     #app {
       position: absolute;
-      inset: calc(var(--safe-y) + 82px) var(--safe-x) calc(var(--safe-y) + 56px);
+      inset: calc(var(--safe-y) + 82px) var(--safe-x) var(--safe-y);
       display: flex;
       align-items: center;
     }
 
     .view {
-      width: min(910px, 54vw);
+      width: 100%;
       max-height: 100%;
       animation: enter .28s var(--ease) both;
     }
+
+    .home-layout {
+      display: grid;
+      grid-template-columns: minmax(500px, .78fr) minmax(460px, .8fr);
+      align-items: center;
+      gap: clamp(55px, 7vw, 140px);
+      width: 100%;
+    }
+
+    .flow-actions {
+      display: grid;
+      gap: 9px;
+      width: min(500px, 100%);
+      margin-top: 22px;
+    }
+
+    .flow-actions .button {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto 15px;
+      align-items: center;
+      column-gap: 13px;
+      width: 100%;
+      min-height: 58px;
+      padding: 0 16px 0 14px;
+      border-left: 3px solid var(--blue);
+      border-radius: 0 4px 4px 0;
+      background: rgba(19,20,28,.94);
+      font-size: 14px;
+    }
+
+    .flow-actions .button:hover:not([disabled]) { background: var(--selection); }
+
+    .flow-label { min-width: 0; }
+
+    .flow-detail {
+      color: var(--foreground);
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .flow-arrow {
+      color: var(--blue);
+      font-size: 20px;
+      font-weight: 500;
+      text-align: right;
+    }
+
+    .flow-actions .button.primary .flow-arrow,
+    .flow-actions .button.primary .flow-detail { color: var(--darker); }
+
+    .system-check {
+      display: grid;
+      align-self: center;
+      justify-self: end;
+      gap: 7px;
+      width: min(460px, 100%);
+    }
+
+    .system-check-title {
+      margin: 0 0 3px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 750;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .check-card {
+      display: grid;
+      grid-template-columns: 140px minmax(0, 1fr);
+      align-items: center;
+      min-height: 52px;
+      padding: 0 15px;
+      border: 1px solid rgba(192,202,245,.12);
+      border-radius: 3px;
+      background: rgba(19,20,28,.92);
+    }
+
+    .check-card small {
+      margin: 0;
+      color: var(--foreground);
+      font-size: 13px;
+      font-weight: 750;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    .check-card strong {
+      color: var(--bright);
+      font-size: 13px;
+      font-weight: 650;
+      line-height: 1.25;
+      text-align: right;
+    }
+
+    .check-card strong.good { color: var(--green); }
+    .check-card strong.warn { color: var(--warning); }
+    .check-card strong.error { color: var(--error); }
 
     .eyebrow {
       margin: 0 0 12px;
@@ -452,6 +543,36 @@
       bottom: 15px;
     }
 
+    .theme-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 23px;
+    }
+
+    .theme-option {
+      display: block;
+      min-height: 96px;
+      padding: 18px 20px;
+    }
+
+    .theme-option[aria-pressed="true"] {
+      border-color: var(--blue);
+      background: var(--selection);
+    }
+
+    .theme-swatch {
+      display: inline-flex;
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+
+    .theme-swatch i {
+      width: 18px;
+      height: 7px;
+      background: var(--swatch);
+    }
+
     .result-mark {
       display: grid;
       place-items: center;
@@ -578,8 +699,8 @@
       border: 1px solid rgba(192,202,245,.12);
       border-radius: var(--radius);
       background:
-        linear-gradient(rgba(14,14,20,.3), rgba(14,14,20,.3)),
-        url("../../cache/omarchy-quattro/themes/tokyo-night/backgrounds/2-swirl-buck.jpg") center / cover;
+        linear-gradient(var(--overlay-top), var(--overlay-top)),
+        var(--wallpaper) center / cover;
     }
 
     .desktop-bar {
@@ -637,33 +758,6 @@
 
     .preview-controls select:disabled { opacity: .35; }
 
-    .control-hints {
-      position: absolute;
-      bottom: var(--safe-y);
-      left: var(--safe-x);
-      z-index: 5;
-      color: rgba(169,177,214,.67);
-      font-size: 12px;
-      letter-spacing: .02em;
-    }
-
-    .control-hints span { margin-right: 17px; }
-    .control-hints b { color: var(--bright); }
-
-    .control-hints kbd {
-      display: inline-block;
-      min-width: 22px;
-      margin-right: 5px;
-      padding: 2px 5px;
-      border: 1px solid rgba(192,202,245,.28);
-      border-radius: 4px;
-      background: rgba(19,20,28,.8);
-      color: var(--bright);
-      font: inherit;
-      font-weight: 750;
-      text-align: center;
-    }
-
     @keyframes enter {
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
@@ -675,15 +769,19 @@
       .chrome { position: relative; inset: auto; padding: 25px 25px 0; }
       #app { position: relative; inset: auto; min-height: calc(100vh - 170px); padding: 50px 25px 105px; }
       .view { width: min(100%, 760px); }
+      .home-layout { grid-template-columns: 1fr; gap: 34px; }
+      .system-check { justify-self: end; }
       .preview-controls { right: 25px; bottom: 22px; }
-      .control-hints { left: 25px; bottom: 67px; }
       .prototype-tag { display: none; }
       .option-list { grid-template-columns: 1fr; }
+      .theme-list { grid-template-columns: 1fr; }
       .option { min-height: 84px; grid-template-columns: 38px 1fr; grid-template-rows: auto; align-items: center; }
     }
 
     @media (max-width: 620px) {
-      .brand img { width: 164px; }
+      .omarchy-wordmark { width: 164px; }
+      .flow-actions .button { grid-template-columns: minmax(0, 1fr) 15px; }
+      .flow-detail { display: none; }
       .review-row,
       .license-item,
       .form-grid { grid-template-columns: 1fr; gap: 5px; }
@@ -707,18 +805,13 @@
 <body>
   <main class="shell">
     <header class="chrome">
-      <div class="brand" aria-label="Omarchy PS4">
-        <img src="../../cache/omarchy-quattro/default/plymouth/logo.png" alt="Omarchy">
-        <small>PS4</small>
+      <div class="brand" aria-label="Omarchy">
+        <span class="omarchy-wordmark" aria-hidden="true"></span>
       </div>
-      <div class="prototype-tag">Console UX prototype · no system actions</div>
+      <div class="prototype-tag">Kernel manager · Omarchy 4.0.0</div>
     </header>
 
     <section id="app" aria-live="polite"></section>
-
-    <div class="control-hints" aria-hidden="true">
-      <span><kbd>D-PAD</kbd>Move</span><span><kbd>CROSS</kbd>Confirm</span><span><kbd>CIRCLE</kbd>Back</span>
-    </div>
 
     <div class="preview-controls">
       <label for="preview-state">Prototype state</label>
@@ -737,18 +830,55 @@
       "use strict";
 
       const app = document.querySelector("#app");
+      const shell = document.querySelector(".shell");
       const statePicker = document.querySelector("#preview-state");
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      const themeCatalog = {
+        "tokyo-night": {
+          name: "Tokyo Night",
+          colors: ["#0e0e14", "#13141c", "#1a1b26", "#24283b", "#292e42", "#a9b1d6", "#c0caf5", "#7aa2f7", "#9ece6a", "#e0af68", "#f7768e"],
+          overlays: ["rgba(14,14,20,.90)", "rgba(14,14,20,.78)", "rgba(14,14,20,.46)", "rgba(14,14,20,.16)", "rgba(14,14,20,.42)"],
+          wallpapers: ["0-winding-road.jpg", "2-swirl-buck.jpg", "4-omakub.jpg"]
+        },
+        "last-horizon": {
+          name: "Last Horizon",
+          colors: ["#060606", "#090809", "#0c0b0c", "#0c0b0c", "#584e51", "#fafcfb", "#e2dddc", "#b59790", "#87a9b0", "#6b5e73", "#c38b7b"],
+          overlays: ["rgba(6,6,6,.98)", "rgba(6,6,6,.92)", "rgba(6,6,6,.62)", "rgba(6,6,6,.28)", "rgba(6,6,6,.72)"],
+          wallpapers: ["1-eyes-wide.jpg", "2-blink.jpg", "3-bokeh.jpg", "4-new-horizons.jpg"]
+        },
+        lupine: {
+          name: "Lupine",
+          mode: "light",
+          colors: ["#dedede", "#ececec", "#fafafa", "#f5f5f5", "#d0d0d0", "#212121", "#000000", "#3264eb", "#4a2fd0", "#026fde", "#c900c4"],
+          overlays: ["rgba(250,250,250,.98)", "rgba(250,250,250,.92)", "rgba(250,250,250,.62)", "rgba(250,250,250,.24)", "rgba(250,250,250,.72)"],
+          wallpapers: ["01-cherry-blossom-bokeh.jpg", "02-cherry-blossom-white.jpg", "03-pastel-clouds.jpg", "04-elegant-blue-wave.jpg", "05-abstract-wave.jpg"]
+        },
+        solitude: {
+          name: "Solitude",
+          colors: ["#080a0b", "#0c0e10", "#101315", "#101315", "#343d41", "#cacccc", "#a5aeb4", "#798186", "#9fa5a9", "#d9dbdc", "#565d60"],
+          overlays: ["rgba(8,10,11,.98)", "rgba(8,10,11,.92)", "rgba(8,10,11,.62)", "rgba(8,10,11,.28)", "rgba(8,10,11,.72)"],
+          wallpapers: ["1-on-pole.jpg", "2-wreakage.jpg", "3-climb.jpg", "4-ether.jpg", "5-eyed.jpg"]
+        }
+      };
+      const themeIds = Object.keys(themeCatalog);
+      const preferenceKey = "omarchy-ps4-theme-v1";
+      const storedTheme = localStorage.getItem(preferenceKey);
+      let savedThemeId = themeCatalog[storedTheme] ? storedTheme : "tokyo-night";
+      let draftThemeId = savedThemeId;
+      let currentWallpaper = "";
+      let appearanceOriginalTheme = savedThemeId;
+      let appearanceOriginalWallpaper = "";
 
       const homeStates = {
         "not-installed": {
           eyebrow: "Ready to install",
           title: "A clean path to Linux.",
-          copy: "Install the verified Omarchy RC3 boot set. Your Linux system stays on the external OMARCHY-PS4 drive.",
-          label: "Install Omarchy",
+          copy: "Install the verified boot set. Your complete Linux system stays on the external Omarchy drive.",
+          label: "Install boot files",
           action: "install",
           dot: "blue",
-          status: "External USB drive attached"
+          status: "Boot files are not installed"
         },
         interrupted: {
           eyebrow: "Installation paused",
@@ -762,8 +892,8 @@
         ready: {
           eyebrow: "Ready",
           title: "Omarchy is ready to boot.",
-          copy: "RC3 is verified on PS4BOOT. Linux verifies the external OMARCHY-PS4 root when it starts.",
-          label: "Boot Linux",
+          copy: "The internal 4.0 boot set is verified. Linux verifies the flashed Omarchy USB when it starts.",
+          label: "Boot Omarchy",
           action: "boot",
           dot: "",
           status: "Boot files verified"
@@ -771,8 +901,8 @@
         update: {
           eyebrow: "Update available",
           title: "A verified update is ready.",
-          copy: "Update the boot set to RC3. The current working set is kept so you can restore it if needed.",
-          label: "Update Omarchy",
+          copy: "Update the boot set to 4.0. The current working set is kept so you can restore it if needed.",
+          label: "Update boot files",
           action: "update",
           dot: "blue",
           status: "Current boot set will be retained"
@@ -789,10 +919,10 @@
       };
 
       const actionCopy = {
-        install: { eyebrow: "Review installation", title: "Install Omarchy RC3?", confirm: "Confirm installation", note: "Installation begins only after you confirm." },
+        install: { eyebrow: "Install boot files", title: "Install the verified boot set?", confirm: "Install files", note: "The kernel and initramfs go to internal app storage. Omarchy stays on USB." },
         resume: { eyebrow: "Review installation", title: "Resume installation?", confirm: "Confirm resume", note: "The manager continues from the last verified step." },
         update: { eyebrow: "Review update", title: "Update the boot set?", confirm: "Confirm update", note: "The current working set is retained for recovery." },
-        boot: { eyebrow: "Review boot", title: "Boot Linux now?", confirm: "Confirm boot", note: "Confirming starts the handoff. Orbis will close when Linux takes over." },
+        boot: { eyebrow: "Ready to launch", title: "Launch Omarchy?", confirm: "Launch Omarchy", note: "The manager checks the boot set, then Linux verifies the Omarchy USB." },
         verify: { eyebrow: "Read-only check", title: "Verify boot files?", confirm: "Start verification", note: "Verification only reads files. It does not repair or replace anything." },
         restore: { eyebrow: "Confirm recovery", title: "Restore the previous boot set?", confirm: "Confirm restore", note: "The current damaged boot set will be replaced by the retained working set." },
         export: { eyebrow: "Review export", title: "Export diagnostics?", confirm: "Confirm export", note: "A support bundle will be prepared. No private account data is included in this prototype." }
@@ -810,31 +940,31 @@
 
       const progressSets = {
         install: [
-          ["Checking system", "Confirming PS4BOOT identity and free space. Linux verifies OMARCHY-PS4 after startup.", true, 18],
-          ["Verifying release", "Checking the RC3 release manifest before any files are prepared.", true, 43],
-          ["Preparing boot files", "Writing the verified boot set. Keep the manager open.", false, 78],
-          ["Ready", "The RC3 boot set is verified and ready.", true, 100]
+          ["Checking current files", "Looking for an installed boot set and retained recovery copy.", true, 18],
+          ["Verifying bundled files", "Checking the kernel, initramfs, loader and boot arguments.", true, 43],
+          ["Activating boot files", "Making the verified set active and keeping the previous set.", false, 78],
+          ["Ready", "The 4.0 boot set is verified and ready.", true, 100]
         ],
         resume: [
-          ["Checking system", "Finding the last verified installation step.", true, 25],
-          ["Verifying release", "Rechecking the RC3 release manifest.", true, 50],
-          ["Preparing boot files", "Completing the retained boot set. Keep the manager open.", false, 82],
-          ["Ready", "The RC3 boot set is verified and ready.", true, 100]
+          ["Checking current files", "Finding the last verified installation step.", true, 25],
+          ["Verifying bundled files", "Rechecking the 4.0 release manifest.", true, 50],
+          ["Activating boot files", "Completing the retained boot set. Keep the manager open.", false, 82],
+          ["Ready", "The 4.0 boot set is verified and ready.", true, 100]
         ],
         update: [
-          ["Checking system", "Confirming the current and retained boot sets.", true, 18],
-          ["Verifying release", "Checking the RC3 update manifest.", true, 45],
-          ["Preparing boot files", "Preparing RC3 while retaining the working set.", false, 80],
-          ["Ready", "RC3 is verified and the previous set is retained.", true, 100]
+          ["Checking current files", "Confirming the current and retained boot sets.", true, 18],
+          ["Verifying bundled files", "Checking the 4.0 update manifest.", true, 45],
+          ["Activating boot files", "Making 4.0 active while retaining the working set.", false, 80],
+          ["Ready", "4.0 is verified and the previous set is retained.", true, 100]
         ],
         boot: [
-          ["Checking system", "Confirming the selected PS4BOOT set and 1024 MB video-memory profile.", true, 25],
-          ["Preparing handoff", "Starting the local GoldHEN loader handoff.", false, 62],
+          ["Checking system", "Confirming the internal boot set and 1024 MB video-memory profile.", true, 25],
+          ["Preparing handoff", "Starting the local Linux handoff.", false, 62],
           ["Linux takeover", "The boot payload has control. Orbis is ready to close.", false, 100]
         ],
         verify: [
           ["Checking system", "Locating the active and retained boot sets.", true, 28],
-          ["Verifying boot files", "Comparing boot files with the pinned RC3 manifest.", true, 68],
+          ["Verifying boot files", "Comparing boot files with the pinned 4.0 manifest.", true, 68],
           ["Verification complete", "The read-only verification has finished.", true, 100]
         ],
         restore: [
@@ -920,19 +1050,135 @@
         activeAction = null;
         setupStep = 0;
         const state = homeStates[systemState];
+        const bootReady = systemState === "ready";
+        const installAction = systemState === "update" ? "update"
+          : systemState === "interrupted" ? "resume"
+          : systemState === "damaged" ? "recovery" : "install";
+        const installLabel = systemState === "update" ? "Update boot files"
+          : systemState === "interrupted" ? "Resume boot-file install"
+          : systemState === "damaged" ? "Open recovery"
+          : bootReady ? "Reinstall boot files" : "Install boot files";
+        const bootStatus = bootReady ? ["Verified and ready", "good"]
+          : systemState === "update" ? ["New bundled set is available", "warn"]
+          : systemState === "damaged" ? ["Needs recovery - launch blocked", "error"]
+          : ["Install required", "warn"];
+        const flowButton = (label, detail, action, primary = false, disabled = false) => `
+          <button class="button ${primary ? "primary" : ""}" data-focus data-action="${action}" ${disabled ? "disabled" : ""}>
+            <span class="flow-label">${label}</span><span class="flow-detail">${detail}</span><span class="flow-arrow">›</span>
+          </button>`;
+        const installButton = flowButton(installLabel,
+          "Internal storage", installAction, !bootReady);
+        const launchButton = flowButton("Boot Omarchy",
+          "External USB", "boot", bootReady, !bootReady);
         render(`
-          <p class="eyebrow">${state.eyebrow}</p>
-          <div class="status-line"><span class="status-dot ${state.dot}"></span>${state.status}</div>
-          <h1>${state.title}</h1>
-          <p class="lede">${state.copy}</p>
-          <div class="actions">
-            <button class="button primary" data-focus data-action="${state.action}">${state.label}</button>
+          <div class="home-layout">
+            <div>
+              <p class="eyebrow">${state.eyebrow}</p>
+              <h1>Omarchy Linux</h1>
+              <p class="lede">Install the boot files once, then boot Omarchy. The tested Baikal kernel is selected automatically and Linux stays on USB.</p>
+              <div class="flow-actions">
+                ${bootReady ? `${launchButton}${installButton}` : `${installButton}${launchButton}`}
+              </div>
+              <nav class="link-row" aria-label="Secondary">
+                <button class="link-button" data-focus data-action="appearance">Theme &amp; wallpaper</button>
+              </nav>
+            </div>
+            <aside class="system-check" aria-label="System check">
+              <p class="system-check-title">System check</p>
+              <div class="check-card"><small>Boot files</small><strong class="${bootStatus[1]}">${bootStatus[0]}</strong></div>
+              <div class="check-card"><small>Kernel</small><strong>6.18.44 · Baikal · automatic</strong></div>
+              <div class="check-card"><small>Omarchy USB</small><strong>Connect before boot ·<br>checked by Linux</strong></div>
+            </aside>
           </div>
-          <nav class="link-row" aria-label="Secondary">
-            <button class="link-button" data-focus data-action="recovery">Recovery &amp; diagnostics</button>
-            <button class="link-button" data-focus data-action="credits">Credits &amp; licenses</button>
-          </nav>
         `);
+      }
+
+      function showKernel() {
+        page = "kernel";
+        render(`
+          <p class="eyebrow">Choose kernel</p>
+          <h2>Linux 6.18.44 · Baikal</h2>
+          <p class="lede compact">Only kernels accepted on the target hardware are offered.</p>
+          <div class="card card-pad">
+            <div class="status-line"><span class="status-dot"></span>Recommended</div>
+            <dl class="review-list">
+              <div class="review-row"><dt>Kernel</dt><dd>Linux 6.18.44</dd></div>
+              <div class="review-row"><dt>Hardware</dt><dd>Baikal B1</dd></div>
+              <div class="review-row"><dt>Video memory</dt><dd>1024 MB</dd></div>
+              <div class="review-row"><dt>Status</dt><dd class="good">Current verified build</dd></div>
+            </dl>
+            <div class="actions">
+              <button class="button primary" data-focus data-action="kernel-use">Use this kernel</button>
+              <button class="button" data-focus data-action="home">Back</button>
+            </div>
+          </div>
+        `);
+      }
+
+      function wallpaperPath(themeId, filename) {
+        return `../../cache/omarchy-quattro/themes/${themeId}/backgrounds/${filename}`;
+      }
+
+      function chooseWallpaper(themeId, previous = "") {
+        const candidates = themeCatalog[themeId].wallpapers;
+        let next = candidates[Math.floor(Math.random() * candidates.length)];
+        if (candidates.length > 1 && next === previous) {
+          next = candidates[(candidates.indexOf(next) + 1) % candidates.length];
+        }
+        return next;
+      }
+
+      function applyAppearance(themeId, wallpaper = "") {
+        const theme = themeCatalog[themeId] || themeCatalog["tokyo-night"];
+        const names = ["darker", "dark", "background", "panel", "selection", "foreground", "bright", "blue", "green", "warning", "error"];
+        names.forEach((name, index) => document.documentElement.style.setProperty(`--${name}`, theme.colors[index]));
+        ["overlay-strong", "overlay-mid", "overlay-soft", "overlay-top", "overlay-bottom"].forEach((name, index) => {
+          document.documentElement.style.setProperty(`--${name}`, theme.overlays[index]);
+        });
+        document.documentElement.style.colorScheme = theme.mode || "dark";
+        currentWallpaper = wallpaper || theme.wallpapers[0];
+        document.documentElement.style.setProperty("--wallpaper", `url("${wallpaperPath(themeId, currentWallpaper)}")`);
+      }
+
+      function openAppearance() {
+        appearanceOriginalTheme = savedThemeId;
+        appearanceOriginalWallpaper = currentWallpaper;
+        draftThemeId = savedThemeId;
+        showAppearance();
+      }
+
+      function themeSwatches(theme) {
+        return [theme.colors[2], theme.colors[7], theme.colors[8]].map((color) => `<i style="--swatch:${color}"></i>`).join("");
+      }
+
+      function showAppearance() {
+        page = "appearance";
+        const themeButtons = themeIds.map((themeId) => {
+          const theme = themeCatalog[themeId];
+          const selected = themeId === draftThemeId;
+          return `<button class="option theme-option" data-focus data-action="theme" data-theme="${themeId}" aria-pressed="${selected}">
+            <span class="theme-swatch" aria-hidden="true">${themeSwatches(theme)}</span>
+            <span class="option-copy"><strong>${theme.name}</strong><small>${theme.wallpapers.length} private-preview wallpapers${selected ? " · selected" : ""}</small></span>
+          </button>`;
+        }).join("");
+        render(`
+          <p class="eyebrow">Appearance</p>
+          <h2>Theme &amp; wallpaper</h2>
+          <p class="lede compact">Each Omarchy theme opens on its upstream default wallpaper.</p>
+          <div class="theme-list">${themeButtons}</div>
+          <div class="actions">
+            <button class="button" data-focus data-action="shuffle">Shuffle now</button>
+            <button class="button primary" data-focus data-action="appearance-apply">Apply</button>
+            <button class="button" data-focus data-action="appearance-cancel">Cancel</button>
+          </div>
+          <p style="margin:15px 0 0;color:var(--foreground);font-size:13px">The web preview stores only the selected theme in this browser. The native app stores one local appearance preference.</p>
+        `);
+      }
+
+      function cancelAppearance() {
+        draftThemeId = appearanceOriginalTheme;
+        applyAppearance(appearanceOriginalTheme, appearanceOriginalWallpaper);
+        goHome();
       }
 
       function showReview(action) {
@@ -944,19 +1190,19 @@
         const isVerify = action === "verify";
         const isExport = action === "export";
         let rows = `
-          <div class="review-row"><dt>Release</dt><dd>Quattro RC3</dd></div>
-          <div class="review-row"><dt>Linux root</dt><dd>External OMARCHY-PS4</dd></div>
+          <div class="review-row"><dt>Release</dt><dd>Omarchy 4.0.0</dd></div>
+          <div class="review-row"><dt>Linux root</dt><dd>External Omarchy USB</dd></div>
           <div class="review-row"><dt>Video memory</dt><dd>1024 MB VRAM</dd></div>
           <div class="review-row"><dt>Recovery</dt><dd class="good">Previous boot set retained</dd></div>
-          <div class="review-row"><dt>Internal PS4 storage</dt><dd class="good">Will not be formatted</dd></div>`;
+          <div class="review-row"><dt>Internal storage</dt><dd class="good">Boot files only · never formatted</dd></div>`;
         if (isRestore) rows = `
           <div class="review-row"><dt>Source</dt><dd>Retained working boot set</dd></div>
-          <div class="review-row"><dt>Target</dt><dd>Active PS4BOOT set</dd></div>
+          <div class="review-row"><dt>Target</dt><dd>Internal app boot set</dd></div>
           <div class="review-row"><dt>Linux root</dt><dd class="good">External root is unchanged</dd></div>
-          <div class="review-row"><dt>Internal PS4 storage</dt><dd class="good">Will not be formatted</dd></div>`;
+          <div class="review-row"><dt>Internal storage</dt><dd class="good">Never formatted</dd></div>`;
         if (isVerify) rows = `
           <div class="review-row"><dt>Scope</dt><dd>Active and retained boot files</dd></div>
-          <div class="review-row"><dt>Manifest</dt><dd>Quattro RC3</dd></div>
+          <div class="review-row"><dt>Manifest</dt><dd>Omarchy 4.0.0</dd></div>
           <div class="review-row"><dt>Access</dt><dd class="good">Read-only</dd></div>
           <div class="review-row"><dt>Repairs</dt><dd>None</dd></div>`;
         if (isExport) rows = `
@@ -1015,7 +1261,7 @@
         if (["install", "resume", "update"].includes(action)) {
           systemState = "ready";
           statePicker.value = systemState;
-          showResult("ready");
+          goHome();
         } else if (action === "boot") {
           showResult("completed");
         } else if (action === "verify") {
@@ -1032,9 +1278,9 @@
       function showResult(kind) {
         page = "result";
         const results = {
-          ready: ["blue", "Ready", "Omarchy RC3 is ready.", "The verified boot set is prepared. Linux will start only when you explicitly choose Boot Linux.", "Boot Linux", "boot"],
+          ready: ["blue", "Ready", "Omarchy 4.0 is ready.", "The verified boot set is prepared. Linux will start only when you explicitly choose Boot Linux.", "Boot Linux", "boot"],
           completed: ["blue", "Completed", "Linux takeover is ready.", "The handoff preview is complete. Continue to preview the Linux splash and first-owner setup.", "Preview Linux startup", "splash"],
-          healthy: ["", "Verification complete", "Boot files are healthy.", "The active RC3 boot set matches its pinned manifest. No files were changed.", "Return home", "home"],
+          healthy: ["", "Verification complete", "Boot files are healthy.", "The active 4.0 boot set matches its pinned manifest. No files were changed.", "Return home", "home"],
           attention: ["attention", "Needs attention", "Boot files need recovery.", "Verification found a mismatch. Restore remains a separate action and requires confirmation.", "Open recovery", "recovery"],
           restored: ["", "Recovery complete", "Previous boot set restored.", "The retained working set is active again. The external Linux root was not changed.", "Return home", "home"],
           exported: ["", "Export complete", "Diagnostics are ready.", "The local support bundle has been prepared in this simulation.", "Back to diagnostics", "recovery"]
@@ -1079,15 +1325,16 @@
         render(`
           <p class="eyebrow">Credits &amp; licenses</p>
           <h2>Built from open work.</h2>
-          <p class="lede compact">This prototype contains presentation assets only. Release packages must preserve every upstream license and source notice.</p>
+          <p class="lede compact">This prototype contains presentation assets and a local appearance preference only. Release packages must preserve every upstream notice.</p>
           <div class="card card-pad">
             <div class="license-list">
-              <div class="license-item"><strong>Omarchy PS4 Manager</strong><span>Quattro RC3 prototype</span></div>
-              <div class="license-item"><strong>Omarchy assets and theme</strong><span>Pinned upstream checkout</span></div>
-              <div class="license-item"><strong>PS4 Linux kernel</strong><span>Source and license notices required</span></div>
-              <div class="license-item"><strong>GoldHEN / loader components</strong><span class="unresolved">Redistribution unresolved · excluded</span></div>
+              <div class="license-item"><strong>Omarchy Kernel Manager</strong><span>Omarchy 4.0.0 prototype</span></div>
+              <div class="license-item"><strong>Omarchy appearance</strong><span>4 palettes · 17 private-preview wallpapers</span></div>
+              <div class="license-item"><strong>Wallpaper rights</strong><span class="unresolved">Private prototype · public review required</span></div>
+              <div class="license-item"><strong>Linux kernel patches</strong><span>Source and license notices required</span></div>
+              <div class="license-item"><strong>Linux loader components</strong><span class="unresolved">Redistribution unresolved · excluded</span></div>
             </div>
-            <p style="margin:18px 0 0;color:var(--foreground);font-size:13px">No loader binary, payload, console operation, network request, or storage write is performed by this web prototype.</p>
+            <p style="margin:18px 0 0;color:var(--foreground);font-size:13px">No loader binary, payload, console operation or network request is performed. Only the theme ID is kept in browser local storage.</p>
             <div class="actions"><button class="button" data-focus data-action="home">Return home</button></div>
           </div>
         `);
@@ -1169,16 +1416,31 @@
           <h2>Welcome to Omarchy.</h2>
           <div class="desktop-preview" aria-label="Omarchy desktop preview">
             <div class="desktop-bar"><span>Omarchy</span><span>NET&nbsp;&nbsp; VOL&nbsp;&nbsp; 14:32</span></div>
-            <div class="desktop-message"><strong>Your system is ready.</strong><small>Owner created · RC3 · external Linux root</small></div>
+            <div class="desktop-message"><strong>Your system is ready.</strong><small>Owner created · 4.0 · external Linux root</small></div>
           </div>
           <div class="actions"><button class="button" data-focus data-action="home">Return to manager prototype</button></div>
         `);
       }
 
-      function handleAction(action) {
-        if (homeStates[systemState] && ["install", "resume", "update", "boot"].includes(action)) showReview(action);
+      function handleAction(action, target = null) {
+        if (homeStates[systemState] && ["install", "resume", "update", "boot"].includes(action)) showProgress(action);
         else if (["verify", "restore", "export"].includes(action)) showReview(action);
         else if (action === "confirm") showProgress(activeAction);
+        else if (action === "kernel") showKernel();
+        else if (action === "kernel-use") systemState === "ready" ? showReview("boot") : goHome();
+        else if (action === "appearance") openAppearance();
+        else if (action === "theme") {
+          draftThemeId = target?.dataset.theme || draftThemeId;
+          applyAppearance(draftThemeId);
+          showAppearance();
+        } else if (action === "shuffle") {
+          applyAppearance(draftThemeId, chooseWallpaper(draftThemeId, currentWallpaper));
+          showAppearance();
+        } else if (action === "appearance-apply") {
+          savedThemeId = draftThemeId;
+          localStorage.setItem(preferenceKey, savedThemeId);
+          goHome();
+        } else if (action === "appearance-cancel") cancelAppearance();
         else if (action === "recovery") showRecovery();
         else if (action === "credits") showCredits();
         else if (action === "home") goHome();
@@ -1201,7 +1463,9 @@
 
       function goBack() {
         if (page === "home") return;
-        if (page === "recovery" || page === "credits" || page === "result") goHome();
+        if (page === "appearance") cancelAppearance();
+        else if (page === "kernel") goHome();
+        else if (page === "recovery" || page === "credits" || page === "result") goHome();
         else if (page === "review" && ["verify", "restore", "export"].includes(activeAction)) showRecovery();
         else if (page === "review") goHome();
         else if (page === "progress") {
@@ -1216,7 +1480,7 @@
 
       app.addEventListener("click", (event) => {
         const target = event.target.closest("[data-action]");
-        if (target && !target.disabled) handleAction(target.dataset.action);
+        if (target && !target.disabled) handleAction(target.dataset.action, target);
       });
 
       document.addEventListener("keydown", (event) => {
@@ -1237,6 +1501,9 @@
         } else if (event.key === "Escape" || event.key === "Backspace" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
           event.preventDefault();
           goBack();
+        } else if (event.key === "Enter" && !editing) {
+          event.preventDefault();
+          activateFocused();
         }
       });
 
@@ -1275,7 +1542,19 @@
         requestAnimationFrame(pollGamepad);
       }
 
-      goHome();
+      const previewParams = new URLSearchParams(window.location.search);
+      const previewTheme = previewParams.get("theme");
+      applyAppearance(savedThemeId);
+      if (previewParams.get("view") === "appearance") {
+        openAppearance();
+        if (themeCatalog[previewTheme]) {
+          draftThemeId = previewTheme;
+          applyAppearance(draftThemeId);
+          showAppearance();
+        }
+      } else {
+        goHome();
+      }
       requestAnimationFrame(pollGamepad);
     })();
   </script>

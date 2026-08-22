@@ -50,7 +50,7 @@ grep -Eq '^[[:space:]]*scale-with-font[[:space:]]*=[[:space:]]*false[[:space:]]*
   "$payload/config/omarchy/shell.toml" || fail 'portable PS4 bar icon scale guard is missing'
 jq -e '
   .logo.source == "~/.config/omarchy/branding/about.txt" and
-  any(.modules[]; type == "object" and .format == "Omarchy PS4 Quattro RC3") and
+  any(.modules[]; type == "object" and .format == "Omarchy PS4 Quattro 4.0") and
   any(.modules[]; type == "object" and .type == "command" and .text == "omarchy-theme-current")
 ' "$payload/config/fastfetch/config.jsonc" >/dev/null || \
   fail 'portable PS4 Fastfetch config is invalid'

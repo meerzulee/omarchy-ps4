@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    'Usage: build-package-snapshot [--output DIRECTORY] [--package-source DIRECTORY] [--cache DIRECTORY]' \
+    '' \
+    'Build a complete offline Omarchy PS4 developer package snapshot in OrbStack.'
+}
+
+fail() {
+  printf 'build-package-snapshot: %s\n' "$1" >&2
+  exit 2
+}
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+project_dir=$(cd -- "$script_dir/.." && pwd)
+release=$(sed -n 's/^OMARCHY_RELEASE_VERSION=//p' "$project_dir/upstream/omarchy.lock")
+omarchy_commit=$(sed -n 's/^OMARCHY_COMMIT=//p' "$project_dir/upstream/omarchy.lock")
+arch_snapshot=2026/08/20
+arch_snapshot_slug=${arch_snapshot//\//-}
+source_date_epoch=1787184000
+output=''
+package_source=''
+download_cache=''
+
+while (( $# > 0 )); do
+  case "$1" in
+    --output)
+      (( $# >= 2 )) || fail '--output requires a directory'
+      output=$2
+      shift 2
+      ;;
+    --package-source)
+      (( $# >= 2 )) || fail '--package-source requires a directory'
+      package_source=$2
+      shift 2
+      ;;
+    --cache)
+      (( $# >= 2 )) || fail '--cache requires a directory'
+      download_cache=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *) fail "unknown argument: $1" ;;
+  esac
+done
+
+output=${output:-"$project_dir/output/package-snapshot/omarchy-ps4-$release-dev"}
+package_source=${package_source:-"$project_dir/output/omarchy-packages-$release-snapshot-dev"}
+download_cache=${download_cache:-"$project_dir/output/package-snapshot-cache/$release-$arch_snapshot_slug"}
+
+mkdir -p -- "$(dirname -- "$output")" "$download_cache"
+output=$(cd -- "$(dirname -- "$output")" && pwd)/$(basename -- "$output")
+if [[ -d $package_source ]]; then
+  package_source=$(cd -- "$package_source" && pwd)
+else
+  mkdir -p -- "$(dirname -- "$package_source")"
+  package_source=$(cd -- "$(dirname -- "$package_source")" && pwd)/$(basename -- "$package_source")
+fi
+download_cache=$(cd -- "$download_cache" && pwd)
+
+command -v docker >/dev/null 2>&1 || fail 'Docker CLI is not installed'
+[[ $(docker context show) == orbstack ]] || fail 'Docker context must be orbstack'
+docker info >/dev/null 2>&1 || fail 'OrbStack Docker engine is not running'
+[[ $omarchy_commit =~ ^[0-9a-f]{40}$ ]] || fail 'Omarchy commit is invalid'
+[[ $release =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail 'release version is invalid'
+[[ ! -e $output ]] || fail "output already exists: $output"
+
+"$project_dir/scripts/compose-omarchy-full-profile" --check
+"$project_dir/tests/full-profile-test"
+
+if [[ ! -d $package_source ]]; then
+  "$project_dir/scripts/build-omarchy-packages" --output "$package_source"
+fi
+mapfile -t native_packages < <(
+  find "$package_source" -maxdepth 1 -type f -name '*.pkg.tar.zst' -print |
+    LC_ALL=C sort
+)
+[[ ${#native_packages[@]} -eq 3 ]] || \
+  fail "expected three native packages in $package_source, found ${#native_packages[@]}"
+
+output_parent=$(dirname -- "$output")
+# Keep staging inside the workspace-backed output directory. Moving a large
+# directory tree into the workspace from macOS TMPDIR can leave OrbStack unable
+# to traverse the promoted bind mount even though the host can read it.
+staging=$(mktemp -d "$output_parent/.omarchy-ps4-snapshot-staging.XXXXXX")
+local_repo=$(mktemp -d "${TMPDIR:-/tmp}/omarchy-ps4-localrepo.XXXXXX")
+cleanup() {
+  rm -rf -- "$staging" "$local_repo"
+}
+trap cleanup EXIT
+
+cp "${native_packages[@]}" "$local_repo/"
+mkdir -p "$download_cache"
+docker run --rm --platform linux/amd64 \
+  -v "$local_repo:/repo" \
+  -w /repo \
+  archlinux@sha256:345a872f6c95e082d4b8c050af637eebb57402c6e2177b411c3acf7df84eb33b \
+  bash -lc 'repo-add omarchy-ps4-local.db.tar.gz ./*.pkg.tar.zst' >/dev/null
+
+printf 'Resolving and downloading the pinned offline snapshot.\n'
+docker run --rm --platform linux/amd64 \
+  -e "ARCH_SNAPSHOT=$arch_snapshot" \
+  -e "OMARCHY_COMMIT=$omarchy_commit" \
+  -e "OMARCHY_RELEASE=$release" \
+  -e "SOURCE_DATE_EPOCH=$source_date_epoch" \
+  -v "$project_dir:/workspace:ro" \
+  -v "$local_repo:/localrepo:ro" \
+  -v "$staging:/snapshot" \
+  -v "$download_cache:/snapshot/repo" \
+  archlinux@sha256:345a872f6c95e082d4b8c050af637eebb57402c6e2177b411c3acf7df84eb33b \
+  /workspace/scripts/package-snapshot-container
+
+rm -f "$download_cache"/*.part
+if [[ -d $staging/repo ]]; then
+  rmdir "$staging/repo"
+fi
+ln -s "$download_cache" "$staging/repo"
+"$project_dir/tests/package-snapshot-test" "$staging"
+docker run --rm --network none --platform linux/amd64 \
+  -v "$staging:/run/omarchy-ps4-snapshot:ro" \
+  -v "$download_cache:/run/omarchy-ps4-snapshot/repo:ro" \
+  -v "$project_dir/scripts/verify-package-snapshot-container:/usr/local/bin/verify-package-snapshot:ro" \
+  archlinux@sha256:345a872f6c95e082d4b8c050af637eebb57402c6e2177b411c3acf7df84eb33b \
+  /usr/local/bin/verify-package-snapshot
+docker run --rm --network none --platform linux/amd64 \
+  -v "$staging:/run/omarchy-ps4-snapshot:ro" \
+  -v "$download_cache:/run/omarchy-ps4-snapshot/repo:ro" \
+  -v "$project_dir/scripts/verify-package-snapshot-install-container:/usr/local/bin/verify-package-snapshot-install:ro" \
+  archlinux@sha256:345a872f6c95e082d4b8c050af637eebb57402c6e2177b411c3acf7df84eb33b \
+  /usr/local/bin/verify-package-snapshot-install
+rm "$staging/repo"
+mv "$download_cache" "$staging/repo"
+mv "$staging" "$output"
+trap - EXIT
+rm -rf -- "$local_repo"
+
+printf 'Offline package snapshot: %s\n' "$output"
+printf 'Manifest: %s/RELEASE.env\n' "$output"
+printf 'Checksums: %s/SHA256SUMS\n' "$output"

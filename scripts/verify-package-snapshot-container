@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'verify-package-snapshot-container: %s\n' "$1" >&2
+  exit 2
+}
+
+snapshot=/run/omarchy-ps4-snapshot
+database=/tmp/omarchy-ps4-offline-db
+install -d "$database/sync"
+
+[[ -r $snapshot/pacman.conf ]] || fail 'offline Pacman configuration is missing'
+[[ -r $snapshot/manifest/packages.requested.txt ]] || fail 'request manifest is missing'
+[[ -r $snapshot/manifest/transaction.lock ]] || fail 'transaction lock is missing'
+
+pacman --config "$snapshot/pacman.conf" --dbpath "$database" -Syy --noconfirm
+mapfile -t requested <"$snapshot/manifest/packages.requested.txt"
+
+pacman --config "$snapshot/pacman.conf" --dbpath "$database" \
+  -Sp --noconfirm --print-format '%n' -- "${requested[@]}" \
+  | LC_ALL=C sort -u > /tmp/offline-resolved.txt
+cut -f1 "$snapshot/manifest/transaction.lock" | LC_ALL=C sort -u \
+  > /tmp/locked-resolved.txt
+
+offline_hash=$(sha256sum /tmp/offline-resolved.txt | awk '{ print $1 }')
+locked_hash=$(sha256sum /tmp/locked-resolved.txt | awk '{ print $1 }')
+[[ $offline_hash == "$locked_hash" ]] || \
+  fail "offline dependency resolution differs from the locked transaction ($offline_hash != $locked_hash)"
+
+printf '%s\n' 'Network-disabled package resolution passed.'

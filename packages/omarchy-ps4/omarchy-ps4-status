@@ -17,8 +17,14 @@ esac
 
 if [[ -r /sys/class/drm/card0-HDMI-A-1/status ]]; then
   connector=$(</sys/class/drm/card0-HDMI-A-1/status)
-  status_line display "$([[ $connector == connected ]] && printf working || printf check)" \
-    "HDMI-A-1 $connector; legacy DCE8, AMD_DEBUG=notiling"
+  mesa_compat=${AMD_DEBUG:-unset}
+  if [[ $connector == connected && $mesa_compat == *notiling* ]]; then
+    display_state=working
+  else
+    display_state=check
+  fi
+  status_line display "$display_state" \
+    "HDMI-A-1 $connector; legacy DCE8, AMD_DEBUG=$mesa_compat"
 else
   status_line display unknown 'HDMI connector state unavailable'
 fi
@@ -31,8 +37,17 @@ else
 fi
 
 if command -v nmcli >/dev/null 2>&1; then
-  network=$(nmcli -t -f DEVICE,STATE device 2>/dev/null | awk -F: '$2 == "connected" { print $1; exit }')
-  status_line network "$([[ -n $network ]] && printf working || printf check)" "${network:-no connected NetworkManager device}"
+  network=$(nmcli -t -f DEVICE,TYPE,STATE device 2>/dev/null | \
+    awk -F: '$2 == "wifi" && $3 == "connected" { print $1; exit }')
+  wifi=$(nmcli -t -f DEVICE,TYPE device 2>/dev/null | \
+    awk -F: '$2 == "wifi" { print $1; exit }')
+  if [[ -n $network ]]; then
+    status_line network working "$network connected"
+  elif [[ -n $wifi ]]; then
+    status_line network ready "$wifi detected; choose a network from the top bar"
+  else
+    status_line network check 'no NetworkManager Wi-Fi interface detected'
+  fi
 else
   status_line network unknown 'NetworkManager CLI unavailable'
 fi
@@ -48,5 +63,10 @@ status_line video-decode unsupported 'UVD/VA-API has not passed its hardware gat
 status_line suspend unsupported 'PS4 power transitions are blocked'
 status_line nightlight unsupported 'gamma LUT operation can black out DCE8 HDMI'
 status_line internal-SATA blocked 'automatic probing is disabled after I/O failures'
+
+if [[ -r /var/lib/omarchy-ps4/release-state ]]; then
+  update_policy=$(sed -n 's/^update_policy=//p' /var/lib/omarchy-ps4/release-state | head -n1)
+  status_line updates managed "${update_policy:-release manifest required}"
+fi
 
 printf '\nCollect evidence with: omarchy-ps4-probe --experiment NAME\n'

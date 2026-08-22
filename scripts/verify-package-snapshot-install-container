@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'verify-package-snapshot-install-container: %s\n' "$1" >&2
+  exit 2
+}
+
+snapshot=/run/omarchy-ps4-snapshot
+[[ -r $snapshot/pacman.conf ]] || fail 'offline Pacman configuration is missing'
+[[ -r $snapshot/manifest/packages.requested.txt ]] || fail 'request manifest is missing'
+[[ -r $snapshot/manifest/packages.lock ]] || fail 'package lock is missing'
+[[ -r $snapshot/manifest/forbidden-closure-packages.txt ]] || \
+  fail 'forbidden closure policy is missing'
+
+pacman --config "$snapshot/pacman.conf" -Syy --noconfirm
+mapfile -t requested <"$snapshot/manifest/packages.requested.txt"
+mapfile -t locked_packages < <(cut -f1 "$snapshot/manifest/packages.lock")
+pacman --config "$snapshot/pacman.conf" -S --noconfirm --needed -- "${locked_packages[@]}"
+
+missing=$(pacman -T "${requested[@]}" || true)
+[[ -z $missing ]] || fail "installed profile has unsatisfied requests: $missing"
+
+while IFS=$'\t' read -r package expected_version _arch _repo _file _size _sha256; do
+  installed_version=$(pacman -Q "$package" 2>/dev/null | awk '{ print $2 }')
+  [[ $installed_version == "$expected_version" ]] || \
+    fail "$package is $installed_version after install; expected $expected_version"
+done <"$snapshot/manifest/packages.lock"
+
+while IFS= read -r raw; do
+  forbidden=${raw%%#*}
+  forbidden=${forbidden//[[:space:]]/}
+  [[ -n $forbidden ]] || continue
+  pacman -Q "$forbidden" >/dev/null 2>&1 && fail "forbidden package is installed: $forbidden"
+done <"$snapshot/manifest/forbidden-closure-packages.txt"
+
+if grep -R -q -E '^[[:space:]]*[^#].*NOPASSWD' /etc/sudoers /etc/sudoers.d \
+    2>/dev/null; then
+  fail 'installed snapshot creates a passwordless sudo rule'
+fi
+
+for required_command in lightdm omarchy-menu omarchy-ps4-finalize-owner startxfce4; do
+  command -v "$required_command" >/dev/null 2>&1 || \
+    fail "installed snapshot is missing command: $required_command"
+done
+
+# Omarchy's shell package is rebuilt independently of the Arch archive. A
+# dependency-only check accepts an older ABI-compatible-looking Qt package even
+# when the executable cannot resolve its private Qt symbols. Exercise dynamic
+# relocations so the frozen transaction is a runnable desktop, not merely an
+# installable one.
+quickshell_link_report=$(ldd -r /usr/bin/quickshell 2>&1 || true)
+if grep -Eq 'undefined symbol|not found' <<<"$quickshell_link_report"; then
+  printf '%s\n' "$quickshell_link_report" >&2
+  fail 'quickshell has unresolved runtime libraries or symbols'
+fi
+
+owner='snapshot-owner'
+owner_home=/home/$owner
+useradd -m "$owner"
+runuser -u "$owner" -- env \
+  HOME="$owner_home" \
+  USER="$owner" \
+  LOGNAME="$owner" \
+  OMARCHY_PATH=/usr/share/omarchy \
+  /usr/bin/omarchy-ps4-finalize-owner
+[[ $(<"$owner_home/.local/state/omarchy/current/theme.name") == tokyo-night ]] || \
+  fail 'offline owner finalization did not select Tokyo Night'
+[[ -L $owner_home/.local/state/omarchy/current/background ]] || \
+  fail 'offline owner finalization did not select a background'
+[[ -s $owner_home/.config/gtk-3.0/bookmarks ]] || \
+  fail 'offline owner finalization did not create bookmarks'
+[[ -s $owner_home/.local/state/omarchy/done/ps4-finalize-owner ]] || \
+  fail 'offline owner finalization marker is missing'
+
+printf '%s\n' 'Network-disabled full package installation passed.'

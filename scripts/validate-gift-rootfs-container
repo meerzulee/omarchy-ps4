@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+kernel_release=${1:?kernel release is required}
+
+fail() {
+  printf 'validate-gift-rootfs-container: %s\n' "$1" >&2
+  exit 2
+}
+
+for command_name in \
+  lightdm omarchy-menu omarchy-ps4-finalize-owner \
+  omarchy-ps4-grow-root omarchy-ps4-provision-owner \
+  nmcli startxfce4 uwsm wpa_supplicant; do
+  command -v "$command_name" >/dev/null 2>&1 || \
+    fail "required command is missing: $command_name"
+done
+
+for required_package in \
+  linux-firmware-mediatek networkmanager wireless-regdb wpa_supplicant; do
+  pacman -Q "$required_package" >/dev/null 2>&1 || \
+    fail "wireless package is missing: $required_package"
+done
+
+
+quickshell_link_report=$(ldd -r /usr/bin/quickshell 2>&1 || true)
+if grep -Eq 'undefined symbol|not found' <<<"$quickshell_link_report"; then
+  printf '%s\n' "$quickshell_link_report" >&2
+  fail 'quickshell has unresolved runtime libraries or symbols'
+fi
+
+forbidden_policy=/usr/share/omarchy-ps4/release/forbidden-closure-packages.txt
+[[ -r $forbidden_policy ]] || fail 'forbidden closure policy is missing'
+while IFS= read -r raw; do
+  forbidden=${raw%%#*}
+  forbidden=${forbidden//[[:space:]]/}
+  [[ -n $forbidden ]] || continue
+  pacman -Q "$forbidden" >/dev/null 2>&1 && \
+    fail "forbidden package is installed: $forbidden"
+done <"$forbidden_policy"
+
+mapfile -t human_users < <(awk -F: '$3 >= 1000 && $3 < 65534 { print $1 }' /etc/passwd)
+(( ${#human_users[@]} == 0 )) || \
+  fail "release image contains a human account: ${human_users[*]}"
+passwd --status root | grep -q ' L ' || fail 'root account is not locked'
+! grep -R -q -E '^[[:space:]]*[^#].*NOPASSWD' /etc/sudoers /etc/sudoers.d \
+  2>/dev/null || fail 'release image contains passwordless sudo'
+
+[[ -f /var/lib/omarchy-ps4/provisioning/pending ]] || \
+  fail 'deferred-owner marker is missing'
+[[ -d /usr/lib/modules/$kernel_release ]] || fail 'matching kernel modules are missing'
+[[ -r /usr/lib/modules/$kernel_release/modules.dep ]] || fail 'modules.dep is missing'
+[[ -r /usr/local/share/wayland-sessions/omarchy.desktop ]] || \
+  fail 'Omarchy session is missing'
+grep -Fq 'Exec=env AMD_DEBUG=notiling OMARCHY_PATH=/usr/share/omarchy uwsm start' \
+  /usr/local/share/wayland-sessions/omarchy.desktop || \
+  fail 'Omarchy session does not pin the Mesa PS4 compatibility environment'
+[[ -r /etc/lightdm/lightdm-gtk-greeter.conf.d/20-omarchy-ps4.conf ]] || \
+  fail 'Omarchy LightDM appearance is missing'
+[[ $(systemctl is-enabled NetworkManager.service) == enabled ]] || \
+  fail 'NetworkManager is not enabled'
+[[ $(systemctl is-enabled systemd-timesyncd.service) == enabled ]] || \
+  fail 'network time synchronization is not enabled'
+grep -Fxq 'AMD_DEBUG=notiling' /etc/environment || \
+  fail 'Mesa PS4 compatibility environment is missing from PAM sessions'
+grep -Fxq 'OMARCHY_PATH=/usr/share/omarchy' /etc/environment || \
+  fail 'Omarchy runtime path is missing from PAM sessions'
+[[ $(systemctl is-enabled lightdm.service) == enabled ]] || \
+  fail 'LightDM is not enabled'
+[[ $(systemctl is-enabled omarchy-ps4-grow-root.service) == enabled ]] || \
+  fail 'automatic root growth is not enabled'
+[[ $(systemctl is-enabled omarchy-ps4-provision-owner.service) == enabled ]] || \
+  fail 'first-owner setup is not enabled'
+[[ $(systemctl get-default) == graphical.target ]] || \
+  fail 'graphical target is not the default'
+[[ $(systemctl is-enabled sshd.service 2>/dev/null || true) != enabled ]] || \
+  fail 'SSH must not be enabled in the owner-ready image'
+grep -Fxq 'Requires=omarchy-ps4-provision-owner.service' \
+  /usr/lib/systemd/system/lightdm.service.d/20-omarchy-ps4-owner-gate.conf || \
+  fail 'LightDM is not gated on successful owner setup'
+
+grep -Fxq 'LABEL=OMARCHY-PS4  /  ext4  rw,relatime  0  1' /etc/fstab || \
+  fail 'root filesystem contract is missing from fstab'
+grep -Fxq 'user-session=omarchy' \
+  /etc/lightdm/lightdm.conf.d/20-omarchy-ps4.conf || \
+  fail 'Omarchy is not the default desktop session'
+! grep -Eq '^[[:space:]]*autologin-user[[:space:]]*=' \
+  /etc/lightdm/lightdm.conf.d/20-omarchy-ps4.conf || \
+  fail 'release image contains LightDM autologin'
+! grep -Eq '^[[:space:]]*Server[[:space:]]*=' /etc/pacman.conf || \
+  fail 'release image contains an unmanaged package server'
+! find /boot -maxdepth 1 -type f -name 'vmlinuz*' -print -quit | grep -q . || \
+  fail 'generic kernel entered the USB root'
+
+printf '%s\n' 'Gift root filesystem policy passed.'

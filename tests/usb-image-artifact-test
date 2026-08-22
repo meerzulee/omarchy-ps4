@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+image_path=${1:-}
+expected_provisioning=${2:-4.0.0-14}
+
+fail() {
+  printf 'usb-image-artifact-test: %s\n' "$1" >&2
+  exit 1
+}
+
+[[ -n $image_path ]] || fail 'usage: usb-image-artifact-test IMAGE.img.xz [PROVISIONING_VERSION]'
+image_path=$(cd -- "$(dirname -- "$image_path")" && pwd)/$(basename -- "$image_path")
+manifest_path=$image_path.manifest
+[[ -f $image_path ]] || fail "image not found: $image_path"
+[[ -f $manifest_path ]] || fail "manifest not found: $manifest_path"
+command -v orb >/dev/null 2>&1 || fail 'OrbStack CLI is required'
+[[ $(orb status) == Running ]] || fail 'OrbStack must be running'
+
+manifest_value() {
+  local key=$1
+  sed -n "s/^${key}=//p" "$manifest_path"
+}
+
+[[ $(manifest_value layout) == whole-device-filesystem ]] || fail 'manifest layout is not whole-device-filesystem'
+[[ $(manifest_value filesystem) == ext4 ]] || fail 'manifest filesystem is not ext4'
+[[ $(manifest_value label) == OMARCHY-PS4 ]] || fail 'manifest label is not OMARCHY-PS4'
+[[ $(manifest_value contains_boot_files) == 0 ]] || fail 'manifest says boot files are present'
+[[ $(manifest_value auto_grow) == 1 ]] || fail 'manifest does not enable automatic growth'
+
+compressed_size=$(stat -f %z "$image_path" 2>/dev/null || stat -c %s "$image_path")
+[[ $compressed_size == "$(manifest_value compressed_size)" ]] || fail 'compressed size differs from manifest'
+compressed_sha256=$(shasum -a 256 "$image_path" | awk '{print $1}')
+[[ $compressed_sha256 == "$(manifest_value compressed_sha256)" ]] || fail 'compressed digest differs from manifest'
+
+work_dir=$(mktemp -d "$(dirname -- "$image_path")/.omarchy-ps4-image-test.XXXXXX")
+raw_image=$work_dir/omarchy-ps4.img
+cleanup() {
+  [[ ! -e $raw_image ]] || unlink -- "$raw_image"
+  rmdir "$work_dir" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+xz -dc "$image_path" >"$raw_image"
+raw_size=$(stat -f %z "$raw_image" 2>/dev/null || stat -c %s "$raw_image")
+[[ $raw_size == "$(manifest_value uncompressed_size)" ]] || fail 'uncompressed size differs from manifest'
+raw_sha256=$(shasum -a 256 "$raw_image" | awk '{print $1}')
+[[ $raw_sha256 == "$(manifest_value uncompressed_sha256)" ]] || fail 'uncompressed digest differs from manifest'
+
+orb -m ubuntu -u root bash -s -- "$raw_image" "$expected_provisioning" <<'INSPECT'
+set -euo pipefail
+trap 'printf "usb-image-artifact-test: exact image check failed at inspector line %s\n" "$LINENO" >&2' ERR
+
+raw_image=$1
+expected_provisioning=$2
+mount_dir=$(mktemp -d /tmp/omarchy-ps4-exact-image.XXXXXX)
+mounted=false
+cleanup() {
+  if [[ $mounted == true ]]; then
+    umount "$mount_dir" 2>/dev/null || true
+  fi
+  rmdir "$mount_dir" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+[[ $(blkid -s LABEL -o value "$raw_image") == OMARCHY-PS4 ]]
+[[ $(blkid -s TYPE -o value "$raw_image") == ext4 ]]
+e2fsck_status=0
+e2fsck -fn "$raw_image" >/tmp/omarchy-ps4-e2fsck.out 2>&1 || e2fsck_status=$?
+if (( e2fsck_status >= 4 )); then
+  cat /tmp/omarchy-ps4-e2fsck.out >&2
+  exit "$e2fsck_status"
+fi
+
+mount -o loop,ro "$raw_image" "$mount_dir"
+mounted=true
+
+mapfile -t human_users < <(awk -F: '$3 >= 1000 && $3 < 65534 { print $1 }' "$mount_dir/etc/passwd")
+(( ${#human_users[@]} == 0 ))
+grep -Eq '^root:(!|\*)' "$mount_dir/etc/shadow"
+[[ -f $mount_dir/var/lib/omarchy-ps4/provisioning/pending ]]
+
+provisioning_desc=$mount_dir/var/lib/pacman/local/omarchy-ps4-provisioning-$expected_provisioning/desc
+[[ -f $provisioning_desc ]]
+awk -v expected="$expected_provisioning" '
+  $0 == "%VERSION%" { getline; found = ($0 == expected) }
+  END { exit !found }
+' "$provisioning_desc"
+
+owner_service=$mount_dir/usr/lib/systemd/system/omarchy-ps4-provision-owner.service
+grep -Fxq 'Wants=omarchy-ps4-grow-root.service' "$owner_service"
+grep -Eq '^After=.*omarchy-ps4-grow-root\.service([[:space:]]|$)' "$owner_service"
+grep -Fxq 'Environment=OMARCHY_PS4_OWNER_CONSOLE=1' "$owner_service"
+grep -Fxq 'TimeoutStartSec=infinity' "$owner_service"
+grep -Eq '^Before=.*console-getty\.service([[:space:]]|$)' "$owner_service"
+grep -Eq '^Conflicts=.*console-getty\.service([[:space:]]|$)' "$owner_service"
+grep -Fq 'OWNER-SETUP' "$mount_dir/usr/bin/omarchy-ps4-provision-owner"
+grep -Fq 'uart_event prompt-ready' "$mount_dir/usr/bin/omarchy-ps4-provision-owner"
+grep -Fq '25-omarchy-ps4-owner-autologin.conf' \
+  "$mount_dir/usr/bin/omarchy-ps4-provision-owner"
+grep -Fq 'configure_desktop_autologin' \
+  "$mount_dir/usr/bin/omarchy-ps4-provision-owner"
+grep -Fq 'groupadd --system autologin' \
+  "$mount_dir/usr/bin/omarchy-ps4-provision-owner"
+grep -Fq 'groups=(wheel autologin)' \
+  "$mount_dir/usr/bin/omarchy-ps4-provision-owner"
+grep -Fxq 'Requires=omarchy-ps4-provision-owner.service' \
+  "$mount_dir/usr/lib/systemd/system/lightdm.service.d/20-omarchy-ps4-owner-gate.conf"
+
+[[ -L $mount_dir/etc/systemd/system/multi-user.target.wants/omarchy-ps4-provision-owner.service ]]
+[[ -L $mount_dir/etc/systemd/system/multi-user.target.wants/omarchy-ps4-grow-root.service ]]
+[[ -L $mount_dir/etc/systemd/system/sysinit.target.wants/systemd-timesyncd.service \
+  || -L $mount_dir/etc/systemd/system/multi-user.target.wants/systemd-timesyncd.service ]]
+[[ ! -e $mount_dir/etc/systemd/system/multi-user.target.wants/sshd.service ]]
+grep -Fxq 'layout=whole-device-filesystem' "$mount_dir/var/lib/omarchy-ps4/image-layout"
+grep -Fxq 'auto_grow=1' "$mount_dir/var/lib/omarchy-ps4/image-layout"
+[[ ! -e $mount_dir/var/lib/omarchy-ps4/storage-expanded ]]
+grep -Fxq 'AMD_DEBUG=notiling' "$mount_dir/etc/environment"
+grep -Fxq 'OMARCHY_PATH=/usr/share/omarchy' "$mount_dir/etc/environment"
+grep -Fq 'Exec=env AMD_DEBUG=notiling OMARCHY_PATH=/usr/share/omarchy uwsm start' \
+  "$mount_dir/usr/local/share/wayland-sessions/omarchy.desktop"
+grep -Fq 'background=/usr/share/omarchy/themes/tokyo-night/backgrounds/2-swirl-buck.jpg' \
+  "$mount_dir/etc/lightdm/lightdm-gtk-greeter.conf.d/20-omarchy-ps4.conf"
+grep -Fxq 'update_policy=fpkg-release-only' \
+  "$mount_dir/var/lib/omarchy-ps4/release-state"
+! grep -Eq '^[[:space:]]*Server[[:space:]]*=' "$mount_dir/etc/pacman.conf"
+for wireless_package in \
+  linux-firmware-mediatek networkmanager wireless-regdb wpa_supplicant; do
+  compgen -G "$mount_dir/var/lib/pacman/local/$wireless_package-*" >/dev/null
+done
+grep -Fq 'mode = "1920x1080@60"' \
+  "$mount_dir/etc/skel/.config/hypr/monitors.lua"
+grep -Fq 'scale = 1' "$mount_dir/etc/skel/.config/hypr/monitors.lua"
+grep -A3 'animations = {' \
+  "$mount_dir/etc/skel/.config/hypr/looknfeel.lua" | grep -Fq 'enabled = false'
+
+printf 'filesystem=ext4 label=OMARCHY-PS4 human_users=0 provisioning=%s\n' "$expected_provisioning"
+INSPECT
+
+printf '%s\n' 'Exact compressed USB image inspection passed.'

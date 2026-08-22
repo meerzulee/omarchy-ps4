@@ -21,17 +21,19 @@ debugging loop.
   implementation help. They do not promote support claims or control hardware
   without a separately recorded experiment.
 
-## Mandatory action handshake
+## Meaningful experiment handshake
 
-Before any payload send, boot, power cycle, device reconnect, PS4-side setting
-change, or driver/runtime experiment:
+Use one bounded capture for a coherent experiment, not one capture per click,
+dialog, reconnect, or cleanup step. A capture is mandatory for payload sends,
+Linux boots, power-cycle acceptance, boot/storage writes, and driver/runtime
+experiments. Routine navigation and already-unmounted media movement can rely
+on the continuous logger unless they are the question being tested.
 
 1. The primary LLM creates the next identifier from
-   `experiments/SESSIONS.md`, for example `EXP-20260810-001`. If an experiment
-   has multiple predeclared operator actions, label them `-A1`, `-A2`, and so
-   on; each action gets its own bounded UART session and review.
-2. The question, only changed variable, expected evidence, timeout, and
-   rollback are written before action.
+   `experiments/SESSIONS.md`, for example `EXP-20260810-001`. Action suffixes
+   are reserved for independent variables, not normal steps in one workflow.
+2. State the objective, diagnostic variable, expected evidence, timeout,
+   rollback, and the short operator sequence before action.
 3. Verify the continuous logger:
 
    ```sh
@@ -45,10 +47,11 @@ change, or driver/runtime experiment:
    ./uart session start "EXP-20260810-001 Linux 6.18 XFCE cold boot 1"
    ```
 
-5. Only after the tool confirms the marker is active does the primary LLM say
-   **ready for action** and give the operator one exact action.
-6. The operator performs it and replies with **action complete** plus observed
-   HDMI, LED, fan, input, network, sound, and timing state.
+5. Only after the marker is active does the primary LLM give the operator the
+   complete short sequence and explicit stop conditions.
+6. The operator performs the sequence and reports the observations relevant to
+   the experiment. The capture remains open through related setup, action,
+   observation, and safe cleanup.
 7. Stop and extract:
 
    ```sh
@@ -57,8 +60,8 @@ change, or driver/runtime experiment:
 
 8. Read the generated `sessions/*.md` first. Open its sibling raw `.raw` when
    the compact context omits lines, contains corruption, or needs exact timing.
-9. Correlate UART with the operator report. Update the session ledger with a
-   result, evidence, rollback state, conclusion, and exactly one next action.
+9. Correlate UART with the operator report. Update the session ledger once with
+   the result, relevant evidence, rollback state, and conclusion.
 
 The interactive equivalent is:
 
@@ -109,10 +112,10 @@ only when no hardware action occurred. The abort is indexed and its bounded
 raw, event, and context artifacts are still preserved. Also record the reason
 in the curated ledger.
 
-Local source review, builds, documentation, and attaching media to the Mac for
-read-only inspection do not require a PS4 UART marker. A PS4-side reconnect,
-payload, boot, power cycle, device insertion, or configuration change always
-does.
+Local source review, builds, documentation, VM work, and attaching unmounted
+media to the Mac for read-only inspection do not require a PS4 UART marker.
+Do not start a bounded session when UART cannot answer a meaningful question;
+continuous capture and the operator report are sufficient for routine steps.
 
 ## Repository boundaries
 

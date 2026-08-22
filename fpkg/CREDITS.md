@@ -7,7 +7,12 @@ records attribution and does not imply endorsement of this distribution.
 
 - Omarchy by David Heinemeier Hansson and contributors
 - Source: https://github.com/basecamp/omarchy
+- Pinned Quattro 4.0.0 commit:
+  `f0020448ca87329199de7cb12f2015ebc4a3e5e7`
 - License: MIT
+- The private UI prototype uses the Tokyo Night, Last Horizon, Lupine and
+  Solitude palettes. Selected wallpaper hashes and the public-release rights
+  caveat are recorded in `ui-prototype/WALLPAPER-SOURCES.md`.
 
 ## PS4 Linux Loader
 

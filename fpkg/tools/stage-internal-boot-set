@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+fpkg_dir=$(cd -- "$script_dir/.." && pwd)
+repo_dir=$(cd -- "$fpkg_dir/.." && pwd)
+workspace_dir=$(cd -- "$repo_dir/.." && pwd)
+
+kernel_source=$workspace_dir/linux-ps4-kernel/output/6.18-baikal/bzImage
+initramfs_source=$repo_dir/output/xfce-baseline/initramfs.cpio.gz
+bootargs_source=$fpkg_dir/bootargs/6.18-baikal-internal-root.txt
+manifest_source=$fpkg_dir/manifest/release-manifest.example.json
+stage_dir=$fpkg_dir/vendor/internal-boot
+inventory=$fpkg_dir/vendor/provenance/internal-boot-set.json
+
+verify() {
+  local source_file=$1 expected_size=$2 expected_sha256=$3 label=$4
+  [[ -f $source_file ]] || {
+    printf 'internal-boot-set: missing %s: %s\n' "$label" "$source_file" >&2
+    exit 1
+  }
+  local actual_size actual_sha256
+  actual_size=$(stat -f %z "$source_file" 2>/dev/null || stat -c %s "$source_file")
+  actual_sha256=$(shasum -a 256 "$source_file" | awk '{print $1}')
+  [[ $actual_size == "$expected_size" ]] || {
+    printf 'internal-boot-set: %s size mismatch: expected=%s actual=%s\n' \
+      "$label" "$expected_size" "$actual_size" >&2
+    exit 1
+  }
+  [[ $actual_sha256 == "$expected_sha256" ]] || {
+    printf 'internal-boot-set: %s digest mismatch\nexpected: %s\nactual:   %s\n' \
+      "$label" "$expected_sha256" "$actual_sha256" >&2
+    exit 1
+  }
+}
+
+verify "$kernel_source" 11060224 \
+  b7c8b9d67c600ee08b2321f7f4fac08c506791b0ab9c3f3d01598a90471a9de5 kernel
+verify "$initramfs_source" 1686508 \
+  824530e22392376d5fc27994a9ccff97f0442b7a41681155f46e183f892365ae initramfs
+verify "$bootargs_source" 502 \
+  8064d91f286d4275dac08e2fae29e43fbf745ea7be15f797edbbd0e5036a4930 bootargs
+"$fpkg_dir/tools/validate-manifest" "$manifest_source" >/dev/null
+
+rm -rf "$stage_dir"
+mkdir -p "$stage_dir" "$(dirname -- "$inventory")"
+install -m 0644 "$kernel_source" "$stage_dir/bzImage"
+install -m 0644 "$initramfs_source" "$stage_dir/initramfs.cpio.gz"
+install -m 0644 "$bootargs_source" "$stage_dir/bootargs.txt"
+printf '1024\n' >"$stage_dir/vram.txt"
+install -m 0644 "$manifest_source" "$stage_dir/release.json"
+
+verify "$stage_dir/vram.txt" 5 \
+  4f71bb761ace37c88826cd8cc1c948e1cf5b5d0cd153dc651a6efdb3dfb9f2b1 vram
+
+printf '%s\n' \
+  '{' \
+  '  "schema": 1,' \
+  '  "profile": "private-kernel-manager",' \
+  '  "release_eligible": false,' \
+  '  "reason": "loader license and USB image digests are unresolved",' \
+  '  "destination": "/data/linux/boot",' \
+  '  "release": "omarchy-ps4-4.0.0-baikal-b1-beta1",' \
+  '  "vram_mb": 1024,' \
+  '  "contents": {' \
+  '    "kernel": {"size": 11060224, "sha256": "b7c8b9d67c600ee08b2321f7f4fac08c506791b0ab9c3f3d01598a90471a9de5"},' \
+  '    "initramfs": {"size": 1686508, "sha256": "824530e22392376d5fc27994a9ccff97f0442b7a41681155f46e183f892365ae"},' \
+  '    "bootargs": {"size": 502, "sha256": "8064d91f286d4275dac08e2fae29e43fbf745ea7be15f797edbbd0e5036a4930"},' \
+  '    "vram": {"size": 5, "sha256": "4f71bb761ace37c88826cd8cc1c948e1cf5b5d0cd153dc651a6efdb3dfb9f2b1"}' \
+  '  }' \
+  '}' >"$inventory"
+
+printf 'internal-boot-set: staged private inputs in %s\n' "$stage_dir"
+printf '%s\n' 'internal-boot-set: release eligible: no'

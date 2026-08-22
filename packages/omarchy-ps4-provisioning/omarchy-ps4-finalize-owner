@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+
+# Offline, PS4-safe subset of upstream Omarchy user finalization. This runs
+# before the first graphical login and deliberately performs no package,
+# network, boot, storage-probe, hardware-service, or Mise installation action.
+
+set -euo pipefail
+
+fail() {
+  printf 'omarchy-ps4-finalize-owner: %s\n' "$1" >&2
+  exit 1
+}
+
+(( EUID != 0 )) || fail 'must run as the owner, not root'
+
+omarchy_path=${OMARCHY_PATH:-/usr/share/omarchy}
+state_dir=$HOME/.local/state/omarchy
+done_dir=$state_dir/done
+marker=$done_dir/ps4-finalize-owner
+
+[[ -d $omarchy_path/themes/tokyo-night ]] || fail 'Tokyo Night theme is missing'
+[[ -x $omarchy_path/bin/omarchy-theme-set ]] || fail 'theme command is missing'
+
+export OMARCHY_PATH=$omarchy_path
+export PATH="$omarchy_path/bin:$PATH"
+
+mkdir -p \
+  "$HOME/Downloads" \
+  "$HOME/Pictures" \
+  "$HOME/Projects" \
+  "$HOME/Videos" \
+  "$HOME/Work/tries" \
+  "$HOME/.agents/skills" \
+  "$HOME/.claude/skills" \
+  "$HOME/.codex/skills" \
+  "$HOME/.pi/agent/skills" \
+  "$HOME/.config/gtk-3.0" \
+  "$HOME/.local/share/applications" \
+  "$done_dir"
+
+for skill in "$omarchy_path"/default/agents/skills/*/; do
+  [[ -d $skill ]] || continue
+  skill=${skill%/}
+  name=${skill##*/}
+  ln -sfn "$skill" "$HOME/.agents/skills/$name"
+  ln -sfn "$skill" "$HOME/.claude/skills/$name"
+  ln -sfn "$skill" "$HOME/.codex/skills/$name"
+  ln -sfn "$skill" "$HOME/.pi/agent/skills/$name"
+done
+
+if command -v xdg-user-dirs-update >/dev/null 2>&1; then
+  xdg-user-dirs-update --set TEMPLATES "$HOME"
+  xdg-user-dirs-update --set PUBLICSHARE "$HOME"
+  xdg-user-dirs-update --set DESKTOP "$HOME"
+  rmdir "$HOME/Templates" "$HOME/Public" "$HOME/Desktop" 2>/dev/null || true
+fi
+
+touch "$HOME/.config/gtk-3.0/bookmarks"
+for dir in Downloads Projects Pictures Videos; do
+  bookmark="file://$HOME/$dir $dir"
+  grep -qxF "$bookmark" "$HOME/.config/gtk-3.0/bookmarks" || \
+    printf '%s\n' "$bookmark" >>"$HOME/.config/gtk-3.0/bookmarks"
+done
+
+if compgen -G "$omarchy_path/applications/*.desktop" >/dev/null; then
+  cp "$omarchy_path"/applications/*.desktop "$HOME/.local/share/applications/"
+  update-desktop-database "$HOME/.local/share/applications"
+fi
+
+xdg-mime default chromium.desktop x-scheme-handler/http
+xdg-mime default chromium.desktop x-scheme-handler/https
+xdg-mime default chromium.desktop text/html
+omarchy-ps4-chromium-software-rendering --enable
+
+keyring_dir=$HOME/.local/share/keyrings
+keyring_file=$keyring_dir/Default_keyring.keyring
+install -d -m 0700 "$keyring_dir"
+if [[ ! -f $keyring_file ]]; then
+  printf '%s\n' \
+    '[keyring]' \
+    'display-name=Default keyring' \
+    "ctime=$(date +%s)" \
+    'mtime=0' \
+    'lock-on-idle=false' \
+    'lock-after=false' >"$keyring_file"
+fi
+chmod 0600 "$keyring_file"
+if [[ ! -f $keyring_dir/default ]]; then
+  printf '%s\n' 'Default_keyring' >"$keyring_dir/default"
+fi
+chmod 0644 "$keyring_dir/default"
+
+OMARCHY_THEME_HEADLESS=1 "$omarchy_path/bin/omarchy-theme-set" 'Tokyo Night'
+[[ -s $state_dir/current/theme.name ]] || fail 'theme state was not created'
+[[ -L $state_dir/current/background ]] || fail 'background state was not created'
+
+mkdir -p "$state_dir/migrations"
+for migration in "$omarchy_path"/migrations/*.sh; do
+  [[ -f $migration ]] && touch "$state_dir/migrations/${migration##*/}"
+done
+
+printf '%s\n' \
+  'schema=1' \
+  'release=4.0.0' \
+  'mode=offline-ps4-owner-finalization' >"$marker"
+
+printf '%s\n' 'Omarchy PS4 owner finalization complete.'

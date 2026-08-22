@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+snapshot=${1:?snapshot path is required}
+modules_archive=${2:?kernel module archive is required}
+kernel_release=${3:?kernel release is required}
+archive_output=${4:?archive output path is required}
+release=4.0.0
+upstream_commit=f0020448ca87329199de7cb12f2015ebc4a3e5e7
+
+fail() {
+  printf 'configure-gift-rootfs-container: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ -r $snapshot/pacman.conf ]] || fail 'offline Pacman configuration is missing'
+[[ -r $snapshot/manifest/packages.lock ]] || fail 'package lock is missing'
+[[ -r $modules_archive ]] || fail 'kernel module archive is missing'
+[[ $kernel_release =~ ^[0-9] ]] || fail 'kernel release is invalid'
+
+pacman --config "$snapshot/pacman.conf" -Syy --noconfirm
+mapfile -t locked_packages < <(cut -f1 "$snapshot/manifest/packages.lock")
+pacman --config "$snapshot/pacman.conf" \
+  -S --noconfirm --needed -- "${locked_packages[@]}"
+
+while IFS=$'\t' read -r package expected_version _arch _repo _file _size _sha256; do
+  installed_version=$(pacman -Q "$package" 2>/dev/null | awk '{ print $2 }')
+  [[ $installed_version == "$expected_version" ]] || \
+    fail "$package is $installed_version; expected $expected_version"
+done <"$snapshot/manifest/packages.lock"
+
+cp -a /workspace/rootfs/xfce/overlay/. /
+module_staging=/run/omarchy-ps4-kernel-modules
+install -d -m 0755 "$module_staging"
+tar --zstd --extract --file "$modules_archive" --directory="$module_staging"
+module_source=$module_staging/lib/modules/$kernel_release
+[[ -d $module_source ]] || \
+  fail "module archive does not contain lib/modules/$kernel_release"
+install -d -m 0755 "/usr/lib/modules/$kernel_release"
+cp -a "$module_source/." "/usr/lib/modules/$kernel_release/"
+depmod -a "$kernel_release"
+
+for group in audio video input storage network; do
+  groupadd --system --force "$group"
+done
+passwd --lock root
+
+ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+locale-gen
+: >/etc/machine-id
+rm -f /var/lib/dbus/machine-id
+
+# PAM/LightDM is the earliest common environment boundary for the graphical
+# session. Keep the per-user UWSM file too, but do not depend on UWSM finding a
+# distribution data-dir file before Mesa initializes.
+sed -i \
+  -e '/^[[:space:]]*AMD_DEBUG[[:space:]]*=/d' \
+  -e '/^[[:space:]]*OMARCHY_PATH[[:space:]]*=/d' \
+  /etc/environment
+printf '%s\n' \
+  'AMD_DEBUG=notiling' \
+  'OMARCHY_PATH=/usr/share/omarchy' \
+  >>/etc/environment
+
+lightdm_config=/etc/lightdm/lightdm.conf.d/20-omarchy-ps4.conf
+sed -i \
+  -e '/^[[:space:]]*autologin-user[[:space:]]*=/d' \
+  -e '/^[[:space:]]*autologin-user-timeout[[:space:]]*=/d' \
+  -e '/^[[:space:]]*autologin-session[[:space:]]*=/d' \
+  -e 's/^[[:space:]]*user-session[[:space:]]*=.*/user-session=omarchy/' \
+  "$lightdm_config"
+grep -q '^sessions-directory=' "$lightdm_config" || \
+  printf '%s\n' \
+    'sessions-directory=/usr/local/share/wayland-sessions:/usr/share/wayland-sessions:/usr/share/xsessions' \
+    >>"$lightdm_config"
+
+install -d -m 0755 /etc/ssh/sshd_config.d
+printf '%s\n' \
+  'PasswordAuthentication no' \
+  'KbdInteractiveAuthentication no' \
+  'PermitRootLogin no' \
+  > /etc/ssh/sshd_config.d/20-omarchy-ps4.conf
+rm -f /etc/ssh/ssh_host_*
+systemctl disable sshd.service sshd.socket 2>/dev/null || true
+
+systemctl enable NetworkManager.service
+systemctl enable systemd-timesyncd.service
+systemctl enable lightdm.service
+systemctl enable omarchy-ps4-grow-root.service
+systemctl enable omarchy-ps4-provision-owner.service
+systemctl set-default graphical.target
+
+state_dir=/var/lib/omarchy-ps4/provisioning
+install -d -m 0700 "$state_dir"
+touch "$state_dir/pending"
+chmod 0600 "$state_dir/pending"
+rm -f "$state_dir/setup-user" /var/lib/omarchy-ps4/storage-expanded
+
+install -d -m 0755 /usr/share/omarchy-ps4/release
+cp "$snapshot/RELEASE.env" /usr/share/omarchy-ps4/release/package-snapshot.env
+cp "$snapshot/manifest/packages.lock" /usr/share/omarchy-ps4/release/packages.lock
+cp "$snapshot/manifest/packages.requested.txt" \
+  /usr/share/omarchy-ps4/release/packages.requested.txt
+cp "$snapshot/manifest/forbidden-closure-packages.txt" \
+  /usr/share/omarchy-ps4/release/forbidden-closure-packages.txt
+printf '%s\n' \
+  'schema=1' \
+  'mode=deferred-owner' \
+  "release=$release" \
+  "upstream_commit=$upstream_commit" \
+  "kernel_release=$kernel_release" \
+  'root_layout=whole-device-filesystem' \
+  'filesystem=ext4' \
+  'label=OMARCHY-PS4' \
+  'update_policy=fpkg-release-only' \
+  > /var/lib/omarchy-ps4/release-state
+
+# The shipped image is an immutable release snapshot. Normal repository
+# servers are deliberately absent; a later signed release workflow replaces
+# the complete package set rather than silently mixing rolling repositories.
+printf '%s\n' \
+  '[options]' \
+  'Architecture = x86_64' \
+  'CheckSpace' \
+  'SigLevel = Required DatabaseOptional' \
+  'LocalFileSigLevel = Required' \
+  > /etc/pacman.conf
+rm -rf /var/cache/pacman/pkg/* /var/lib/pacman/sync/*
+
+/workspace/scripts/validate-gift-rootfs-container "$kernel_release"
+
+tar \
+  --create \
+  --file "$archive_output" \
+  --zstd \
+  --one-file-system \
+  --numeric-owner \
+  --acls \
+  --xattrs \
+  --xattrs-include='*' \
+  --xattrs-exclude='com.apple.*' \
+  --exclude='./output' \
+  --exclude='./workspace' \
+  --exclude='./proc' \
+  --exclude='./sys' \
+  --exclude='./dev' \
+  --exclude='./run' \
+  --directory=/ \
+  .
+
+printf '%s\n' 'Gift root filesystem archive created.'

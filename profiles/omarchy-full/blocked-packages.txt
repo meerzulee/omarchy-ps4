@@ -1,12 +1,20 @@
 # Packages from upstream omarchy-base.packages that must not enter the PS4
 # root. Each exclusion has a hardware or boot-path reason documented here.
+# Restoration requirements are tracked in docs/BLOCKED-PACKAGE-RESTORATION.md.
+asdcontrol # Apple-display brightness helper installs a PS4-irrelevant passwordless sudo rule.
 bolt # Thunderbolt management has no PS4 device model.
 ddcutil # Generic DDC probing is unsafe behind the Aeolia/MN864729 bridge.
+evince # Depends on GVfs; the document viewer must wait for a storage-safe replacement.
 gnome-disk-utility # Pulls storage discovery into the known-failing internal SATA path.
 gvfs-mtp # Pulls GVfs and UDisks into D-Bus activation; portable devices wait for a storage gate.
+gvfs-nfs # Depends on GVfs and therefore UDisks; network mounts wait for a storage-safe gate.
+gvfs-smb # Depends on GVfs and therefore UDisks; network shares wait for a storage-safe gate.
+kdenlive # Its Solid dependency pulls UDisks into the transaction closure.
 kernel-modules-hook # Assumes stock Arch kernel and mkinitcpio lifecycle.
 nautilus # Depends on GVfs/UDisks; PS4 file-manager actions are routed to Thunar.
 nautilus-python # Nautilus extensions are inactive while Nautilus is excluded.
 plymouth # Replaced by the PS4 initramfs framebuffer splash; Plymouth remains outside this custom boot chain.
 power-profiles-daemon # The PS4 power and thermal model is not a PC profile backend.
+sddm # LightDM/XFCE remains the accepted recovery display-manager path.
+sushi # Depends on Evince and GVfs; previews wait for a storage-safe implementation.
 udiskie # A78 proved that UDisks probing triggers internal-disk I/O errors.

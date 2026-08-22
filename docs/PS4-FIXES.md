@@ -22,6 +22,7 @@ remain in [`docs/COMPATIBILITY.md`](COMPATIBILITY.md).
 | Degraded | Boot the PS4-patched 6.18.44 Baikal kernel from [`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4); never install or update it as stock Arch `linux`. | FPKG boot bundle and signed release manifest |
 | Accepted | Resolve the Linux root as `LABEL=OMARCHY-PS4`; never persist `/dev/sdX`. | `rootfs/initramfs/init`, `rootfs/xfce/overlay/etc/fstab`, installer preflight |
 | Accepted | Use Baikal early UART at `0xC890E000`, keep UART logging, apply `pci=nocrs intremap=off`, force the proven `HDMI-A-1:1920x1080@60D` mode, and carry the pinned EDID firmware. | `fpkg/bootargs/` |
+| Candidate | Route normal kernel and systemd diagnostics to the retained Baikal UART while suppressing HDMI console chatter with `console=null`; keep the separate debug profile visible on HDMI. | normal `fpkg/bootargs/` profiles |
 | Candidate | Disable only internal ATA target `1.00` with `libata.force=1.00:disable` in the product profile. The debug profile deliberately leaves SATA unchanged. | `fpkg/bootargs/6.18-baikal-product-splash.txt` |
 | Design | Install only to a preformatted external USB root and refuse automatic formatting or internal-disk targets. | `scripts/prepare-usb-linux`, `rootfs/initramfs/install-rootfs` |
 | Candidate | Render the pinned native Omarchy logo and Tokyo Night colors directly to the PS4 framebuffer; keep repainting through initramfs so mode changes cannot permanently overwrite it, while early logs continue over UART. Do not install Plymouth into the custom loader chain. | `rootfs/initramfs/omarchy-splash.c`, product bootargs |
@@ -30,7 +31,7 @@ remain in [`docs/COMPATIBILITY.md`](COMPATIBILITY.md).
 
 | Status | PS4 delta | Image/install owner |
 |---|---|---|
-| Degraded | Export `AMD_DEBUG=notiling`. It makes the legacy DCE8 path usable but does not eliminate every compositor artifact. | `packages/omarchy-ps4-settings/10-omarchy-ps4`, `portable/10-omarchy-ps4-portable` |
+| Candidate | Export `AMD_DEBUG=notiling` at PAM, per-owner UWSM, profile-shell and session-launch boundaries. A31 proved the old data-directory-only export was absent in the live owner session and correlated with full-screen tiled corruption; the corrected propagation still needs hardware acceptance. | `scripts/configure-gift-rootfs-container`, `packages/omarchy-ps4-settings` |
 | Degraded | Keep XFCE/LightDM as recovery and use Xorg modesetting with `AccelMethod "none"`. This trades acceleration for stable recovery output. | `rootfs/xfce/overlay/etc/X11/xorg.conf.d/20-omarchy-ps4-modesetting.conf` |
 | Accepted | Pin HDMI to `1920x1080@60`, scale `1`, and disable Hyprland animations, blur and shadows for the current POC. | `profiles/quattro-beta/config/hypr/monitors.lua`, `profiles/quattro-beta/config/hypr/looknfeel.lua` |
 | Accepted | Start exactly one Quattro shell; do not import PS4 autostart twice. | `packages/omarchy-ps4-settings/ps4-hyprland.lua`, `ps4-autostart.lua` |
@@ -39,6 +40,7 @@ remain in [`docs/COMPATIBILITY.md`](COMPATIBILITY.md).
 | Candidate | The Quickshell menu-card border is the broken renderer: width zero removes the artifact but also removes the outline. Keep this diagnostic override out of release UX until a visible low-cost replacement passes. | `packages/omarchy-ps4-settings/ps4-shell.toml` |
 | Accepted | Keep VRR/FreeSync disabled in Linux and in the monitor. The legacy fixed 1080p60 bridge does not expose an accepted adaptive-sync path. | PS4 monitor profile and setup guidance |
 | Candidate | Increase UI scale only in a separate display experiment. The accepted value remains `1`; fractional scaling may increase legacy-GPU load. | `profiles/quattro-beta/config/hypr/monitors.lua` |
+| Accepted | Launch Chromium with `--disable-gpu`. EXP-20260822-013-A2 removed rectangular corruption captured inside the Chromium surface while retaining the same browser, profile, page, Mesa, compositor and display mode. | `omarchy-ps4-chromium-software-rendering`, `docs/CHROMIUM-GPU-COMPATIBILITY.md` |
 
 ## Portable and user-session integration
 
@@ -48,10 +50,11 @@ remain in [`docs/COMPATIBILITY.md`](COMPATIBILITY.md).
 | Accepted | Strip and reject macOS AppleDouble `._*` files. They were interpreted as Lua modules and broke Quattro startup. | `scripts/build-omarchy-portable`, `portable/install`, bundle test |
 | Accepted | Register `omarchy.ttf` in the user font hierarchy and refresh fontconfig. This restores the far-left Omarchy bar icon. | `portable/install` |
 | Accepted | Activate Quattro's Hyprland XDG terminal preference so `Super+Enter` opens native Wayland Foot instead of XFCE Terminal. | `portable/install`, `config/hyprland-xdg-terminals.list` in the bundle |
-| Accepted | Use RC3's 14px desktop text preset at compositor scale 1, but disable bar geometry/icon scaling with the font. The Omarchy and Nerd fonts are present; 16px does not fit the 1080p bar and enlarged icon canvases corrupt on DCE8. | `packages/omarchy-ps4-settings/ps4-shell.toml` |
+| Accepted on RC3; retest on 4.0.0 | Keep the hardware-proven 14px desktop text preset at compositor scale 1, but disable bar geometry/icon scaling with the font. The Omarchy and Nerd fonts are present; 16px does not fit the 1080p bar and enlarged icon canvases corrupt on DCE8. | `packages/omarchy-ps4-settings/ps4-shell.toml` |
 | Accepted | Initialize one of the 22 included Quattro themes through the upstream theme engine. Tokyo Night plus its managed wallpaper passed on the current lab root. | image owner provisioning |
 | Accepted | Use a compact PS4-aware Fastfetch profile and the pinned Omarchy About icon. Report Liverpool explicitly because generic PCI naming misidentifies device `1002:9923` as Kingston/Clayton. Do not run Fastfetch automatically in every shell. | `packages/omarchy-ps4-settings/ps4-fastfetch.jsonc`, portable config |
 | Design | Use deferred-owner provisioning for username, password, hostname and timezone. Never ship the development `ps4` credential in a release image. | `packages/omarchy-ps4-provisioning` |
+| Candidate | After successful owner setup, enter Omarchy once without asking for the same password again. A self-removing LightDM drop-in restores the normal, Tokyo Night-styled login on the following boot. | `packages/omarchy-ps4-provisioning`, `packages/omarchy-ps4-settings/20-omarchy-ps4-lightdm.conf` |
 
 ## Hardware and service guards
 

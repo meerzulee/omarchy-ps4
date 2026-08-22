@@ -12,8 +12,8 @@ armed_file=$state_root/armed
 development_user=ps4
 development_home=/home/ps4
 recovery_user=omarchy-recovery
-expected_version=4.0.0rc3-1
-expected_commit=144f4d1e31d6ddc2cba5dfd69278cabf02bafd05
+expected_version=4.0.0-1
+expected_commit=f0020448ca87329199de7cb12f2015ebc4a3e5e7
 display_unit=display-manager.service
 
 usage() {
@@ -91,7 +91,7 @@ foundation_guard() {
   [[ -r /usr/share/omarchy-ps4/settings-upstream-commit ]] || \
     fail 'settings provenance marker is missing'
   [[ $(</usr/share/omarchy-ps4/settings-upstream-commit) == "$expected_commit" ]] || \
-    fail 'installed settings commit does not match RC3'
+    fail 'installed settings commit does not match Quattro 4.0.0'
 }
 
 recovery_guard() {
@@ -185,7 +185,7 @@ if [[ $action == check || $action == arm ]]; then
   printf 'Experiment: %s\n' "$experiment_id"
   printf 'Development account: %s (will be moved, not erased)\n' "$development_user"
   printf 'Recovery account:    %s (retained with restricted SSH)\n' "$recovery_user"
-  printf 'Wizard:              installed RC3 first-owner form on tty1\n'
+  printf 'Wizard:              installed 4.0.0 first-owner form on tty1\n'
   printf 'Rollback:            restore exact accounts, home and LightDM config\n'
   if [[ $action == check ]]; then
     printf '%s\n' 'Check passed; no persistent file, account, service or session was changed.'

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'chromium-software-rendering-test: %s\n' "$1" >&2
+  exit 1
+}
+
+repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+command=$repo_dir/packages/omarchy-ps4/omarchy-ps4-chromium-software-rendering
+temporary=$(mktemp -d)
+trap 'rm -rf -- "$temporary"' EXIT
+
+export HOME=$temporary/home
+export XDG_CONFIG_HOME=$HOME/.config
+export OMARCHY_PATH=$temporary/omarchy
+mkdir -p "$OMARCHY_PATH/config"
+printf '%s\n' '--ozone-platform=wayland' >"$OMARCHY_PATH/config/chromium-flags.conf"
+
+"$command" --enable >/dev/null
+config=$XDG_CONFIG_HOME/chromium-flags.conf
+grep -qxF -- '--ozone-platform=wayland' "$config" ||
+  fail 'enable did not preserve the Omarchy default flags'
+[[ $(grep -cFx -- '--disable-gpu' "$config") -eq 1 ]] ||
+  fail 'enable did not install exactly one disable-gpu flag'
+"$command" --check >/dev/null || fail 'check did not report the enabled state'
+
+"$command" --enable >/dev/null
+[[ $(grep -cFx -- '--disable-gpu' "$config") -eq 1 ]] ||
+  fail 'enable is not idempotent'
+
+printf '%s\n' '--password-store=gnome-libsecret' >>"$config"
+"$command" --disable >/dev/null
+! grep -qxF -- '--disable-gpu' "$config" || fail 'disable left the GPU flag behind'
+grep -qxF -- '--ozone-platform=wayland' "$config" ||
+  fail 'disable removed an upstream flag'
+grep -qxF -- '--password-store=gnome-libsecret' "$config" ||
+  fail 'disable removed an owner flag'
+if "$command" --check >/dev/null 2>&1; then
+  fail 'check reported enabled after disable'
+fi
+
+printf '%s\n' 'Chromium software-rendering policy passed.'

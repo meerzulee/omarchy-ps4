@@ -4,14 +4,14 @@ set -euo pipefail
 
 recovery_user=omarchy-recovery
 expected_root_label=OMARCHY-PS4
-expected_version=4.0.0rc3-1
+expected_version=4.0.0-1
 state_dir=/var/lib/omarchy-ps4/recovery
 
 usage() {
   printf '%s\n' \
     'Usage: omarchy-ps4-dev-recovery (status|rollback-foundation)' \
     '' \
-    'Restricted recovery command for the temporary RC3 developer account.'
+    'Restricted recovery command for the temporary 4.0.0 developer account.'
 }
 
 fail() {
@@ -31,7 +31,7 @@ case "$action" in
   *) fail "unsupported action: $action" ;;
 esac
 
-for command_name in awk date findmnt getent install lsblk pacman readlink systemctl; do
+for command_name in awk date findmnt getent install lsblk pacman readlink sed systemctl; do
   command -v "$command_name" >/dev/null 2>&1 || fail "missing command: $command_name"
 done
 
@@ -84,21 +84,30 @@ if [[ $action == status ]]; then
 fi
 
 installed=()
+rollback_version=''
+previous_version=$(sed -n 's/^previous_foundation_version=//p' "$state_dir/armed.env")
 for package_name in "${packages[@]}"; do
   if package_version=$(pacman -Q "$package_name" 2>/dev/null | awk '{ print $2 }'); then
-    [[ $package_version == "$expected_version" ]] || \
-      fail "$package_name is $package_version, expected $expected_version"
+    if [[ -z $rollback_version ]]; then
+      rollback_version=$package_version
+    elif [[ $package_version != "$rollback_version" ]]; then
+      fail 'installed project packages do not share one version'
+    fi
     installed+=("$package_name")
   fi
 done
-[[ ${#installed[@]} -gt 0 ]] || fail 'the RC3 foundation is not installed'
+[[ ${#installed[@]} -gt 0 ]] || fail 'the 4.0.0 foundation is not installed'
+if [[ $rollback_version != "$expected_version" ]]; then
+  [[ -n $previous_version && $rollback_version == "$previous_version" ]] || \
+    fail "installed foundation $rollback_version is neither stable nor the recorded prior version"
+fi
 
 evidence_dir="$state_dir/rollback-$(date -u +%Y%m%dT%H%M%SZ)"
 install -d -m 0700 "$evidence_dir"
 pacman -Q >"$evidence_dir/packages.before.txt"
 printf '%s\n' "${installed[@]}" >"$evidence_dir/foundation-packages.txt"
 printf '%s\n' \
-  'Rollback removes only the installed RC3 project packages with dependency checks disabled.' \
+  'Rollback removes only the installed 4.0.0 project packages with dependency checks disabled.' \
   'It intentionally leaves every dependency and the active portable desktop in place.' \
   >"$evidence_dir/README.txt"
 
@@ -114,5 +123,5 @@ getent passwd "$recovery_user" >/dev/null || fail 'recovery account disappeared 
 [[ ! -e /var/lib/omarchy-ps4/provisioning/pending ]] || \
   fail 'owner provisioning was unexpectedly armed'
 
-printf 'RC3 package foundation removed. Evidence: %s\n' "$evidence_dir"
+printf '4.0.0 package foundation removed. Evidence: %s\n' "$evidence_dir"
 printf '%s\n' 'Dependencies, boot assets, running desktop, accounts, and SSH were retained.'

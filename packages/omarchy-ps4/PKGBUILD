@@ -1,8 +1,8 @@
 # Maintainer: Omarchy PS4 contributors
 
 pkgname=omarchy-ps4
-pkgver=4.0.0rc3
-pkgrel=1
+pkgver=4.0.0
+pkgrel=5
 pkgdesc='Pinned Omarchy Quattro runtime adapted for PlayStation 4 Linux'
 arch=('any')
 url='https://github.com/meerzulee/omarchy-ps4'
@@ -10,7 +10,7 @@ license=('MIT')
 provides=('omarchy')
 conflicts=('omarchy' 'omarchy-dev')
 
-_commit=144f4d1e31d6ddc2cba5dfd69278cabf02bafd05
+_commit=f0020448ca87329199de7cb12f2015ebc4a3e5e7
 _probe_sha256=f6638a914ee13b5a34803cc5b2727d7df27e0788694653f3c6f724f6298f7fa7
 
 depends=(
@@ -20,7 +20,7 @@ depends=(
   'gum'
   'hyprland'
   'jq'
-  'omarchy-ps4-settings=4.0.0rc3-1'
+  'omarchy-ps4-settings=4.0.0-4'
   'pacman-contrib'
   'perl'
   'pipewire'
@@ -40,18 +40,33 @@ source=(
   'ps4-replaced-commands.txt'
   'omarchy-ps4-unsupported'
   'omarchy-ps4-status'
+  'omarchy-ps4-chromium-software-rendering'
   'omarchy-launch-nautilus'
   'omarchy-launch-nautilus-cwd'
+  'ps4-network-panel.patch'
+  'ps4-sshd-firewall.patch'
 )
 sha256sums=(
   'SKIP'
-  '9d7ee5ac79e6acd0a60db1e88595a187e345a2f349fb9b73fb3bad83e60079d9'
+  '2d07b6e3002c1e7063aa31e2661af0a2a440fe03bacb7e7062fdb081acf481d7'
   'a448d5e7c6013c6f029f4eb118f71f84125e3c4b37fe6b69686fdb3850c3cae9'
   '20997056023e8830f4e3fa3aa743590c52adda7b23375939a3ac3e42a3e31d59'
-  'bc46ca05a29efeec6f605d18739721570bf72fd754d5e493bf3028c4a8d6af1d'
+  '3a6a387d9826498a87f53fea8ecb1966a49bb5a366f54d5b0d2227854012f28a'
+  '622c372b581119f4346ad19e2615e343f437506d5b65eadc7a9f6c5b8530dc58'
   '122db1123d9fe1f8c679b87b6b5f7c00316079d9f294deaff097324a38a77393'
   'd78a147033bef36e2167041b668a423d5544fb872bc497bf072081adf31807cf'
+  'ecf4a720f6ff6d292b4f7857d06778a2a7058699eaf5eadc259ff60996c969a3'
+  'a0dd0aca3a39203085ee4af6f2727b47b6c53966f99a1feb8de6d0c8c3b24fd6'
 )
+
+prepare() {
+  cd "$srcdir/omarchy"
+
+  git apply --check "$srcdir/ps4-network-panel.patch"
+  git apply "$srcdir/ps4-network-panel.patch"
+  git apply --check "$srcdir/ps4-sshd-firewall.patch"
+  git apply "$srcdir/ps4-sshd-firewall.patch"
+}
 
 package() {
   cd "$srcdir/omarchy"
@@ -109,6 +124,8 @@ package() {
   install -Dm644 "$srcdir/ps4-replaced-commands.txt" \
     "$pkgdir/usr/share/omarchy-ps4/replaced-commands.txt"
   install -Dm755 "$srcdir/omarchy-ps4-status" "$pkgdir/usr/bin/omarchy-ps4-status"
+  install -Dm755 "$srcdir/omarchy-ps4-chromium-software-rendering" \
+    "$pkgdir/usr/bin/omarchy-ps4-chromium-software-rendering"
   printf '%s  %s\n' "$_probe_sha256" "$startdir/../../bin/omarchy-ps4-probe" | sha256sum -c -
   install -Dm755 "$startdir/../../bin/omarchy-ps4-probe" "$pkgdir/usr/bin/omarchy-ps4-probe"
   printf '%s\n' "$_commit" >"$pkgdir/usr/share/omarchy-ps4/upstream-commit"

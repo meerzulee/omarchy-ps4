@@ -84,9 +84,9 @@ if runuser -u omarchy-recovery -- sudo -n /usr/bin/id >/dev/null 2>&1; then
 fi
 
 cat >/tmp/mock-pacman-state <<'EOF'
-omarchy-ps4-provisioning 4.0.0rc3-1
-omarchy-ps4-settings 4.0.0rc3-1
-omarchy-ps4 4.0.0rc3-1
+omarchy-ps4-provisioning 4.0.0-1
+omarchy-ps4-settings 4.0.0-1
+omarchy-ps4 4.0.0-1
 EOF
 cat >/usr/local/sbin/pacman <<'EOF'
 #!/usr/bin/env bash
@@ -116,9 +116,17 @@ esac
 EOF
 chmod 0755 /usr/local/sbin/pacman
 
+update_check=$(/bundle/arm-recovery --check EXP-20260814-001-A2)
+grep -Fq 'recovery-command update is required but no file was changed' \
+  <<<"$update_check"
+update_apply=$(/bundle/arm-recovery --apply EXP-20260814-001-A2)
+grep -Fq 'Restricted recovery command updated.' <<<"$update_apply"
+grep -Fxq 'previous_foundation_version=4.0.0-1' \
+  /var/lib/omarchy-ps4/recovery/armed.env
+
 rollback_output=$(runuser -u omarchy-recovery -- \
   sudo -n /usr/local/sbin/omarchy-ps4-dev-recovery rollback-foundation)
-grep -Fq 'RC3 package foundation removed.' <<<"$rollback_output"
+grep -Fq '4.0.0 package foundation removed.' <<<"$rollback_output"
 [[ ! -s /tmp/mock-pacman-state ]]
 [[ $(wc -l </tmp/mock-pacman-removed) -eq 3 ]]
 

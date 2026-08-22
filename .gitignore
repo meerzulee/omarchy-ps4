@@ -4,6 +4,7 @@
 /cache/
 /output/
 /upstream/omarchy.git/
+/fpkg/vendor/
 *.img
 *.iso
 *.pkg.tar.*

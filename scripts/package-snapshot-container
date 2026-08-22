@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'package-snapshot-container: %s\n' "$1" >&2
+  exit 2
+}
+
+arch_snapshot=${ARCH_SNAPSHOT:?ARCH_SNAPSHOT is required}
+omarchy_commit=${OMARCHY_COMMIT:?OMARCHY_COMMIT is required}
+release=${OMARCHY_RELEASE:?OMARCHY_RELEASE is required}
+source_date_epoch=${SOURCE_DATE_EPOCH:?SOURCE_DATE_EPOCH is required}
+snapshot=/snapshot
+repository=$snapshot/repo
+manifest=$snapshot/manifest
+database=/tmp/omarchy-ps4-snapshot-db
+pacman_config=/tmp/omarchy-ps4-snapshot-pacman.conf
+
+[[ -d /localrepo ]] || fail 'local PS4 package repository is missing'
+[[ -r /workspace/profiles/xfce/packages.txt ]] || fail 'XFCE profile is missing'
+[[ -r /workspace/profiles/omarchy-full/packages.txt ]] || fail 'Omarchy profile is missing'
+[[ -r /workspace/profiles/omarchy-full/forbidden-closure-packages.txt ]] || \
+  fail 'forbidden closure policy is missing'
+
+install -d "$repository" "$manifest" "$database/sync"
+
+printf '%s\n' \
+  '[options]' \
+  'Architecture = x86_64' \
+  'CheckSpace' \
+  'ParallelDownloads = 1' \
+  'DisableDownloadTimeout' \
+  'DisableSandbox' \
+  'SigLevel = Required DatabaseOptional' \
+  'LocalFileSigLevel = Optional' \
+  '' \
+  '[omarchy-ps4-local]' \
+  'SigLevel = Optional TrustAll' \
+  'Server = file:///localrepo' \
+  '' \
+  '[core]' \
+  "Server = https://archive.archlinux.org/repos/$arch_snapshot/\$repo/os/\$arch" \
+  '' \
+  '[extra]' \
+  "Server = https://archive.archlinux.org/repos/$arch_snapshot/\$repo/os/\$arch" \
+  '' \
+  '[multilib]' \
+  "Server = https://archive.archlinux.org/repos/$arch_snapshot/\$repo/os/\$arch" \
+  '' \
+  '[omarchy]' \
+  'SigLevel = Optional TrustAll' \
+  "Server = https://pkgs.omarchy.org/stable/\$arch" \
+  >"$pacman_config"
+
+package_lines() {
+  sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$1"
+}
+
+mapfile -t requested < <(
+  package_lines /workspace/profiles/xfce/packages.txt
+  package_lines /workspace/profiles/omarchy-full/packages.txt
+)
+mapfile -t requested < <(printf '%s\n' "${requested[@]}" | LC_ALL=C sort -u)
+((${#requested[@]} > 0)) || fail 'combined package request is empty'
+printf '%s\n' "${requested[@]}" >"$manifest/packages.requested.txt"
+cp /workspace/profiles/omarchy-full/forbidden-closure-packages.txt \
+  "$manifest/forbidden-closure-packages.txt"
+
+pacman --config "$pacman_config" --dbpath "$database" -Syy --noconfirm
+
+pacman --config "$pacman_config" --dbpath "$database" \
+  -Sp --noconfirm --print-format $'%n\t%v\t%r\t%l' -- "${requested[@]}" \
+  | LC_ALL=C sort -u >"$manifest/transaction.lock"
+
+closure_count=$(wc -l <"$manifest/transaction.lock" | tr -d ' ')
+(( closure_count > 0 )) || fail 'Pacman produced an empty transaction'
+
+while IFS= read -r forbidden; do
+  forbidden=${forbidden%%#*}
+  forbidden=${forbidden//[[:space:]]/}
+  [[ -n $forbidden ]] || continue
+  if awk -F '\t' -v package="$forbidden" '$1 == package { found=1 } END { exit !found }' \
+    "$manifest/transaction.lock"; then
+    fail "forbidden package entered the dependency closure: $forbidden"
+  fi
+done </workspace/profiles/omarchy-full/forbidden-closure-packages.txt
+
+pacman --config "$pacman_config" --dbpath "$database" \
+  -Sw --noconfirm --cachedir "$repository" -- "${requested[@]}"
+
+# A resumed cache can contain an older version of a package whose repository
+# metadata moved forward between attempts. Keep only the exact name/version
+# pairs selected by this transaction before enforcing set equality.
+for cached_package in "$repository"/*.pkg.tar.*; do
+  [[ -f $cached_package && $cached_package != *.sig ]] || continue
+  cached_pkginfo=$(bsdtar -xOf "$cached_package" .PKGINFO)
+  cached_name=$(sed -n 's/^pkgname = //p' <<<"$cached_pkginfo" | head -n1)
+  cached_version=$(sed -n 's/^pkgver = //p' <<<"$cached_pkginfo" | head -n1)
+  if ! awk -F '\t' -v package="$cached_name" -v version="$cached_version" \
+      '$1 == package && $2 == version { found=1 } END { exit !found }' \
+      "$manifest/transaction.lock"; then
+    rm -f -- "$cached_package" "$cached_package.sig"
+  fi
+done
+
+mapfile -t package_files < <(
+  find "$repository" -maxdepth 1 -type f -name '*.pkg.tar.*' ! -name '*.sig' -print |
+    LC_ALL=C sort
+)
+package_file_count=${#package_files[@]}
+[[ ${#package_files[@]} -eq $closure_count ]] || \
+  fail "downloaded ${#package_files[@]} package files for a $closure_count-package closure"
+
+declare -A source_repositories=()
+while IFS=$'\t' read -r package _version source_repo _url; do
+  source_repositories[$package]=$source_repo
+done <"$manifest/transaction.lock"
+
+: >"$manifest/packages.lock"
+for package_file in "${package_files[@]}"; do
+  pkginfo=$(bsdtar -xOf "$package_file" .PKGINFO)
+  package_name=$(sed -n 's/^pkgname = //p' <<<"$pkginfo" | head -n1)
+  package_version=$(sed -n 's/^pkgver = //p' <<<"$pkginfo" | head -n1)
+  package_arch=$(sed -n 's/^arch = //p' <<<"$pkginfo" | head -n1)
+  [[ -n $package_name && -n $package_version && -n $package_arch ]] || \
+    fail "cannot read package identity: $package_file"
+  package_sha256=$(sha256sum "$package_file" | awk '{ print $1 }')
+  package_size=$(stat -c '%s' "$package_file")
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$package_name" \
+    "$package_version" \
+    "$package_arch" \
+    "${source_repositories[$package_name]:-unknown}" \
+    "${package_file##*/}" \
+    "$package_size" \
+    "$package_sha256" \
+    >>"$manifest/packages.lock"
+done
+LC_ALL=C sort -o "$manifest/packages.lock" "$manifest/packages.lock"
+
+database_archive=$repository/omarchy-ps4-snapshot.db.tar.gz
+rm -f \
+  "$repository"/omarchy-ps4-snapshot.db \
+  "$repository"/omarchy-ps4-snapshot.db.tar.gz \
+  "$repository"/omarchy-ps4-snapshot.files \
+  "$repository"/omarchy-ps4-snapshot.files.tar.gz
+if ! SOURCE_DATE_EPOCH=$source_date_epoch repo-add \
+  "$database_archive" "${package_files[@]}" >/tmp/repo-add.log 2>&1; then
+  tail -n 80 /tmp/repo-add.log >&2
+  fail 'repository database creation failed'
+fi
+
+printf '%s\n' \
+  '[options]' \
+  'Architecture = x86_64' \
+  'CheckSpace' \
+  'SigLevel = Never' \
+  'LocalFileSigLevel = Never' \
+  '' \
+  '[omarchy-ps4-snapshot]' \
+  'SigLevel = Never' \
+  'Server = file:///run/omarchy-ps4-snapshot/repo' \
+  >"$snapshot/pacman.conf"
+
+requested_count=${#requested[@]}
+printf '%s\n' \
+  'schema=1' \
+  'mode=gift-dev-offline-package-snapshot' \
+  "release=$release" \
+  "upstream_commit=$omarchy_commit" \
+  "arch_snapshot=$arch_snapshot" \
+  "requested_package_count=$requested_count" \
+  "closure_package_count=$closure_count" \
+  "package_file_count=$package_file_count" \
+  'repository=omarchy-ps4-snapshot' \
+  'signature_policy=development-checksums-only' \
+  'production_signing=required-before-publication' \
+  'kernel_policy=external-linux-ps4-release-artifact' \
+  >"$snapshot/RELEASE.env"
+
+printf '%s\n' \
+  "Arch Linux Archive: $arch_snapshot" \
+  "Omarchy packages: https://pkgs.omarchy.org/stable/\$arch" \
+  'Omarchy PS4 packages: local source build' \
+  >"$manifest/repositories.txt"
+
+(
+  cd "$snapshot"
+  find . -type f ! -name SHA256SUMS -print0 |
+    LC_ALL=C sort -z |
+    xargs -0 sha256sum
+) >"$snapshot/SHA256SUMS"
+
+printf 'Snapshot contains %s requested packages and %s package files.\n' \
+  "$requested_count" "$package_file_count"

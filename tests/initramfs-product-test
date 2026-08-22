@@ -24,6 +24,9 @@ file "$inspect_dir/etc/omarchy-logo.pgm" | grep -q 'Netpbm image data, size = 80
 grep -Fq '/run/omarchy-splash.stop' "$inspect_dir/bin/omarchy-splash"
 grep -Fq '/run/omarchy-splash.failed' "$inspect_dir/bin/omarchy-splash"
 grep -Fq 'stop_splash' "$inspect_dir/init"
+grep -Fq 'omarchy.require_usb=1' "$inspect_dir/init"
+grep -Fq "is not below USB in sysfs" "$inspect_dir/init"
+grep -Fq 'expected the whole-device Omarchy image' "$inspect_dir/init"
 orb -m ubuntu -u root chroot "$inspect_dir" /bin/zstd --version >/dev/null
 
 printf 'initramfs-product: OK\n'

@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+repo_dir=$(cd -- "$script_dir/.." && pwd)
+workspace_dir=$(cd -- "$repo_dir/.." && pwd)
+snapshot="$repo_dir/output/package-snapshot/omarchy-ps4-4.0.0-usb-dev"
+kernel_output="$workspace_dir/linux-ps4-kernel/output/6.18-baikal"
+output="$repo_dir/output/gift-rootfs/omarchy-ps4-gift-4.0.0.tar.zst"
+
+usage() {
+  printf '%s\n' \
+    'Usage: build-gift-rootfs [--snapshot DIRECTORY] [--kernel-output DIRECTORY] [--output FILE]' \
+    '' \
+    'Build the complete owner-ready Omarchy PS4 root filesystem with OrbStack.'
+}
+
+fail() {
+  printf 'build-gift-rootfs: %s\n' "$1" >&2
+  exit 2
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    --snapshot)
+      (( $# >= 2 )) || fail '--snapshot requires a directory'
+      snapshot=$2
+      shift 2
+      ;;
+    --kernel-output)
+      (( $# >= 2 )) || fail '--kernel-output requires a directory'
+      kernel_output=$2
+      shift 2
+      ;;
+    --output)
+      (( $# >= 2 )) || fail '--output requires a file'
+      output=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *) fail "unknown argument: $1" ;;
+  esac
+done
+
+command -v docker >/dev/null 2>&1 || fail 'Docker CLI is not installed'
+command -v zstd >/dev/null 2>&1 || fail 'zstd is not installed'
+[[ $(orb status) == Running ]] || fail 'OrbStack is not running'
+[[ $(docker context show) == orbstack ]] || fail 'Docker context must be orbstack'
+docker info >/dev/null 2>&1 || fail 'OrbStack Docker engine is unavailable'
+
+snapshot=$(cd -- "$snapshot" && pwd)
+kernel_output=$(cd -- "$kernel_output" && pwd)
+mkdir -p -- "$(dirname -- "$output")"
+output=$(cd -- "$(dirname -- "$output")" && pwd)/$(basename -- "$output")
+[[ $output == *.tar.zst ]] || fail '--output must end in .tar.zst'
+[[ ! -e $output && ! -e $output.manifest ]] || fail "refusing to overwrite: $output"
+
+kernel_release=$(tr -d '[:space:]' <"$kernel_output/version.txt")
+mapfile -t module_archives < <(
+  find "$kernel_output" -maxdepth 1 -type f \
+    -name "modules-$kernel_release.tar.zst" -print
+)
+[[ ${#module_archives[@]} -eq 1 ]] || \
+  fail "expected one modules-$kernel_release.tar.zst in $kernel_output"
+modules_archive=${module_archives[0]}
+grep -q "  modules-$kernel_release.tar.zst$" "$kernel_output/SHA256SUMS" || \
+  fail 'kernel SHA256SUMS does not cover the module archive'
+
+"$repo_dir/tests/package-snapshot-test" "$snapshot"
+
+output_parent=$(dirname -- "$output")
+staging_name=.omarchy-ps4-gift-rootfs.$$.tar.zst
+staging_path=$output_parent/$staging_name
+container_id=''
+cleanup() {
+  [[ -z $container_id ]] || docker rm --force "$container_id" >/dev/null 2>&1 || true
+  rm -f -- "$staging_path"
+}
+trap cleanup EXIT
+
+container_id=$(docker create \
+  --platform linux/amd64 \
+  --network none \
+  --mount "type=bind,src=$snapshot,dst=/run/omarchy-ps4-snapshot,readonly" \
+  --mount "type=bind,src=$repo_dir,dst=/workspace,readonly" \
+  --mount "type=bind,src=$modules_archive,dst=/run/kernel-modules.tar.zst,readonly" \
+  --mount "type=bind,src=$output_parent,dst=/output" \
+  archlinux@sha256:345a872f6c95e082d4b8c050af637eebb57402c6e2177b411c3acf7df84eb33b \
+  /workspace/scripts/configure-gift-rootfs-container \
+    /run/omarchy-ps4-snapshot \
+    /run/kernel-modules.tar.zst \
+    "$kernel_release" \
+    "/output/$staging_name")
+docker start --attach "$container_id"
+
+[[ -s $staging_path ]] || fail 'container did not create the rootfs archive'
+mv "$staging_path" "$output"
+archive_size=$(stat -f %z "$output" 2>/dev/null || stat -c %s "$output")
+archive_sha256=$(shasum -a 256 "$output" | awk '{ print $1 }')
+snapshot_sha256=$(shasum -a 256 "$snapshot/SHA256SUMS" | awk '{ print $1 }')
+modules_sha256=$(shasum -a 256 "$modules_archive" | awk '{ print $1 }')
+package_count=$(wc -l <"$snapshot/manifest/packages.lock" | tr -d ' ')
+
+printf '%s\n' \
+  'schema=1' \
+  'release=4.0.0' \
+  'upstream_commit=f0020448ca87329199de7cb12f2015ebc4a3e5e7' \
+  'mode=owner-ready-offline-rootfs' \
+  "package_count=$package_count" \
+  "package_snapshot_sha256=$snapshot_sha256" \
+  "kernel_release=$kernel_release" \
+  "modules_sha256=$modules_sha256" \
+  "archive_size=$archive_size" \
+  "archive_sha256=$archive_sha256" \
+  >"$output.manifest"
+
+trap - EXIT
+docker rm "$container_id" >/dev/null
+container_id=''
+printf 'Gift rootfs: %s\nSHA-256: %s\n' "$output" "$archive_sha256"

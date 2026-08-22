@@ -5,29 +5,263 @@ set -euo pipefail
 state_dir=/var/lib/omarchy-ps4/provisioning
 pending_file=$state_dir/pending
 setup_user_file=$state_dir/setup-user
+staged_authorized_keys=$state_dir/authorized_keys
 log_file=/var/log/omarchy-ps4-provision-owner.log
 omarchy_path=${OMARCHY_PATH:-/usr/share/omarchy}
 expected_root_label=OMARCHY-PS4
 logo_path=$omarchy_path/logo.txt
+compact_logo=$' ██████  ███    ███  █████  ██████   ██████ ██   ██ ██    ██\n██    ██ ████  ████ ██   ██ ██   ██ ██      ██   ██  ██  ██\n██    ██ ██ ████ ██ ███████ ██████  ██      ███████   ████\n██    ██ ██  ██  ██ ██   ██ ██   ██ ██      ██   ██    ██\n ██████  ██      ██ ██   ██ ██   ██  ██████ ██   ██    ██'
+layout_file=/var/lib/omarchy-ps4/image-layout
+storage_expanded_file=/var/lib/omarchy-ps4/storage-expanded
+
+uart_event() {
+  printf '[omarchy-ps4-owner] stage=%s\n' "$1" >/dev/kmsg 2>/dev/null || true
+}
+
+write_log() {
+  local message=$1
+  mkdir -p "$state_dir" 2>/dev/null || true
+  touch "$log_file" 2>/dev/null || true
+  chmod 0600 "$log_file" 2>/dev/null || true
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$message" \
+    >>"$log_file" 2>/dev/null || true
+}
+
+screen_columns=120
+screen_lines=40
+setup_width=72
+setup_left=24
+setup_padding='0 24'
+
+read_terminal_geometry() {
+  local columns='' lines=''
+
+  if command -v tput >/dev/null 2>&1; then
+    columns=$(tput cols 2>/dev/null || true)
+    lines=$(tput lines 2>/dev/null || true)
+  fi
+  [[ $columns =~ ^[0-9]+$ && $columns -gt 0 ]] || columns=120
+  [[ $lines =~ ^[0-9]+$ && $lines -gt 0 ]] || lines=40
+
+  screen_columns=$columns
+  screen_lines=$lines
+  setup_width=72
+  (( setup_width <= screen_columns - 8 )) || setup_width=$((screen_columns - 8))
+  (( setup_width >= 40 )) || setup_width=$screen_columns
+  setup_left=$(((screen_columns - setup_width) / 2))
+  (( setup_left >= 0 )) || setup_left=0
+  setup_padding="0 $setup_left"
+}
+
+# Preserve the pinned Quattro form and validation while giving every Gum
+# widget one centered, PS4-console-safe visual treatment. Options appended here
+# intentionally override the upstream installer's desktop-oriented purple.
+gum() {
+  local widget=${1:-}
+  shift || true
+
+  case $widget in
+    input)
+      command gum input "$@" \
+        --width "$setup_width" \
+        --padding "$setup_padding" \
+        --prompt.foreground '#9ece6a' \
+        --cursor.foreground '#9ece6a' \
+        --placeholder.foreground '#737aa2'
+      ;;
+    choose)
+      command gum choose "$@" \
+        --padding "$setup_padding" \
+        --cursor '› ' \
+        --cursor.foreground '#9ece6a' \
+        --header.foreground '#7aa2f7' \
+        --item.foreground '#c0caf5'
+      ;;
+    filter)
+      command gum filter "$@" \
+        --width "$setup_width" \
+        --padding "$setup_padding" \
+        --indicator.foreground '#9ece6a' \
+        --match.foreground '#9ece6a' \
+        --prompt.foreground '#9ece6a' \
+        --header.foreground '#7aa2f7' \
+        --text.foreground '#c0caf5'
+      ;;
+    confirm)
+      command gum confirm "$@" \
+        --padding "$setup_padding" \
+        --prompt.foreground '#c0caf5' \
+        --selected.foreground '#1a1b26' \
+        --selected.background '#9ece6a' \
+        --unselected.foreground '#c0caf5' \
+        --unselected.background '#24283b'
+      ;;
+    *)
+      command gum "$widget" "$@"
+      ;;
+  esac
+}
+
+centered_style() {
+  local foreground=$1
+  shift
+
+  if type -P gum >/dev/null 2>&1; then
+    command gum style \
+      --foreground "$foreground" \
+      --width "$screen_columns" \
+      --align center \
+      "$@"
+  else
+    local text=${!#} left=0
+    left=$(((screen_columns - ${#text}) / 2))
+    (( left >= 0 )) || left=0
+    printf '%*s%s\n' "$left" '' "$text"
+  fi
+}
+
+render_logo_block() {
+  local art=$1 width=$2 left=0 padding='' rendered='' line=''
+
+  left=$(((screen_columns - width) / 2))
+  (( left >= 0 )) || left=0
+  printf -v padding '%*s' "$left" ''
+  while IFS= read -r line; do
+    rendered+="$padding$line"$'\n'
+  done <<<"$art"
+  command gum style --foreground '#9ece6a' "${rendered%$'\n'}"
+}
+
+render_header() {
+  local content_height=26 top_padding=0 logo_width=0
+
+  read_terminal_geometry
+  top_padding=$(((screen_lines - content_height) / 2))
+  (( top_padding >= 1 )) || top_padding=1
+
+  # A clean Linux VT is the visible product surface. Detailed lifecycle and
+  # kernel evidence continues through UART and the private on-disk log.
+  printf '\033[?25l\033[0;40;37m\033[2J\033[H'
+  for (( line = 0; line < top_padding; line++ )); do
+    echo
+  done
+  if type -P gum >/dev/null 2>&1; then
+    if [[ -r $logo_path ]]; then
+      logo_width=$(awk '{ if (length($0) > width) width=length($0) } END { print width + 0 }' "$logo_path")
+      if (( logo_width <= screen_columns - 4 )); then
+        render_logo_block "$(<"$logo_path")" "$logo_width"
+      elif (( screen_columns >= 64 )); then
+        render_logo_block "$compact_logo" 60
+      else
+        command gum style \
+          --foreground '#9ece6a' \
+          --bold \
+          --width "$screen_columns" \
+          --align center \
+          'OMARCHY'
+      fi
+    else
+      command gum style \
+        --foreground '#9ece6a' \
+        --bold \
+        --width "$screen_columns" \
+        --align center \
+        'OMARCHY'
+    fi
+  elif [[ -r $logo_path ]]; then
+    cat "$logo_path"
+  else
+    printf '%s\n' 'OMARCHY'
+  fi
+  printf '\033[?25h\n'
+}
+
+render_setup_step() {
+  local title=$1 description=$2
+
+  render_header
+  centered_style '#7aa2f7' --bold 'FIRST TIME SETUP'
+  centered_style '#c0caf5' --bold "$title"
+  centered_style '#a9b1d6' "$description"
+  echo
+}
+
+hold_first_boot_error() {
+  local message=$1
+  render_header
+  if type -P gum >/dev/null 2>&1; then
+    centered_style '#f7768e' --bold 'FIRST BOOT NEEDS ATTENTION'
+    command gum style \
+      --border rounded \
+      --border-foreground '#7aa2f7' \
+      --padding '1 2' \
+      --margin "1 $setup_left" \
+      --width "$setup_width" \
+      "$message" \
+      'No account or password was created.' \
+      'Restarting Omarchy will safely retry setup.' \
+      'Support code: OWNER-SETUP'
+  else
+    printf '%s\n' \
+      'FIRST BOOT NEEDS ATTENTION' \
+      "$message" \
+      'No account or password was created.' \
+      'Restarting Omarchy will safely retry setup.' \
+      'Support code: OWNER-SETUP'
+  fi
+  while true; do
+    sleep 3600
+  done
+}
 
 fail() {
-  printf 'omarchy-ps4-provision-owner: %s\n' "$1" >&2
+  local message=$1
+  printf 'omarchy-ps4-provision-owner: %s\n' "$message" >&2
+  write_log "ERROR: $message"
+  uart_event failed
+  if [[ ${OMARCHY_PS4_OWNER_CONSOLE:-0} == 1 ]]; then
+    hold_first_boot_error "$message"
+  fi
   exit 1
 }
 
 log() {
-  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >>"$log_file"
+  write_log "$1"
 }
 
 [[ $EUID -eq 0 ]] || fail 'must run as root'
 [[ -f $pending_file ]] || exit 0
+uart_event start
+if [[ -e $layout_file ]]; then
+  grep -Fxq 'layout=whole-device-filesystem' "$layout_file" || \
+    fail 'image layout is unsupported'
+  [[ -e $storage_expanded_file ]] || \
+    fail 'automatic USB expansion has not completed'
+fi
 [[ -r $omarchy_path/install/provisioning/setup-form.sh ]] || \
   fail 'the pinned Omarchy setup form is missing'
 
-for command_name in blkid chpasswd findmnt getent git gum hostnamectl localectl \
-  lsblk runuser timedatectl useradd usermod; do
+for command_name in blkid chpasswd findmnt getent git groupadd hostnamectl localectl \
+  lsblk runuser ssh-keygen systemctl timedatectl useradd usermod; do
   command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
 done
+type -P gum >/dev/null 2>&1 || fail 'required command is missing: gum'
+
+if [[ -e $staged_authorized_keys ]]; then
+  [[ -s $staged_authorized_keys ]] || fail 'the staged SSH public-key file is empty'
+  for command_name in ssh-keygen systemctl; do
+    command -v "$command_name" >/dev/null 2>&1 || \
+      fail "staged SSH access needs the missing command: $command_name"
+  done
+  ssh-keygen -lf "$staged_authorized_keys" >/dev/null 2>&1 || \
+    fail 'the staged SSH public-key file is invalid'
+  grep -Fxq 'PasswordAuthentication no' /etc/ssh/sshd_config.d/20-omarchy-ps4.conf || \
+    fail 'key-only SSH policy is missing PasswordAuthentication no'
+  grep -Fxq 'KbdInteractiveAuthentication no' /etc/ssh/sshd_config.d/20-omarchy-ps4.conf || \
+    fail 'key-only SSH policy is missing KbdInteractiveAuthentication no'
+  grep -Fxq 'PermitRootLogin no' /etc/ssh/sshd_config.d/20-omarchy-ps4.conf || \
+    fail 'key-only SSH policy is missing PermitRootLogin no'
+fi
 
 root_source=$(findmnt -nro SOURCE --target /)
 root_source=${root_source%%\[*}
@@ -40,6 +274,7 @@ root_label=$(blkid -s LABEL -o value "$root_device" 2>/dev/null || true)
 root_transport=$(lsblk -s -nro TRAN "$root_device" 2>/dev/null | awk 'NF { print; exit }')
 [[ $root_transport == usb ]] || \
   fail "root transport is ${root_transport:-unknown}; owner setup is currently external-USB only"
+uart_event root-verified
 
 mkdir -p "$state_dir"
 touch "$log_file"
@@ -61,18 +296,8 @@ timezone=''
 source "$omarchy_path/install/provisioning/setup-form.sh"
 
 notice() {
-  gum style --foreground 1 "$1"
+  centered_style '#f7768e' "$1"
   sleep "${2:-1}"
-}
-
-render_header() {
-  clear
-  if [[ -r $logo_path ]]; then
-    gum style --foreground 2 "$(<"$logo_path")"
-  else
-    gum style --foreground 2 --bold 'OMARCHY PS4'
-  fi
-  echo
 }
 
 omarchy_username_taken() {
@@ -83,32 +308,62 @@ omarchy_username_taken() {
 }
 
 prompt_form() {
-  local status
+  local status summary
 
   while true; do
-    render_header
-    gum style 'Make this PS4 Linux image yours.'
-    gum style --foreground 8 'Enter your credentials now; the desktop is already installed.'
-    echo
-
+    render_setup_step 'KEYBOARD' 'Choose the keyboard layout for this system.'
+    uart_event prompt-ready
     omarchy_prompt_keyboard || continue
+
+    render_setup_step 'ACCOUNT' 'Choose the username you will use to sign in.'
     omarchy_prompt_username || continue
+
+    render_setup_step 'PASSWORD' 'Protect the owner account with a password.'
     omarchy_prompt_password || continue
+
+    render_setup_step 'PROFILE' 'Name and email are optional and used only for Git.'
     omarchy_prompt_identity || continue
+
+    render_setup_step 'DEVICE NAME' 'Name this Omarchy system on your network.'
     omarchy_prompt_hostname || continue
+
+    render_setup_step 'TIMEZONE' 'Choose the timezone for the system clock.'
     omarchy_prompt_timezone || continue
 
-    echo
-    printf 'Keyboard: %s\nUser:     %s\nHostname: %s\nTimezone: %s\n' \
-      "$keyboard_label" "$username" "$hostname" "$timezone"
+    render_setup_step 'READY' 'Review the owner details, then create the account.'
+    summary=$(printf 'Keyboard   %s\nUser       %s\nHostname   %s\nTimezone   %s' \
+      "$keyboard_label" "$username" "$hostname" "$timezone")
+    command gum style \
+      --foreground '#c0caf5' \
+      --border normal \
+      --border-foreground '#414868' \
+      --padding '1 2' \
+      --margin "0 $setup_left 1" \
+      --width "$setup_width" \
+      "$summary"
     gum confirm 'Create this owner?' && status=0 || status=$?
     (( status == 0 )) && return 0
   done
 }
 
+configure_desktop_autologin() {
+  local config_dir=/etc/lightdm/lightdm.conf.d
+  local autologin_config=$config_dir/25-omarchy-ps4-owner-autologin.conf
+
+  install -d -m 0755 "$config_dir"
+  cat >"$autologin_config" <<EOF
+[Seat:*]
+autologin-user=$username
+autologin-user-timeout=0
+autologin-session=omarchy
+EOF
+  chmod 0644 "$autologin_config"
+}
+
 existing_setup_user=''
 [[ -r $setup_user_file ]] && existing_setup_user=$(<"$setup_user_file")
 prompt_form
+render_setup_step 'FINISHING' 'Preparing your Omarchy desktop.'
 
 if [[ -n $existing_setup_user && $username != "$existing_setup_user" ]]; then
   fail "an interrupted setup is pinned to user $existing_setup_user"
@@ -117,8 +372,10 @@ fi
 printf '%s\n' "$username" >"$setup_user_file"
 chmod 0600 "$setup_user_file"
 log "creating or resuming owner $username"
+uart_event finalizing
 
-groups=(wheel)
+getent group autologin >/dev/null || groupadd --system autologin
+groups=(wheel autologin)
 for group_name in audio video input; do
   getent group "$group_name" >/dev/null && groups+=("$group_name")
 done
@@ -144,6 +401,18 @@ timedatectl set-timezone "$timezone"
 home_dir=$(getent passwd "$username" | cut -d: -f6)
 [[ -d $home_dir ]] || fail "home directory was not created: $home_dir"
 
+ssh_keys_installed=0
+if [[ -e $staged_authorized_keys ]]; then
+  install -d -m 0700 -o "$username" -g "$username" "$home_dir/.ssh"
+  install -m 0600 -o "$username" -g "$username" \
+    "$staged_authorized_keys" "$home_dir/.ssh/authorized_keys"
+  ssh_keys_installed=1
+fi
+if (( ssh_keys_installed == 1 )); then
+  systemctl enable --now sshd.service || fail 'could not enable key-only SSH access'
+  log 'installed SSH public keys and enabled key-only SSH'
+fi
+
 if [[ -n $full_name ]]; then
   runuser -u "$username" -- git config --global user.name "$full_name"
 fi
@@ -151,16 +420,29 @@ if [[ -n $email_address ]]; then
   runuser -u "$username" -- git config --global user.email "$email_address"
 fi
 
+runuser -u "$username" -- env \
+  HOME="$home_dir" \
+  USER="$username" \
+  LOGNAME="$username" \
+  OMARCHY_PATH="$omarchy_path" \
+  OMARCHY_USER_NAME="$full_name" \
+  OMARCHY_USER_EMAIL="$email_address" \
+  /usr/bin/omarchy-ps4-finalize-owner >>"$log_file" 2>&1 || \
+  fail 'could not prepare the Omarchy desktop'
+
+configure_desktop_autologin
+
 install -d -o "$username" -g "$username" "$home_dir/.local/state/omarchy-ps4"
-printf 'release=4.0.0rc3\nupstream_commit=144f4d1e31d6ddc2cba5dfd69278cabf02bafd05\n' \
+printf 'release=4.0.0\nupstream_commit=f0020448ca87329199de7cb12f2015ebc4a3e5e7\n' \
   >"$home_dir/.local/state/omarchy-ps4/owner-provisioned"
 chown "$username:$username" "$home_dir/.local/state/omarchy-ps4/owner-provisioned"
 
 sync
-rm -f "$pending_file" "$setup_user_file"
+rm -f "$pending_file" "$setup_user_file" "$staged_authorized_keys"
 sync
 log "owner setup complete for $username"
+uart_event complete
 
 render_header
-gum style --foreground 2 --bold 'Owner setup complete'
-gum style 'Starting the login screen…'
+centered_style '#9ece6a' --bold 'OMARCHY IS READY'
+centered_style '#a9b1d6' 'Starting your desktop…'

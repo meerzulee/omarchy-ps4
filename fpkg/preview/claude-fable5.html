@@ -672,7 +672,7 @@
         <div class="credits-scroll" id="creditsScroll" tabindex="0" data-nav data-scroll data-autofocus
              role="region" aria-label="Credits, versions and licenses. Use up and down to scroll.">
           <h2>This release</h2>
-          <div class="row"><span class="name">Omarchy Linux</span><span class="lic">Quattro RC3</span></div>
+          <div class="row"><span class="name">Omarchy Linux</span><span class="lic">4.0.0</span></div>
           <div class="row"><span class="name">Theme</span><span class="lic">Tokyo Night</span></div>
           <div class="row"><span class="name">Linux root</span><span class="lic">External USB drive · OMARCHY-PS4</span></div>
           <div class="row"><span class="name">PS4 Manager</span><span class="lic">Interactive UX prototype</span></div>
@@ -847,7 +847,7 @@ const HOME_STATES = {
   'not-installed': {
     state: 'Not installed', tone: '',
     cta: 'Install Omarchy',
-    detail: 'Quattro RC3 to the external USB drive. Internal PS4 storage is never touched.',
+    detail: 'Omarchy 4.0.0 to the external USB drive. Internal PS4 storage is never touched.',
     act: () => showReview('install'),
   },
   interrupted: {
@@ -857,7 +857,7 @@ const HOME_STATES = {
     act: () => showReview('resume'),
   },
   ready: {
-    state: 'Quattro RC3 · Ready', tone: 'ok',
+    state: 'Omarchy 4.0.0 · Ready', tone: 'ok',
     cta: 'Boot Linux',
     detail: 'You review the boot details first — nothing boots until you confirm.',
     act: () => showBootReview(),
@@ -865,7 +865,7 @@ const HOME_STATES = {
   update: {
     state: 'Update available', tone: 'ok',
     cta: 'Update Omarchy',
-    detail: 'Quattro RC3. The previous boot set is kept and restorable.',
+    detail: 'Omarchy 4.0.0. The previous boot set is kept and restorable.',
     act: () => showReview('update'),
   },
   damaged: {
@@ -892,7 +892,7 @@ function showHome() {
 /* ---------- review (install / resume / update) ---------- */
 
 const SHARED_FACTS = [
-  ['Release', '<span>Omarchy Quattro RC3</span>'],
+  ['Release', '<span>Omarchy 4.0.0</span>'],
   ['Linux root', '<span>External USB drive · <span class="ok">OMARCHY-PS4</span> · checked by Linux</span>'],
   ['Video memory', '<span>1024 MB set aside for Linux</span>'],
   ['Previous boot set', '<span class="keep">Kept — restorable from Recovery</span>'],
@@ -933,7 +933,7 @@ function showBootReview() {
   $('reviewKicker').textContent = 'Boot review';
   $('reviewTitle').textContent = 'Boot Linux';
   renderFacts([
-    ['Release', '<span>Omarchy Quattro RC3</span>'],
+    ['Release', '<span>Omarchy 4.0.0</span>'],
     ['Video memory', '<span>1024 MB</span>'],
     ['Boot drive', '<span>External USB · <span class="ok">OMARCHY-PS4</span></span>'],
   ]);
@@ -1023,7 +1023,7 @@ function runInstallProgress(flow) {
       { name: 'Checking system', ms: 2100, safe: true,
         explain: 'Making sure GoldHEN is ready and PS4BOOT has the required free space.' },
       { name: 'Verifying release', ms: 2700, safe: true,
-        explain: 'Confirming the Quattro RC3 files are complete and untampered.' },
+        explain: 'Confirming the Omarchy 4.0.0 files are complete and untampered.' },
       { name: 'Preparing boot files', ms: 3300, safe: false,
         explain: 'Writing the new boot set. The previous set is kept. Keep the console on.' },
     ],
@@ -1085,7 +1085,7 @@ const RESULTS = {
   ready: {
     mark: '✓', warn: false,
     title: 'Ready',
-    body: 'Omarchy Quattro RC3 is installed. The console stays as it is until you choose to boot.',
+    body: 'Omarchy 4.0.0 is installed. The console stays as it is until you choose to boot.',
     primary: ['Boot Linux', () => showBootReview()],
     secondary: ['Back to Home', () => showHome()],
     back: () => showHome(),

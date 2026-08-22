@@ -7,16 +7,18 @@ work.
 
 `packages.txt` is generated from the pinned upstream
 `install/omarchy-base.packages`, minus the narrowly documented list in
-`blocked-packages.txt`, plus PS4 packages and Quattro's conditional Wayland,
-PipeWire, Mesa, and Vulkan dependencies from `additional-packages.txt`.
+`blocked-packages.txt`, with provider names normalized by
+`package-replacements.txt`, plus PS4 packages and Quattro's conditional
+Wayland, PipeWire, Mesa, and Vulkan dependencies from
+`additional-packages.txt`.
 
 Included areas:
 
 - Foot, tmux, Neovim, LazyGit, Herdr, Mise, compilers, and terminal helpers;
 - Chromium, Firefox, web applications, Thunar, mpv, image and document apps;
-- LibreOffice, Kdenlive, OBS, Obsidian, LocalSend, Moonlight, and drawing tools;
+- LibreOffice, OBS, Obsidian, LocalSend, Moonlight, and drawing tools;
 - Docker CLI/runtime packages, printing packages, Bluetooth packages, portals,
-  PipeWire, SDDM assets, international input, fonts, and every Quattro theme;
+  PipeWire, international input, fonts, and every Quattro theme;
 - all upstream `omarchy-*` commands, with unsafe originals retained for audit
   and guarded replacements presented to users.
 
@@ -25,9 +27,14 @@ screen recording, printing, Docker, SDDM takeover, gaming, and video decode
 still require their individual gates. LightDM/XFCE remains the recovery path
 until those gates pass.
 
-Nautilus and GVfs MTP are replaced by Thunar because they introduce D-Bus
-activation of UDisks, not because their UI is unwanted. Their menu and
-keybinding behavior is preserved without touching internal storage.
+Nautilus, GVfs-backed network mounts and applications whose dependency chains
+activate UDisks are excluded because the PS4 internal SATA path is unsafe to
+probe. Thunar preserves the core file-manager actions without touching
+internal storage. `forbidden-closure-packages.txt` is enforced against the
+complete Pacman transaction, not only the direct request list.
+
+The package-by-package prerequisites and promotion procedure are maintained in
+[`docs/BLOCKED-PACKAGE-RESTORATION.md`](../../docs/BLOCKED-PACKAGE-RESTORATION.md).
 
 Regenerate and verify the committed package list with:
 

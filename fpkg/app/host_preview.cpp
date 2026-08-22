@@ -45,15 +45,33 @@ int self_test() {
 
   const std::array<std::uint8_t, 31> elf_bytes{};
   std::vector<std::uint8_t> received;
-  ok &= check(omarchy_ps4::send_complete(
+  std::size_t write_calls = 0;
+  ok &= check(!omarchy_ps4::send_once(
       elf_bytes.data(), elf_bytes.size(),
-      [&received](const std::uint8_t* bytes, std::size_t size) -> std::ptrdiff_t {
+      [&received, &write_calls](const std::uint8_t* bytes,
+                               std::size_t size) -> std::ptrdiff_t {
+        ++write_calls;
         const std::size_t short_write = std::min<std::size_t>(size, 7);
         received.insert(received.end(), bytes, bytes + short_write);
         return static_cast<std::ptrdiff_t>(short_write);
-      }), "payload transport rejected valid short writes");
-  ok &= check(received.size() == elf_bytes.size(), "payload transport truncated ELF");
-  ok &= check(!omarchy_ps4::send_complete(
+      }), "payload transport retried or accepted a dangerous short write");
+  ok &= check(write_calls == 1, "payload transport retried a short write");
+  ok &= check(received.size() == 7, "payload transport wrote after a short write");
+
+  received.clear();
+  write_calls = 0;
+  ok &= check(omarchy_ps4::send_once(
+      elf_bytes.data(), elf_bytes.size(),
+      [&received, &write_calls](const std::uint8_t* bytes,
+                               std::size_t size) -> std::ptrdiff_t {
+        ++write_calls;
+        received.insert(received.end(), bytes, bytes + size);
+        return static_cast<std::ptrdiff_t>(size);
+      }), "payload transport rejected one complete write");
+  ok &= check(write_calls == 1, "payload transport used more than one write");
+  ok &= check(received.size() == elf_bytes.size(),
+              "payload transport truncated a complete write");
+  ok &= check(!omarchy_ps4::send_once(
       elf_bytes.data(), elf_bytes.size(),
       [](const std::uint8_t*, std::size_t) -> std::ptrdiff_t { return 0; }),
       "payload transport accepted a closed socket");

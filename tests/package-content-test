@@ -28,6 +28,7 @@ bsdtar -xf "${provisioning_packages[0]}" -C "$temporary/provisioning"
 for required in \
   usr/bin/omarchy-menu \
   usr/bin/omarchy-launch-nautilus \
+  usr/bin/omarchy-ps4-chromium-software-rendering \
   usr/bin/omarchy-update \
   usr/bin/omarchy-ps4-probe \
   usr/bin/omarchy-ps4-status \
@@ -37,10 +38,32 @@ for required in \
   [[ -e $temporary/runtime/$required ]] || fail "runtime package is missing $required"
 done
 
+network_panel=$temporary/runtime/usr/share/omarchy/shell/plugins/panels/network/Panel.qml
+network_model=$temporary/runtime/usr/share/omarchy/shell/plugins/panels/network/Model.js
+grep -Fq 'Model.findWifiStationDevice(' "$network_panel" ||
+  fail 'network panel does not select Wi-Fi through the station-device helper'
+grep -Fq 'WifiDeviceMode.Station' "$network_panel" ||
+  fail 'network panel does not reject PS4 access-point-mode interfaces'
+grep -Fq 'function findWifiStationDevice(devices, wifiType, stationMode)' "$network_model" ||
+  fail 'network model lacks the PS4 station-device selector'
+grep -Fq 'findWifiStationDevice: findWifiStationDevice' "$network_model" ||
+  fail 'network model does not export the station-device selector for tests'
+grep -Fq 'if ! iptables -V >/dev/null 2>&1; then' \
+  "$temporary/runtime/usr/bin/omarchy-setup-security-sshd" ||
+  fail 'SSHD setup does not handle a PS4 kernel without working netfilter'
+grep -Fq 'flag=--disable-gpu' \
+  "$temporary/runtime/usr/bin/omarchy-ps4-chromium-software-rendering" ||
+  fail 'runtime lacks the accepted Chromium software-rendering policy'
+
 for required in \
   usr/bin/omarchy-ps4-prepare-for-owner \
   usr/bin/omarchy-ps4-provision-owner \
+  usr/bin/omarchy-ps4-finalize-owner \
+  usr/bin/omarchy-ps4-grow-root \
+  usr/lib/systemd/system/omarchy-ps4-grow-root.service \
   usr/lib/systemd/system/omarchy-ps4-provision-owner.service \
+  usr/lib/systemd/system/lightdm.service.d/20-omarchy-ps4-owner-gate.conf \
+  etc/ssh/sshd_config.d/20-omarchy-ps4.conf \
   etc/sudoers.d/10-omarchy-ps4-wheel; do
   [[ -e $temporary/provisioning/$required ]] || \
     fail "provisioning package is missing $required"
@@ -66,9 +89,108 @@ grep -Fq 'PREPARE-FOR-ANOTHER-OWNER' \
 grep -Fq 'target already contains owner account' \
   "$temporary/provisioning/usr/bin/omarchy-ps4-prepare-for-owner" || \
   fail 'image preparation does not protect existing owner data'
+grep -Fq 'layout_value layout) == whole-device-filesystem' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-grow-root" || \
+  fail 'root grower does not require the full-device image layout'
+grep -Fq "'/usb'" \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-grow-root" || \
+  fail 'root grower does not guard sysfs USB ancestry'
+grep -Fq 'expected a whole-device filesystem' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-grow-root" || \
+  fail 'root grower does not reject partitioned roots'
+grep -Fq 'resize2fs "$root_device"' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-grow-root" || \
+  fail 'root grower does not expand the verified ext4 device'
+! grep -Eq 'parted|sfdisk|fdisk|sgdisk' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-grow-root" || \
+  fail 'root grower contains a forbidden partition-table editor'
+grep -Fq 'Wants=omarchy-ps4-grow-root.service' \
+  "$temporary/provisioning/usr/lib/systemd/system/omarchy-ps4-provision-owner.service" || \
+  fail 'owner setup does not order USB growth before its guarded check'
+grep -Fq 'Environment=OMARCHY_PS4_OWNER_CONSOLE=1' \
+  "$temporary/provisioning/usr/lib/systemd/system/omarchy-ps4-provision-owner.service" || \
+  fail 'owner setup does not enable the branded blocking console'
+grep -Fq 'TimeoutStartSec=infinity' \
+  "$temporary/provisioning/usr/lib/systemd/system/omarchy-ps4-provision-owner.service" || \
+  fail 'owner setup can time out into a generic login prompt'
+grep -Eq '^Before=.*console-getty\.service([[:space:]]|$)' \
+  "$temporary/provisioning/usr/lib/systemd/system/omarchy-ps4-provision-owner.service" || \
+  fail 'owner setup is not ordered before the generated console getty'
+grep -Eq '^Conflicts=.*console-getty\.service([[:space:]]|$)' \
+  "$temporary/provisioning/usr/lib/systemd/system/omarchy-ps4-provision-owner.service" || \
+  fail 'owner setup does not exclude the generated console getty'
+grep -Fq 'hold_first_boot_error' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup lacks a branded blocking failure screen'
+grep -Fq "uart_event prompt-ready" \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup lacks safe UART lifecycle telemetry'
+grep -Fq 'staged_authorized_keys=$state_dir/authorized_keys' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup lacks the offline public-key handoff'
+grep -Fq 'ssh-keygen -lf "$staged_authorized_keys"' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup does not validate staged SSH public keys'
+grep -Fq 'systemctl enable --now sshd.service' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup does not enable persistent SSH for imported keys'
+! grep -Eq 'GitHub username|github\.com/.+\.keys|prompt_github_ssh|fetch_github_authorized_keys' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup still contains a network-dependent GitHub key prompt'
+grep -Fq -- "--foreground '#9ece6a'" \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup does not render the pinned Omarchy logo in green'
+grep -Fq 'setup_left=$(((screen_columns - setup_width) / 2))' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup does not center its console layout'
+grep -Fq 'StandardError=journal' \
+  "$temporary/provisioning/usr/lib/systemd/system/omarchy-ps4-provision-owner.service" || \
+  fail 'owner setup can still paint raw service errors through the form'
+grep -Fq "render_setup_step 'FINISHING'" \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup does not preserve a clean screen during desktop finalization'
+grep -Fxq 'PasswordAuthentication no' \
+  "$temporary/provisioning/etc/ssh/sshd_config.d/20-omarchy-ps4.conf" || \
+  fail 'provisioning package permits SSH password authentication'
+grep -Fxq 'KbdInteractiveAuthentication no' \
+  "$temporary/provisioning/etc/ssh/sshd_config.d/20-omarchy-ps4.conf" || \
+  fail 'provisioning package permits SSH keyboard-interactive authentication'
+grep -Fxq 'PermitRootLogin no' \
+  "$temporary/provisioning/etc/ssh/sshd_config.d/20-omarchy-ps4.conf" || \
+  fail 'provisioning package permits SSH root login'
+grep -Fq 'Requires=omarchy-ps4-provision-owner.service' \
+  "$temporary/provisioning/usr/lib/systemd/system/lightdm.service.d/20-omarchy-ps4-owner-gate.conf" || \
+  fail 'LightDM is not gated on successful owner setup'
 ! grep -Eq 'cryptsetup|limine|mkinitcpio|sddm|btrfs' \
   "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
   fail 'provisioner contains a forbidden PC boot or storage integration'
+grep -Fq '/usr/bin/omarchy-ps4-finalize-owner' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner provisioner does not run offline desktop finalization'
+grep -Fq '25-omarchy-ps4-owner-autologin.conf' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner provisioner does not configure persistent desktop autologin'
+grep -Fq 'configure_desktop_autologin' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner provisioner does not activate persistent desktop autologin'
+grep -Fq 'groupadd --system autologin' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner provisioner does not create the PAM-required autologin group'
+grep -Fq 'groups=(wheel autologin)' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner provisioner does not add the owner to the autologin group'
+! grep -Eq 'autologin-once|clear-autologin-once' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner provisioner still removes autologin after the first desktop'
+! grep -Eq 'pacman|curl|wget|mise use|systemctl|udisks|lsblk|findmnt' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-finalize-owner" || \
+  fail 'owner finalizer contains a network, service, package, or storage action'
+grep -Fq "omarchy-theme-set\" 'Tokyo Night'" \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-finalize-owner" || \
+  fail 'owner finalizer does not initialize Tokyo Night'
+grep -Fq 'omarchy-ps4-chromium-software-rendering --enable' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-finalize-owner" ||
+  fail 'owner finalizer does not enable safe Chromium rendering'
 
 for required in \
   etc/skel/.config/hypr/hyprland.lua \
@@ -76,12 +198,42 @@ for required in \
   etc/skel/.config/omarchy/branding/about.txt \
   etc/skel/.config/omarchy/shell.json \
   etc/skel/.config/omarchy/shell.toml \
+  etc/skel/.config/uwsm/env.d/10-omarchy-ps4 \
+  etc/lightdm/lightdm-gtk-greeter.conf.d/20-omarchy-ps4.conf \
+  etc/profile.d/10-omarchy-ps4.sh \
   usr/share/omarchy/config/omarchy/shell.json \
   usr/share/omarchy/config/omarchy/shell.toml \
   usr/share/omarchy/default/uwsm/env.d/10-omarchy \
+  usr/local/share/wayland-sessions/omarchy.desktop \
   usr/share/omarchy/applications; do
   [[ -e $temporary/settings/$required ]] || fail "settings package is missing $required"
 done
+
+for environment_file in \
+  "$temporary/settings/etc/skel/.config/uwsm/env.d/10-omarchy-ps4" \
+  "$temporary/settings/etc/profile.d/10-omarchy-ps4.sh" \
+  "$temporary/settings/usr/share/uwsm/env.d/10-omarchy"; do
+  grep -Fq 'export AMD_DEBUG=notiling' "$environment_file" || \
+    fail "PS4 Mesa compatibility variable is missing from $environment_file"
+done
+grep -Fq 'Exec=env AMD_DEBUG=notiling OMARCHY_PATH=/usr/share/omarchy uwsm start' \
+  "$temporary/settings/usr/local/share/wayland-sessions/omarchy.desktop" || \
+  fail 'Omarchy session launcher does not guarantee the Mesa compatibility variable'
+grep -Fq 'background=/usr/share/omarchy/themes/tokyo-night/backgrounds/2-swirl-buck.jpg' \
+  "$temporary/settings/etc/lightdm/lightdm-gtk-greeter.conf.d/20-omarchy-ps4.conf" || \
+  fail 'LightDM does not use the pinned Tokyo Night background'
+grep -Fq 'font-name=JetBrainsMono Nerd Font 12' \
+  "$temporary/settings/etc/lightdm/lightdm-gtk-greeter.conf.d/20-omarchy-ps4.conf" || \
+  fail 'LightDM does not use the Omarchy text font'
+grep -Fq 'position=50%,center 50%,center' \
+  "$temporary/settings/etc/lightdm/lightdm-gtk-greeter.conf.d/20-omarchy-ps4.conf" || \
+  fail 'LightDM login card is not anchored at the true screen center'
+grep -qxF -- '--disable-gpu' \
+  "$temporary/settings/etc/skel/.config/chromium-flags.conf" ||
+  fail 'new owners do not inherit the accepted Chromium rendering flag'
+grep -qxF -- '--disable-gpu' \
+  "$temporary/settings/usr/share/omarchy/config/chromium-flags.conf" ||
+  fail 'Omarchy Chromium refresh would remove the PS4 rendering flag'
 
 jq -e '
   .version == 1 and
@@ -102,7 +254,16 @@ grep -Eq '^[[:space:]]*base-size[[:space:]]*=[[:space:]]*14[[:space:]]*$' \
 grep -Eq '^[[:space:]]*scale-with-font[[:space:]]*=[[:space:]]*false[[:space:]]*$' \
   "$temporary/settings/etc/skel/.config/omarchy/shell.toml" || \
   fail 'packaged PS4 bar icon scale guard is missing'
-jq -e 'any(.modules[]; type == "object" and .format == "Omarchy PS4 Quattro RC3")' \
+grep -Fq 'mode = "1920x1080@60"' \
+  "$temporary/settings/etc/skel/.config/hypr/monitors.lua" || \
+  fail 'packaged PS4 Hyprland mode is not fixed at 1080p60'
+grep -Fq 'scale = 1' \
+  "$temporary/settings/etc/skel/.config/hypr/monitors.lua" || \
+  fail 'packaged PS4 Hyprland scale is not fixed at one'
+grep -A3 'animations = {' \
+  "$temporary/settings/etc/skel/.config/hypr/looknfeel.lua" | grep -Fq 'enabled = false' || \
+  fail 'packaged PS4 Hyprland animations are not disabled'
+jq -e 'any(.modules[]; type == "object" and .format == "Omarchy PS4 Quattro 4.0")' \
   "$temporary/settings/etc/skel/.config/fastfetch/config.jsonc" >/dev/null || \
   fail 'packaged PS4 Fastfetch config is missing branding'
 cmp -s \

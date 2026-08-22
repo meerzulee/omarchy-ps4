@@ -14,7 +14,7 @@ usage() {
   printf '%s\n' \
     'Usage: arm-recovery (--check|--apply) EXPERIMENT_ID' \
     '' \
-    'Create the temporary key-only RC3 recovery account on the running' \
+    'Create the temporary key-only 4.0.0 recovery account on the running' \
     'external OMARCHY-PS4 development root.'
 }
 
@@ -42,8 +42,8 @@ bundle_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 "$bundle_dir/check" >/dev/null
 
 for command_name in \
-  awk findmnt getent grep install lsblk mktemp openssl passwd pwck readlink \
-  runuser ssh-keygen sshd systemctl useradd usermod visudo
+  awk date findmnt getent grep install lsblk mktemp openssl pacman passwd pwck \
+  readlink runuser sed sha256sum ssh-keygen sshd systemctl useradd usermod visudo
 do
   command -v "$command_name" >/dev/null 2>&1 || fail "missing command: $command_name"
 done
@@ -84,7 +84,61 @@ if getent passwd "$recovery_user" >/dev/null; then
     fail "installed recovery key fingerprint is $installed_fingerprint"
   systemctl is-enabled --quiet sshd.service || fail 'sshd.service is not enabled'
   systemctl is-active --quiet sshd.service || fail 'sshd.service is not active'
-  printf '%s\n' 'Recovery access is already armed and healthy.'
+  project_packages=(omarchy-ps4 omarchy-ps4-settings omarchy-ps4-provisioning)
+  previous_version=''
+  for package_name in "${project_packages[@]}"; do
+    package_version=$(pacman -Q "$package_name" 2>/dev/null | awk '{ print $2 }') || \
+      fail "$package_name is not installed"
+    if [[ -z $previous_version ]]; then
+      previous_version=$package_version
+    elif [[ $package_version != "$previous_version" ]]; then
+      fail 'installed project packages do not share one version'
+    fi
+  done
+  bundled_hash=$(sha256sum "$bundle_dir/dev-recovery" | awk '{ print $1 }')
+  installed_hash=$(sha256sum "$control_path" | awk '{ print $1 }')
+  recorded_previous=$(sed -n 's/^previous_foundation_version=//p' "$state_dir/armed.env")
+  if [[ $installed_hash == "$bundled_hash" && $recorded_previous == "$previous_version" ]]; then
+    printf '%s\n' 'Recovery access and the stable rollback command are already healthy.'
+    exit 0
+  fi
+
+  printf 'Root:        %s (%s, label %s)\n' "$root_device" "$transport" "$root_label"
+  printf 'Account:     %s (existing, key-only SSH)\n' "$recovery_user"
+  printf 'Foundation:  %s\n' "$previous_version"
+  printf 'Experiment:  %s\n' "$experiment_id"
+  printf '%s\n' 'Change:      replace only the restricted rollback command and record the prior version'
+  if [[ $mode == --check ]]; then
+    printf '%s\n' 'Check passed; recovery-command update is required but no file was changed.'
+    exit 0
+  fi
+
+  evidence_dir="$state_dir/${experiment_id}-$(date -u +%Y%m%dT%H%M%SZ)-command-update"
+  install -d -m 0700 "$evidence_dir"
+  install -m 0755 "$control_path" "$evidence_dir/dev-recovery.before"
+  install -m 0600 "$state_dir/armed.env" "$evidence_dir/armed.before.env"
+  install -D -o root -g root -m 0755 "$bundle_dir/dev-recovery" "$control_path"
+  original_experiment=$(sed -n 's/^experiment=//p' "$evidence_dir/armed.before.env")
+  [[ $original_experiment =~ ^EXP-[0-9]{8}-[0-9]{3}-A[0-9]+$ ]] || \
+    fail 'existing recovery marker has an invalid experiment ID'
+  cat >"$state_dir/armed.env" <<EOF
+schema=2
+mode=temporary-dev-recovery
+experiment=$original_experiment
+recovery_update_experiment=$experiment_id
+user=$recovery_user
+key_fingerprint=$expected_key_fingerprint
+previous_foundation_version=$previous_version
+gift_finalization=blocked-until-removed
+EOF
+  chmod 0600 "$state_dir/armed.env"
+  runuser -u "$recovery_user" -- sudo -n "$control_path" status \
+    >"$evidence_dir/recovery-status.after.txt"
+  if runuser -u "$recovery_user" -- sudo -n /usr/bin/id >/dev/null 2>&1; then
+    fail 'recovery account unexpectedly obtained general sudo'
+  fi
+  sha256sum "$control_path" >"$evidence_dir/dev-recovery.after.sha256"
+  printf 'Restricted recovery command updated. Evidence: %s\n' "$evidence_dir"
   exit 0
 fi
 
@@ -92,7 +146,7 @@ printf 'Root:        %s (%s, label %s)\n' "$root_device" "$transport" "$root_lab
 printf 'Account:     %s (new, key-only SSH)\n' "$recovery_user"
 printf 'Key:         %s\n' "$key_fingerprint"
 printf 'Experiment:  %s\n' "$experiment_id"
-printf '%s\n' 'Sudo scope:  recovery status and exact RC3 foundation rollback only'
+printf '%s\n' 'Sudo scope:  recovery status and exact 4.0.0 foundation rollback only'
 printf '%s\n' 'Release gate: owner finalization will refuse this extra account and sudo rule'
 
 if [[ $mode == --check ]]; then
@@ -123,7 +177,7 @@ install -o "$recovery_uid" -g "$recovery_gid" -m 0600 \
   "$temporary/authorized_key" "$recovery_home/.ssh/authorized_keys"
 
 cat >"$temporary/sshd-policy" <<EOF
-# Temporary RC3 recovery access. Remove before gift finalization.
+# Temporary 4.0.0 recovery access. Remove before gift finalization.
 Match User $recovery_user
     AuthenticationMethods publickey
     PasswordAuthentication no
@@ -139,7 +193,7 @@ EOF
 install -D -o root -g root -m 0644 "$temporary/sshd-policy" "$sshd_policy_path"
 
 cat >"$temporary/sudoers" <<EOF
-# Temporary RC3 recovery access. Remove before gift finalization.
+# Temporary 4.0.0 recovery access. Remove before gift finalization.
 $recovery_user ALL=(root) NOPASSWD: $control_path status
 $recovery_user ALL=(root) NOPASSWD: $control_path rollback-foundation
 EOF

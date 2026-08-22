@@ -9,7 +9,7 @@ workstation package set, not a minimal Hyprland base.
 | Upstream line | Pinned revision | What exists | PS4 decision |
 |---|---|---|---|
 | Stable 3.8.4 | `8fcc9d6048af4cb0e3af8512c78049857a3b53dd` | 149-package base list and a full machine installer | Do not run the installer |
-| Quattro 4.0.0rc3 | `144f4d1e31d6ddc2cba5dfd69278cabf02bafd05` | 147-package base list, `omarchy`/`omarchy-settings` packages, and deferred-owner setup | Reuse desktop files and owner UX selectively |
+| Quattro 4.0.0 | `f0020448ca87329199de7cb12f2015ebc4a3e5e7` | 147-package base list, `omarchy`/`omarchy-settings` packages, and deferred-owner setup | Reuse desktop files and owner UX selectively |
 
 Neither pinned tree contains `OMARCHY_BARE` or another bare-install switch.
 Stable `boot.sh` replaces the Omarchy checkout and enters the complete install
@@ -17,8 +17,9 @@ pipeline. Quattro explicitly assigns orchestration to its ISO and retains
 system setup for SDDM, services, firewall, Snapper, hardware detection, and
 post-install policy.
 
-The Git branch named `rc` remains on Omarchy 3.8.x. Quattro RC3 is the pinned
-`quattro` commit above, released by the separate package repository.
+The Git branch named `rc` remains on Omarchy 3.8.x. Quattro 4.0.0 is tagged at
+the pinned `quattro` commit above and released by the separate package
+repository.
 
 Primary upstream references:
 

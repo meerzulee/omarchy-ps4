@@ -1,0 +1,18 @@
+diff --git a/bin/omarchy-setup-security-sshd b/bin/omarchy-setup-security-sshd
+index 2d5f158..75c93f6 100755
+--- a/bin/omarchy-setup-security-sshd
++++ b/bin/omarchy-setup-security-sshd
+@@ -39,6 +39,12 @@ open_firewall() {
+     return
+   fi
+-
++
++  if ! iptables -V >/dev/null 2>&1; then
++    echo "This PS4 kernel has no working netfilter backend; skipping the UFW rule."
++    echo "SSH remains key-only, but network reachability is not filtered by this machine."
++    return
++  fi
++
+   echo "Opening the SSH port in the firewall (rate limited against brute force)..."
+   sudo ufw limit 22/tcp comment "omarchy-sshd" >/dev/null
+   sudo ufw reload >/dev/null

@@ -1,8 +1,8 @@
 # Omarchy PS4 Research and Architecture
 
-![Omarchy Quattro RC3 running on a Baikal B1 PS4](docs/assets/omarchy-ps4-quattro-rc3.png)
+![Omarchy Quattro running on a Baikal B1 PS4](docs/assets/omarchy-ps4-quattro.png)
 
-*Omarchy Quattro RC3 running at 1920×1080 on the project’s Baikal B1 PS4,
+*Omarchy Quattro running at 1920×1080 on the project’s Baikal B1 PS4,
 using Linux 6.18.44, Hyprland, the native package-owned Quickshell runtime and
 an external USB root.*
 
@@ -23,11 +23,13 @@ Baikal B1 kernel shown here is available as the hardware-tested
 > [`docs/PORTABLE.md`](docs/PORTABLE.md).
 > The source-mapped list of PS4-specific fixes that must be carried into the
 > final installation/image is [`docs/PS4-FIXES.md`](docs/PS4-FIXES.md).
-> Quattro RC3 and its deferred-owner flow are tracked in
-> [`docs/QUATTRO-RC3.md`](docs/QUATTRO-RC3.md), while the package publication
-> design is in [`docs/PACKAGE-REPOSITORY.md`](docs/PACKAGE-REPOSITORY.md).
+> Quattro 4.0.0 and its deferred-owner flow are tracked in
+> [`docs/QUATTRO-4.0.md`](docs/QUATTRO-4.0.md), while the package publication
+> design is in [`docs/PACKAGE-REPOSITORY.md`](docs/PACKAGE-REPOSITORY.md) and
+> the controlled gift-dev package build is in
+> [`docs/PACKAGE-SNAPSHOT.md`](docs/PACKAGE-SNAPSHOT.md).
 > The current implementation, evidence boundary and ordered resume plan are in
-> [`docs/CHECKPOINT-2026-08-13.md`](docs/CHECKPOINT-2026-08-13.md).
+> [`docs/CHECKPOINT-2026-08-22.md`](docs/CHECKPOINT-2026-08-22.md).
 > The single-app Install/Boot/Repair protocol and offline UX draft are in
 > [`fpkg/`](fpkg/README.md).
 > The end-to-end jailbreak, USB, FPKG, installer, splash and first-owner path is
@@ -40,26 +42,49 @@ Architecture research date: 2026-08-09
 
 Ecosystem snapshot date: 2026-08-10
 
-Status: Linux 6.18/XFCE, native Wayland, Hyprland, UWSM, and the pinned Quattro
-shell have rendered on the Baikal B1 console. The legacy DCE8 display path
-still requires `AMD_DEBUG=notiling` and has unresolved artifacting; XFCE stays
-the recovery desktop.
+Status: Linux 6.18/XFCE, native Wayland, Hyprland, UWSM, and stable Omarchy
+4.0.0 render on the Baikal B1 console. On 2026-08-23, FPKG v0.28 verified its
+internal boot set, handed off its bundled loader in one complete write, booted
+the whole-device gift USB, showed the quiet branded splash, mounted the exact
+external root and reached the Omarchy desktop after a manual login. Automatic
+login is not accepted yet: the effective LightDM configuration and PAM group
+are correct, but the greeter still appeared. The PS4 also exposes no usable
+RTC; release-image construction now enables `systemd-timesyncd` so the clock
+corrects itself as soon as networking is available. Repeated cold-boot
+acceptance remains open. The legacy DCE8 display path requires
+`AMD_DEBUG=notiling`; XFCE stays the recovery desktop.
+
+## Beta artifacts
+
+This project is a hardware-development beta for jailbroken PS4 consoles, not a
+production Linux distribution. The tested FPKG is the small v0.28 kernel
+manager and launcher; the complete Omarchy root remains a separately flashed
+USB image. A package release never contains or formats the Linux USB root.
+
+Release assets and checksums are published through
+[`meerzulee/omarchy-ps4` releases](https://github.com/meerzulee/omarchy-ps4/releases)
+only after their exact hardware evidence and redistribution status are stated.
+GoldHEN is required. Current support evidence covers one PS4 Slim Baikal B1;
+other southbridges and firmware combinations are unverified.
+The v0.28 beta evidence, checksum, limitations and draft publication gate are
+recorded in [`docs/releases/v0.28-beta.md`](docs/releases/v0.28-beta.md).
 
 ## Executive summary
 
 An Omarchy-derived Linux distribution can run on a jailbroken PS4, and it is
 realistic to present it to users through a single PS4 FPKG installer/launcher.
-It should not be implemented as a direct port of the normal Omarchy installer,
-however. The practical design is:
+It is not a direct port of the normal Omarchy installer. The implemented
+private-beta design is:
 
-1. Build a PS4-specific Arch root filesystem off-console.
-2. Replace the stock kernel, GPU packages, bootloader integration, and generic
-   PC hardware setup with PS4-specific components.
-3. Use an explicitly identified external Linux device for the first product;
-   treat an Orbis-hosted loop image as a later, hardware-dependent option.
-4. Use a small OpenOrbis FPKG to download, verify, install, repair, update, and
-   launch the system.
-5. Boot through a PS4 Linux loader and kexec, not GRUB or Limine.
+1. Build one complete, pinned PS4-specific Omarchy ext4 image off-console.
+2. Let the user flash that image to one 32 GB or larger USB; flashing is the
+   Linux installation and first boot expands it automatically.
+3. Keep the matching kernel, initramfs, boot arguments and loader inside one
+   small OpenOrbis FPKG, staged transactionally under `/data/linux/boot`.
+4. Boot through the pinned PS4 Linux loader and kexec, not GRUB or Limine.
+5. Keep Linux away from the PS4 internal SATA in the supported Baikal profile.
+6. Enable network time in the image because the PS4 Linux target has no usable
+   battery-backed RTC; synchronize automatically once networking comes online.
 
 The internal PS4 disk must not be physically repartitioned. Some existing PS4
 Linux installations use a large file as a virtual disk, which avoids changing
@@ -80,16 +105,16 @@ split and the PS4 layer sequence.
 The intended product is a homebrew application for an already jailbroken PS4.
 It will not run on a stock console and it will not provide the jailbreak.
 
-The application should eventually expose these actions:
+The private beta exposes these primary actions:
 
-- Install Omarchy PS4
+- Prepare boot files
 - Boot Omarchy PS4
-- Update system and boot assets
-- Select VRAM allocation
-- Repair an incomplete installation
-- Roll back boot assets
-- Export diagnostic logs
-- Remove the Linux installation
+- Choose the manager appearance
+- Review recovery/diagnostic placeholders and licenses
+
+Signed boot-set updates, explicit restore, diagnostics export and additional
+VRAM profiles remain later features. The FPKG never installs or removes the
+Linux root filesystem; users replace that by flashing a USB image.
 
 Initial hardware work targets the known Baikal B1 console and external storage
 because that is the machine we can test. Support will not be generalized to
@@ -98,12 +123,12 @@ evidence.
 
 ## What the Omarchy Quattro branch is
 
-The pinned Quattro source reports version `4.0.0.alpha`, while the official
-package repository releases that exact commit as `4.0.0rc3`. Its repository is
-not a complete image installer. The branch's own contributor guide explains
-that a separate ISO owns installation orchestration, while the repository
-provides target-side setup commands, package lists, configuration, migrations,
-themes, and desktop behavior.
+The pinned Quattro source is the official `v4.0.0` release commit. Its source
+version file still reports `4.0.0.alpha`, while the official package repository
+assigns `4.0.0` to the exact same commit. The source repository is not a
+complete image installer: a separate ISO owns installation orchestration,
+while this tree provides target-side setup commands, package lists,
+configuration, migrations, themes, and desktop behavior.
 
 Quattro assumes a normal Arch PC environment, including:
 
@@ -217,35 +242,36 @@ acceptable.
 ## Proposed PS4 FPKG manager
 
 Build the manager with the OpenOrbis PS4 Toolchain. The application should be
-small; the complete Linux root filesystem should normally be downloaded after
-installation or imported from USB.
+small enough to carry the complete signed kernel/initramfs set. The complete
+Linux root filesystem ships separately as a flashable USB image.
 
 ### First-install flow
 
-1. Verify that the required jailbreak/homebrew environment is active.
-2. Detect firmware, PS4 model, southbridge, network, and external storage.
-3. Fetch a signed release manifest over HTTPS.
-4. Select compatible kernel, initramfs, boot arguments, and rootfs artifacts.
-5. Confirm the exact external target by filesystem label and UUID.
-6. Download into a staging directory with resumable transfers.
-7. Verify file size, SHA-256 digest, and an offline release signature.
-8. Write boot assets through temporary filenames, `fsync`, and atomic rename.
-9. Launch the PS4 Linux loader bundled inside the FPKG through GoldHEN's local
-   PayLoader.
-10. Let the installer initramfs write the verified rootfs to the confirmed USB
-    target; Orbis never edits ext4 or guesses a disk device.
-11. Create the owner and password inside Linux on first boot.
-12. Record successful boots before promoting the new boot set.
+1. Flash the signed Omarchy PS4 image to one USB on a computer.
+2. Install the matching FPKG through GoldHEN.
+3. Verify that the required jailbreak/homebrew environment is active.
+4. Detect firmware, PS4 model and southbridge.
+5. Verify the embedded schema-2 manifest, kernel, initramfs, boot arguments and
+   1024 MB VRAM profile.
+6. Confirm staging to the loader's internal `/data/linux/boot` directory.
+7. Write temporary files, flush and verify them, retain `.omarchy-prev`, and
+   commit only a complete boot set under a transaction marker.
+8. Stop at Ready, then require a separate Boot confirmation.
+9. Launch the bundled PS4 Linux loader through GoldHEN's local PayLoader.
+10. Let initramfs verify the whole-device ext4 USB labelled `OMARCHY-PS4`.
+11. Expand ext4 automatically and create the owner inside Linux on first boot.
+12. Synchronize the clock automatically when networking becomes available.
+13. Record successful boots before promoting the new boot set.
 
 ### Normal boot flow
 
 ```text
 FPKG manager
-  -> select last-known-good boot slot
-  -> verify kernel + initramfs + boot arguments
+  -> verify current or restored internal boot set
   -> send bundled PS4 Linux loader to GoldHEN PayLoader
+  -> loader reads /data/linux/boot
   -> loader invokes kexec
-  -> initramfs resolves external root label/UUID
+  -> initramfs proves LABEL=OMARCHY-PS4 is external USB
   -> switch_root into Omarchy PS4
 ```
 
@@ -254,21 +280,17 @@ vendor tool, license boundary, and controller-style preview live together in
 [`fpkg/`](fpkg/README.md). Internal loop-image installation remains a separate
 future backend; it is not the first product target.
 
-### Online and offline installation
+### Distribution format
 
-Recommended:
+Recommended and supported target:
 
-- Small bootstrap FPKG
-- Signed downloads from a release CDN
-- USB import for offline users
+- one FPKG containing the boot manager and pinned boot set;
+- one signed compressed raw USB image containing the complete Omarchy root;
+- checksum/signature files and a short graphical flashing guide.
 
-Optional later:
-
-- A large offline FPKG containing the rootfs
-
-A full offline FPKG temporarily duplicates storage because Orbis installs the
-package and the manager then creates the separate Linux image. It should not be
-the default distribution format.
+A rootfs inside the FPKG is not a release target. It duplicates several
+gigabytes in Orbis storage and would require the console application to own a
+destructive USB installer.
 
 ## Root filesystem builder
 
@@ -506,9 +528,14 @@ Exit condition: failed updates recover without reinstalling the distro.
   evidence.
 - Use external USB for the first product; keep internal loopback images as a
   later backend and never physically repartition Sony storage.
+- Store the verified kernel/initramfs set under Orbis `/data/linux/boot`; do
+  not expose internal SATA as a Linux root device.
+- Publish one whole-device ext4 USB image with no FAT boot partition; grow the
+  filesystem automatically before first-owner setup.
 - Use ext4 for the MVP.
 - Build packages off-console and distribute a signed binary repository.
-- Keep the FPKG small and download/import the rootfs separately.
+- Keep the rootfs out of the FPKG and distribute it as a signed flashable
+  image.
 - Bundle the pinned Linux loader payload inside the FPKG so Install, Boot and
   Repair use one application; GoldHEN remains a prerequisite.
 - Create the owner and password only during Linux first boot.

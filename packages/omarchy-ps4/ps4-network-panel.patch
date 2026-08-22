@@ -1,0 +1,70 @@
+diff --git a/shell/plugins/panels/network/Model.js b/shell/plugins/panels/network/Model.js
+index 3a66610..6ee416f 100644
+--- a/shell/plugins/panels/network/Model.js
++++ b/shell/plugins/panels/network/Model.js
+@@ -1,3 +1,17 @@
++function findWifiStationDevice(devices, wifiType, stationMode) {
++  var values = devices || []
++  var fallback = null
++
++  for (var i = 0; i < values.length; i++) {
++    var device = values[i]
++    if (!device || device.type !== wifiType || device.mode !== stationMode) continue
++    if (device.connected) return device
++    if (!fallback) fallback = device
++  }
++
++  return fallback
++}
++
+ function parseNetworkStatus(raw) {
+   var parts = String(raw || "disconnected\t\t\t").replace(/\r?\n+$/, "").split("\t")
+   return {
+@@ -339,6 +353,7 @@ function shouldRepromptPassphrase(reason, isProtected, reasons) {
+-
++
+ if (typeof module !== "undefined") {
+   module.exports = {
++    findWifiStationDevice: findWifiStationDevice,
+     parseNetworkStatus: parseNetworkStatus,
+     wifiIconFor: wifiIconFor,
+     connectionIcon: connectionIcon,
+diff --git a/shell/plugins/panels/network/Panel.qml b/shell/plugins/panels/network/Panel.qml
+index 07c2e60..d65dc55 100644
+--- a/shell/plugins/panels/network/Panel.qml
++++ b/shell/plugins/panels/network/Panel.qml
+@@ -67,6 +67,10 @@ Panel {
+   readonly property bool networkManagerAvailable: Networking.backend === NetworkBackendType.NetworkManager
+   readonly property var networkDevices: Networking.devices ? Networking.devices.values : []
+-  readonly property var wifiDevice: findDevice(DeviceType.Wifi)
++  // PS4 exposes AP-mode ap0/ap1 devices before the real wlan0 station. Never
++  // bind scanning or connection rows to an access-point interface.
++  readonly property var wifiDevice: Model.findWifiStationDevice(
++    networkDevices, DeviceType.Wifi, WifiDeviceMode.Station
++  )
+   readonly property var wifiNetworkObjects: wifiDevice && wifiDevice.networks ? wifiDevice.networks.values : []
+   readonly property var connectedWifiNetwork: findConnectedWifiNetwork()
+   property var wifiNetworks: []
+@@ -568,21 +572,6 @@ Panel {
+     return Model.formatPacketLoss(percent, hasInternetPing)
+   }
+-
++
+-  // Prefer a connected device: a machine can expose several NICs of the
+-  // same type (e.g. an idle onboard port alongside the active adapter),
+-  // and the first-enumerated one may be carrierless.
+-  function findDevice(type) {
+-    var devices = networkDevices || []
+-    var fallback = null
+-    for (var i = 0; i < devices.length; i++) {
+-      var device = devices[i]
+-      if (!device || device.type !== type) continue
+-      if (device.connected) return device
+-      if (!fallback) fallback = device
+-    }
+-    return fallback
+-  }
+-
+   function findConnectedWifiNetwork() {
+     var networks = wifiNetworkObjects || []
+     for (var i = 0; i < networks.length; i++) {

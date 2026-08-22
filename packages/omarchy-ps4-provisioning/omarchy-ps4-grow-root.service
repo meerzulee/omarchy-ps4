@@ -1,0 +1,13 @@
+[Unit]
+Description=Expand the Omarchy PS4 whole-device USB root
+ConditionPathExists=/var/lib/omarchy-ps4/image-layout
+ConditionPathExists=!/var/lib/omarchy-ps4/storage-expanded
+After=local-fs.target
+Before=omarchy-ps4-provision-owner.service display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-ps4-grow-root
+
+[Install]
+WantedBy=multi-user.target

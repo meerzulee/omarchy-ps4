@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+stage_dir=$repo_dir/fpkg/vendor/internal-boot
+inventory=$repo_dir/fpkg/vendor/provenance/internal-boot-set.json
+
+check_hash() {
+  local relative=$1 expected_size=$2 expected_sha256=$3
+  local path=$stage_dir/$relative actual_size actual_sha256
+  [[ -f $path ]]
+  actual_size=$(stat -f %z "$path" 2>/dev/null || stat -c %s "$path")
+  actual_sha256=$(shasum -a 256 "$path" | awk '{print $1}')
+  [[ $actual_size == "$expected_size" ]]
+  [[ $actual_sha256 == "$expected_sha256" ]]
+}
+
+check_hash bzImage 11060224 b7c8b9d67c600ee08b2321f7f4fac08c506791b0ab9c3f3d01598a90471a9de5
+check_hash initramfs.cpio.gz 1686508 824530e22392376d5fc27994a9ccff97f0442b7a41681155f46e183f892365ae
+check_hash bootargs.txt 502 8064d91f286d4275dac08e2fae29e43fbf745ea7be15f797edbbd0e5036a4930
+check_hash vram.txt 5 4f71bb761ace37c88826cd8cc1c948e1cf5b5d0cd153dc651a6efdb3dfb9f2b1
+
+cmp -s "$stage_dir/release.json" "$repo_dir/fpkg/manifest/release-manifest.example.json"
+jq -e '
+  .profile == "private-kernel-manager" and
+  .release_eligible == false and
+  .destination == "/data/linux/boot" and
+  .vram_mb == 1024
+' "$inventory" >/dev/null
+
+for ignored_file in \
+  fpkg/vendor/internal-boot/bzImage \
+  fpkg/vendor/internal-boot/release.json \
+  fpkg/vendor/provenance/internal-boot-set.json; do
+  git -C "$repo_dir" check-ignore -q "$ignored_file"
+done
+
+printf '%s\n' 'Internal boot-set staging passed (private; release eligible: no).'

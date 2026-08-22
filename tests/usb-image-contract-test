@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+builder=$repo_dir/scripts/build-usb-image
+preparer=$repo_dir/scripts/prepare-usb-linux
+
+[[ -x $builder ]] || {
+  printf '%s\n' 'usb-image-contract: builder is not executable' >&2
+  exit 1
+}
+[[ -x $preparer ]] || {
+  printf '%s\n' 'usb-image-contract: developer preparer is not executable' >&2
+  exit 1
+}
+
+help_output=$($builder --help)
+grep -Fq 'whole-device ext4 image' <<<"$help_output"
+grep -Fq 'no partition table and no PS4BOOT filesystem' <<<"$help_output"
+grep -Fq 'End users should flash the signed Omarchy PS4 .img.xz' "$preparer"
+grep -Fq 'mkfs.ext4 -F -L OMARCHY-PS4 "$target_device"' "$preparer"
+! grep -Eq 'sfdisk|mkfs[.]fat|PS4BOOT.*partition' "$preparer"
+
+grep -Fq 'layout=whole-device-filesystem' "$builder"
+grep -Fq 'contains_boot_files=0' "$builder"
+grep -Fq 'minimum_device_bytes=32000000000' "$builder"
+grep -Fq 'rootfs has no deferred-owner marker' "$builder"
+grep -Fq -- '--xattrs-include=' "$builder"
+
+printf '%s\n' 'USB image contract passed.'

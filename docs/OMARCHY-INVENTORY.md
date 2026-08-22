@@ -8,15 +8,15 @@ list, but no safe bare-install mode for this existing PS4 root.
 
 | Field | Value |
 |---|---|
-| Release | `4.0.0rc3` |
+| Release | `4.0.0` |
 | Source version file | `4.0.0.alpha` |
 | Branch | `quattro` |
-| Commit | `144f4d1e31d6ddc2cba5dfd69278cabf02bafd05` |
-| Commit date | 2026-08-13 15:18:33 +0200 |
+| Commit | `f0020448ca87329199de7cb12f2015ebc4a3e5e7` |
+| Commit date | 2026-08-14 16:57:59 +0200 |
 | Core packages | 147 |
 | Additional/conditional packages | 59 |
-| Helper commands | 422 |
-| Migrations | 77 |
+| Helper commands | 425 |
+| Migrations | 78 |
 | Quickshell plugin manifests | 37 |
 
 Run `./scripts/sync-omarchy-upstream` to reproduce the ignored checkout under

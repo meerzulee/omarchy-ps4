@@ -6,7 +6,7 @@ usage() {
   printf '%s\n' \
     'Usage: build-gift-dev-bundle [--output DIRECTORY]' \
     '' \
-    'Assemble the private Quattro RC3 developer gift bundle.'
+    'Assemble the private Quattro 4.0.0 developer gift bundle.'
 }
 
 fail() {
@@ -33,25 +33,31 @@ while (( $# > 0 )); do
   esac
 done
 
-output=${output:-"$repo_dir/output/gift-dev/omarchy-ps4-gift-dev-rc3"}
+output=${output:-"$repo_dir/output/gift-dev/omarchy-ps4-gift-dev-4.0.0"}
 [[ ! -e $output ]] || fail "output already exists: $output"
 
-package_source=$repo_dir/output/omarchy-packages-rc3-candidate
-portable_source=$repo_dir/output/portable/omarchy-ps4-portable-4.0.0rc3-144f4d1.tar.zst
-fpkg_source=$repo_dir/output/fpkg-ui-prototype/IV0000-BREW09004_00-OMARCHYPS4UI0000.pkg
+package_source=$repo_dir/output/omarchy-packages-4.0.0-stable-dev
+snapshot_repository=$repo_dir/output/package-snapshot/omarchy-ps4-4.0.0-dev/repo
+portable_source=$repo_dir/output/portable/omarchy-ps4-portable-4.0.0-f002044.tar.zst
+fpkg_source=$repo_dir/output/fpkg-ui-prototype/IV0000-OMCH42069_00-OMARCHYPS4UI0000.pkg
 
 declare -A expected_hashes=(
-  [omarchy-ps4-4.0.0rc3-1-any.pkg.tar.zst]=1d02e1799e825ebd6fe275ac9bd483c53b62e8d50b5df6c3073470266339c025
-  [omarchy-ps4-settings-4.0.0rc3-1-any.pkg.tar.zst]=e1fa55f97605ac403c1bf7d1d3b0c60fedd93637afe524a47033ff404907190a
-  [omarchy-ps4-provisioning-4.0.0rc3-1-any.pkg.tar.zst]=295afa9789ca770471dc11238dc2710e57dcf3068a8747ad889d3696675e87cf
-  [omarchy-ps4-portable-4.0.0rc3-144f4d1.tar.zst]=b3d648605e4e04b411079adeb881cc8d5bafde8af06e99f31f991fee5f602ca5
+  [omarchy-ps4-4.0.0-1-any.pkg.tar.zst]=a4d994f25e978895fc8ce9665b0de55774445650a7de8fbd8e900090e7dccca0
+  [omarchy-ps4-settings-4.0.0-1-any.pkg.tar.zst]=91dd1881c1588652a512c1399a8a89988a0b003ebb41c2f62f372f40c32bba19
+  [omarchy-ps4-provisioning-4.0.0-1-any.pkg.tar.zst]=2263cff92cb348ef3e4ebb65a0959013dba1f536a78004373da5cfbd35ca0bab
+  [desktop-file-utils-0.28-1-x86_64.pkg.tar.zst]=cc525a69b6901318f360fae249986e62f233c0320c61274f2bad44449e0c8e44
+  [xdg-user-dirs-0.20-1-x86_64.pkg.tar.zst]=d2d8d9cf22fca76652320c905056dfcf55201665d025ae2c3de60702a36bfa65
+  [xdg-utils-1.2.1-2-any.pkg.tar.zst]=35de6314be9c3c95e1e6bb6ecde5ceb2d9efb8412c0f154cd309eb9dcb16ebd7
+  [omarchy-ps4-portable-4.0.0-f002044.tar.zst]=4df6e6158855a65bf290a12d3499304a1c950655e3ea66b7e7167b13f2887fab
 )
 
 for name in "${!expected_hashes[@]}"; do
   if [[ $name == omarchy-ps4-portable-* ]]; then
     source_path=$portable_source
-  else
+  elif [[ -f $package_source/$name ]]; then
     source_path=$package_source/$name
+  else
+    source_path=$snapshot_repository/$name
   fi
   [[ -f $source_path ]] || fail "missing artifact: $source_path"
   actual=$(shasum -a 256 "$source_path" | awk '{ print $1 }')
@@ -72,6 +78,11 @@ mkdir -p \
   "$output/licenses"
 
 cp "$package_source"/*.pkg.tar.zst "$output/packages/"
+cp \
+  "$snapshot_repository/desktop-file-utils-0.28-1-x86_64.pkg.tar.zst" \
+  "$snapshot_repository/xdg-user-dirs-0.20-1-x86_64.pkg.tar.zst" \
+  "$snapshot_repository/xdg-utils-1.2.1-2-any.pkg.tar.zst" \
+  "$output/packages/"
 cp "$portable_source" "$output/portable/"
 cp "$portable_source.sha256" "$output/portable/"
 cp "$fpkg_source" "$output/fpkg/"
@@ -88,7 +99,7 @@ chmod 0755 \
   "$output/dev-recovery" \
   "$output/install-foundation" \
   "$output/owner-rehearsal"
-cp "$repo_dir/docs/QUATTRO-RC3.md" "$output/docs/"
+cp "$repo_dir/docs/QUATTRO-4.0.md" "$output/docs/"
 cp "$repo_dir/docs/GIFT-DEV-VM-TEST-2026-08-14.md" "$output/docs/"
 cp "$repo_dir/fpkg/docs/UI-PROTOTYPE.md" "$output/docs/"
 cp "$repo_dir/fpkg/CREDITS.md" "$output/docs/"
@@ -131,11 +142,12 @@ rm -f "$output/packages/omarchy-ps4-dev.files" "$output/packages/omarchy-ps4-dev
 
 cat >"$output/BUNDLE.env" <<EOF
 schema=1
-mode=gift-dev-online-dependencies
-release=4.0.0rc3
-upstream_commit=144f4d1e31d6ddc2cba5dfd69278cabf02bafd05
+mode=gift-dev-offline-foundation-migration
+release=4.0.0
+upstream_commit=f0020448ca87329199de7cb12f2015ebc4a3e5e7
 native_package_count=3
-ui_fpkg_content_id=IV0000-BREW09004_00-OMARCHYPS4UI0000
+migration_support_package_count=3
+ui_fpkg_content_id=IV0000-OMCH42069_00-OMARCHYPS4UI0000
 gift_finalization=offline-cloned-root-only
 temporary_recovery=required-before-foundation-install
 recoverable_owner_rehearsal=available-in-development-mode

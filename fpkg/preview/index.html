@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Omarchy PS4 Manager — RC3 UX Preview</title>
+  <title>Omarchy PS4 Manager — 4.0 UX Preview</title>
   <style>
     @font-face {
       font-family: "Omarchy Mark";
@@ -454,7 +454,7 @@
             </g>
           </svg>
         </div>
-        <div class="prototype-badge">RC3 interactive UX prototype</div>
+        <div class="prototype-badge">4.0 interactive UX prototype</div>
       </header>
 
       <main>
@@ -488,7 +488,7 @@
           <p class="lede" id="lede">Prepare the boot files, keep a known-good rollback, and finish owner setup inside Linux. Internal PS4 storage is never an install target.</p>
 
           <div class="facts" id="facts">
-            <div class="fact"><small>Release</small><strong>Quattro RC3</strong></div>
+            <div class="fact"><small>Release</small><strong>Omarchy 4.0.0</strong></div>
             <div class="fact"><small>Boot files</small><strong>External PS4BOOT</strong></div>
             <div class="fact"><small>Linux root</small><strong>USB · OMARCHY-PS4</strong></div>
           </div>
@@ -539,7 +539,7 @@
         eyebrow: 'Welcome to Omarchy',
         title: 'Bring a verified Omarchy release to this PS4.',
         lede: 'Prepare the boot files, keep a known-good rollback, and finish owner setup inside Linux. Internal PS4 storage is never an install target.',
-        facts: [['Release', 'Quattro RC3'], ['Boot files', 'External PS4BOOT'], ['Linux root', 'USB · OMARCHY-PS4']],
+        facts: [['Release', 'Omarchy 4.0.0'], ['Boot files', 'External PS4BOOT'], ['Linux root', 'USB · OMARCHY-PS4']],
         primary: 'Review install',
         review: {
           eyebrow: 'Review installation',
@@ -554,19 +554,19 @@
           ['Stage PS4BOOT', 'New boot files written atomically; previous verified set retained.'],
           ['Ready', 'Install staging is complete. Booting Linux remains a separate choice.']
         ],
-        complete: ['Omarchy is ready.', 'The verified RC3 boot set is staged. Choose Boot now when you are ready to leave Orbis and start Linux.', 'Boot now']
+        complete: ['Omarchy is ready.', 'The verified 4.0 boot set is staged. Choose Boot now when you are ready to leave Orbis and start Linux.', 'Boot now']
       },
       boot: {
         eyebrow: 'Known-good boot',
         title: 'Start the last verified Omarchy release.',
         lede: 'Confirm the release and memory profile, check GoldHEN, then hand control to Linux. No download or installation is performed.',
-        facts: [['Release', 'Quattro RC3'], ['VRAM', '1024 MB'], ['Root after kexec', 'USB · OMARCHY-PS4']],
+        facts: [['Release', 'Omarchy 4.0.0'], ['VRAM', '1024 MB'], ['Root after kexec', 'USB · OMARCHY-PS4']],
         primary: 'Review boot',
         review: {
           eyebrow: 'Confirm Linux boot',
-          title: 'Start Omarchy RC3 with 1024 MB VRAM?',
+          title: 'Start Omarchy 4.0 with 1024 MB VRAM?',
           lede: 'The screen will switch from Orbis to the Omarchy splash. First-owner setup appears inside Linux and creates the user’s password there.',
-          facts: [['GoldHEN', 'Required'], ['Boot set', 'Verified RC3'], ['Password', 'Created only in Linux']],
+          facts: [['GoldHEN', 'Required'], ['Boot set', 'Verified 4.0'], ['Password', 'Created only in Linux']],
           primary: 'Start boot preview'
         },
         steps: [
@@ -615,7 +615,7 @@
         eyebrow: 'Credits & licenses',
         title: 'Every important input has a source.',
         lede: 'Omarchy is MIT licensed. Kernel, toolchain, loader, fonts, themes, and bundled assets retain exact versions, digests, source links, and license status.',
-        facts: [['Omarchy', 'Quattro · 144f4d1e'], ['Kernel', '6.18.44-ps4-baikal'], ['Loader', 'Private use · license unresolved']],
+        facts: [['Omarchy', 'Quattro · f0020448'], ['Kernel', '6.18.44-ps4-baikal'], ['Loader', 'Private use · license unresolved']],
         primary: 'Show development notice'
       }
     };

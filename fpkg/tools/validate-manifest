@@ -14,7 +14,13 @@ HEX40 = re.compile(r"^[0-9a-f]{40}$")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 RELEASE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
 FIRMWARE = re.compile(r"^[0-9]+\.[0-9]{2}$")
-ROLES = {"kernel", "initramfs", "bootargs", "rootfs"}
+BOOT_ROLES = {"kernel", "initramfs", "bootargs", "vram"}
+BOOT_NAMES = {
+    "kernel": "bzImage",
+    "initramfs": "initramfs.cpio.gz",
+    "bootargs": "bootargs.txt",
+    "vram": "vram.txt",
+}
 SENSITIVE_KEYS = {"password", "passphrase", "secret", "token", "private_key", "wifi", "credential"}
 
 
@@ -49,9 +55,9 @@ def reject_secrets(value: object, path: str = "$") -> None:
 
 
 def validate(document: object, production: bool) -> list[str]:
-    root = exact_keys(document, {"schema", "release", "target", "first_boot", "loader", "artifacts"}, "manifest")
+    root = exact_keys(document, {"schema", "release", "target", "first_boot", "loader", "boot_set", "usb_image"}, "manifest")
     reject_secrets(root)
-    require(root["schema"] == 1, "schema: only version 1 is supported")
+    require(root["schema"] == 2, "schema: only version 2 is supported")
 
     release = exact_keys(root["release"], {"id", "version", "channel", "sequence", "published_at"}, "release")
     require(isinstance(release["id"], str) and RELEASE_ID.fullmatch(release["id"]), "release.id: invalid")
@@ -60,7 +66,7 @@ def validate(document: object, production: bool) -> list[str]:
     require(type(release["sequence"]) is int and release["sequence"] > 0, "release.sequence: expected positive integer")
     require(isinstance(release["published_at"], str) and release["published_at"].endswith("Z"), "release.published_at: expected UTC timestamp")
 
-    target = exact_keys(root["target"], {"architecture", "models", "southbridges", "firmwares", "root_transport", "root_label"}, "target")
+    target = exact_keys(root["target"], {"architecture", "models", "southbridges", "firmwares", "root_transport", "root_layout", "root_filesystem", "root_label"}, "target")
     require(target["architecture"] == "x86_64", "target.architecture: expected x86_64")
     for name in ("models", "southbridges", "firmwares"):
         values = target[name]
@@ -68,6 +74,8 @@ def validate(document: object, production: bool) -> list[str]:
         require(len(values) == len(set(values)), f"target.{name}: duplicate value")
     require(all(FIRMWARE.fullmatch(x) for x in target["firmwares"]), "target.firmwares: invalid firmware")
     require(target["root_transport"] == "usb", "target.root_transport: only usb is supported")
+    require(target["root_layout"] == "whole-device-filesystem", "target.root_layout: expected whole-device-filesystem")
+    require(target["root_filesystem"] == "ext4", "target.root_filesystem: expected ext4")
     require(target["root_label"] == "OMARCHY-PS4", "target.root_label: expected OMARCHY-PS4")
 
     first_boot = exact_keys(root["first_boot"], {"mode", "pending_marker", "service", "default_password"}, "first_boot")
@@ -80,38 +88,76 @@ def validate(document: object, production: bool) -> list[str]:
 
     loader = exact_keys(root["loader"], {"delivery", "app_path", "source_url", "source_commit", "version", "sha256", "license"}, "loader")
     require(loader["delivery"] == "embedded", "loader.delivery: expected embedded")
-    require(loader["app_path"] == "/app0/payloads/ps4-linux-loader.elf", "loader.app_path: unexpected")
+    require(loader["app_path"] == "/app0/assets/misc/ps4-linux-loader.elf", "loader.app_path: unexpected")
     require(urlparse(loader["source_url"]).scheme == "https", "loader.source_url: HTTPS required")
     require(isinstance(loader["source_commit"], str) and HEX40.fullmatch(loader["source_commit"]), "loader.source_commit: expected 40 lowercase hex characters")
     require(isinstance(loader["version"], str) and loader["version"], "loader.version: required")
     require(isinstance(loader["sha256"], str) and HEX64.fullmatch(loader["sha256"]), "loader.sha256: expected 64 lowercase hex characters")
     require(isinstance(loader["license"], str) and loader["license"], "loader.license: required")
 
-    artifacts = root["artifacts"]
+    boot_set = exact_keys(
+        root["boot_set"],
+        {"storage", "active_path", "previous_suffix", "transaction_marker", "vram_mb", "artifacts"},
+        "boot_set",
+    )
+    require(boot_set["storage"] == "orbis-internal", "boot_set.storage: expected orbis-internal")
+    require(boot_set["active_path"] == "/data/linux/boot", "boot_set.active_path: unexpected")
+    require(boot_set["previous_suffix"] == ".omarchy-prev", "boot_set.previous_suffix: unexpected")
+    require(
+        boot_set["transaction_marker"] == "/data/linux/.omarchy-ps4-staging",
+        "boot_set.transaction_marker: unexpected",
+    )
+    require(boot_set["vram_mb"] == 1024, "boot_set.vram_mb: only the accepted 1024 MB profile is supported")
+
+    artifacts = boot_set["artifacts"]
     require(isinstance(artifacts, list), "artifacts: expected array")
     roles: set[str] = set()
     names: set[str] = set()
-    urls: set[str] = set()
     warnings: list[str] = []
     for index, item_value in enumerate(artifacts):
-        item = exact_keys(item_value, {"name", "role", "url", "size", "sha256"}, f"artifacts[{index}]")
-        require(isinstance(item["name"], str) and item["name"] and "/" not in item["name"], f"artifacts[{index}].name: invalid")
-        require(item["role"] in ROLES, f"artifacts[{index}].role: invalid")
+        item = exact_keys(
+            item_value,
+            {"name", "role", "app_path", "active_name", "size", "sha256"},
+            f"boot_set.artifacts[{index}]",
+        )
+        require(item["role"] in BOOT_ROLES, f"boot_set.artifacts[{index}].role: invalid")
         require(item["role"] not in roles, f"artifacts[{index}].role: duplicate")
         roles.add(item["role"])
+        expected_name = BOOT_NAMES[item["role"]]
+        require(item["name"] == expected_name, f"boot_set.artifacts[{index}].name: expected {expected_name}")
+        require(item["active_name"] == expected_name, f"boot_set.artifacts[{index}].active_name: expected {expected_name}")
+        require(item["app_path"] == f"/app0/assets/misc/{expected_name}", f"boot_set.artifacts[{index}].app_path: unexpected")
         require(item["name"] not in names, f"artifacts[{index}].name: duplicate")
         names.add(item["name"])
-        parsed = urlparse(item["url"])
-        require(parsed.scheme == "https" and parsed.netloc, f"artifacts[{index}].url: HTTPS required")
-        require(item["url"] not in urls, f"artifacts[{index}].url: duplicate")
-        urls.add(item["url"])
         require(type(item["size"]) is int and item["size"] > 0, f"artifacts[{index}].size: expected positive integer")
         require(isinstance(item["sha256"], str) and HEX64.fullmatch(item["sha256"]), f"artifacts[{index}].sha256: invalid")
-        if parsed.hostname and parsed.hostname.endswith(".invalid"):
-            warnings.append(f"{item['role']}: placeholder URL")
         if item["sha256"] == "0" * 64:
             warnings.append(f"{item['role']}: placeholder digest")
-    require(roles == ROLES, f"artifacts: require exactly {sorted(ROLES)}")
+    require(roles == BOOT_ROLES, f"boot_set.artifacts: require exactly {sorted(BOOT_ROLES)}")
+
+    usb_image = exact_keys(
+        root["usb_image"],
+        {"name", "url", "compression", "compressed_size", "sha256", "uncompressed_size", "uncompressed_sha256", "layout", "filesystem", "label", "minimum_device_bytes", "auto_grow", "contains_boot_files"},
+        "usb_image",
+    )
+    require(isinstance(usb_image["name"], str) and usb_image["name"].endswith(".img.xz"), "usb_image.name: expected .img.xz")
+    image_url = urlparse(usb_image["url"])
+    require(image_url.scheme == "https" and image_url.netloc, "usb_image.url: HTTPS required")
+    require(usb_image["compression"] == "xz", "usb_image.compression: expected xz")
+    for size_name in ("compressed_size", "uncompressed_size"):
+        require(type(usb_image[size_name]) is int and usb_image[size_name] > 0, f"usb_image.{size_name}: expected positive integer")
+    for digest_name in ("sha256", "uncompressed_sha256"):
+        require(isinstance(usb_image[digest_name], str) and HEX64.fullmatch(usb_image[digest_name]), f"usb_image.{digest_name}: invalid")
+        if usb_image[digest_name] == "0" * 64:
+            warnings.append(f"usb_image.{digest_name}: placeholder digest")
+    require(usb_image["layout"] == "whole-device-filesystem", "usb_image.layout: expected whole-device-filesystem")
+    require(usb_image["filesystem"] == "ext4", "usb_image.filesystem: expected ext4")
+    require(usb_image["label"] == "OMARCHY-PS4", "usb_image.label: expected OMARCHY-PS4")
+    require(type(usb_image["minimum_device_bytes"]) is int and usb_image["minimum_device_bytes"] >= 32_000_000_000, "usb_image.minimum_device_bytes: expected at least 32 GB")
+    require(usb_image["auto_grow"] is True, "usb_image.auto_grow: must be true")
+    require(usb_image["contains_boot_files"] is False, "usb_image.contains_boot_files: must be false")
+    if image_url.hostname and image_url.hostname.endswith(".invalid"):
+        warnings.append("usb_image: placeholder URL")
 
     if loader["license"] == "NOASSERTION":
         warnings.append("loader: redistribution license unresolved")

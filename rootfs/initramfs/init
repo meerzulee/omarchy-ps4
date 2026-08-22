@@ -41,6 +41,8 @@ OMARCHY_INSTALL=""
 OMARCHY_BUNDLE_SPEC="LABEL=PS4BOOT"
 OMARCHY_ROOTFS_PATH="/omarchy-ps4/omarchy-ps4-rootfs.tar.zst"
 OMARCHY_ALLOW_DEVELOPMENT_ROOTFS=0
+OMARCHY_REQUIRE_USB=0
+OMARCHY_ROOT_LAYOUT=""
 
 kernel_command_line=$(cat /proc/cmdline)
 for parameter in $kernel_command_line; do
@@ -52,6 +54,8 @@ for parameter in $kernel_command_line; do
     omarchy.bundle=*) OMARCHY_BUNDLE_SPEC=${parameter#omarchy.bundle=} ;;
     omarchy.rootfs=*) OMARCHY_ROOTFS_PATH=${parameter#omarchy.rootfs=} ;;
     omarchy.allow_development_rootfs=1) OMARCHY_ALLOW_DEVELOPMENT_ROOTFS=1 ;;
+    omarchy.require_usb=1) OMARCHY_REQUIRE_USB=1 ;;
+    omarchy.root_layout=*) OMARCHY_ROOT_LAYOUT=${parameter#omarchy.root_layout=} ;;
   esac
 done
 
@@ -98,6 +102,22 @@ if [ -z "$ROOT_DEVICE" ] || [ ! -b "$ROOT_DEVICE" ]; then
 fi
 
 say "Resolved $ROOT_SPEC to $ROOT_DEVICE."
+if [ "$OMARCHY_REQUIRE_USB" = 1 ]; then
+  [ "$ROOT_SPEC" = 'LABEL=OMARCHY-PS4' ] || rescue "Product root must be LABEL=OMARCHY-PS4."
+  [ "$ROOT_FSTYPE" = ext4 ] || rescue "Product root filesystem must be ext4."
+  root_name=${ROOT_DEVICE#/dev/}
+  root_sysfs=$(readlink -f "/sys/class/block/$root_name" 2>/dev/null || true)
+  case "$root_sysfs" in
+    *'/usb'*) ;;
+    *) rescue "$ROOT_DEVICE is not below USB in sysfs." ;;
+  esac
+  if [ "$OMARCHY_ROOT_LAYOUT" = whole-device-filesystem ]; then
+    [ ! -e "/sys/class/block/$root_name/partition" ] || \
+      rescue "$ROOT_DEVICE is a partition; expected the whole-device Omarchy image."
+  else
+    rescue "Product root layout is missing or unsupported."
+  fi
+fi
 if [ ! -e /newroot/etc/os-release ]; then
   mount -t "$ROOT_FSTYPE" -o rw "$ROOT_DEVICE" /newroot || rescue "Could not mount $ROOT_DEVICE."
 fi

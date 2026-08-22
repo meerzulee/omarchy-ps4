@@ -8,8 +8,9 @@ project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 
 profile=$project_dir/profiles/omarchy-full/packages.txt
 blocked=$project_dir/profiles/omarchy-full/blocked-packages.txt
+forbidden=$project_dir/profiles/omarchy-full/forbidden-closure-packages.txt
 
-for required in omarchy-ps4 firefox foot herdr hyprland libreoffice-fresh obs-studio obsidian quickshell-git thunar; do
+for required in omarchy-ps4 firefox foot herdr hyprland libreoffice-fresh neovim obs-studio obsidian quickshell-git thunar; do
   grep -Fxq "$required" "$profile" || {
     printf 'missing full-profile package: %s\n' "$required" >&2
     exit 1
@@ -25,5 +26,17 @@ while IFS= read -r raw; do
     exit 1
   fi
 done <"$blocked"
+
+for forbidden_direct in gvfs sddm udisks2; do
+  grep -Fxq "$forbidden_direct" "$forbidden" || {
+    printf 'missing closure prohibition: %s\n' "$forbidden_direct" >&2
+    exit 1
+  }
+done
+
+if grep -Fxq nvim "$profile"; then
+  printf '%s\n' 'provider alias leaked into full profile: nvim' >&2
+  exit 1
+fi
 
 printf '%s\n' 'Full profile composition passed.'

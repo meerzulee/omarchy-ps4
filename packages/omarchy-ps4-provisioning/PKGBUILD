@@ -1,21 +1,26 @@
 # Maintainer: Omarchy PS4 contributors
 
 pkgname=omarchy-ps4-provisioning
-pkgver=4.0.0rc3
-pkgrel=1
+pkgver=4.0.0
+pkgrel=14
 pkgdesc='External-root first-boot owner setup for Omarchy PS4'
 arch=('any')
 url='https://github.com/meerzulee/omarchy-ps4'
 license=('MIT')
 
 depends=(
+  'desktop-file-utils'
+  'e2fsprogs'
   'git'
   'gum'
-  'omarchy-ps4=4.0.0rc3-1'
+  'omarchy-ps4=4.0.0-5'
+  'openssh'
   'shadow'
   'sudo'
   'systemd'
   'util-linux'
+  'xdg-user-dirs'
+  'xdg-utils'
 )
 
 backup=('etc/sudoers.d/10-omarchy-ps4-wheel')
@@ -23,16 +28,26 @@ backup=('etc/sudoers.d/10-omarchy-ps4-wheel')
 source=(
   'omarchy-ps4-prepare-for-owner'
   'omarchy-ps4-provision-owner'
+  'omarchy-ps4-finalize-owner'
+  'omarchy-ps4-grow-root'
   'omarchy-ps4-provision-owner.service'
+  'omarchy-ps4-grow-root.service'
+  '20-omarchy-ps4-owner-gate.conf'
+  '20-omarchy-ps4-sshd.conf'
   '10-omarchy-ps4-wheel'
   'README.md'
 )
 sha256sums=(
-  'b5c4ce8df94f1c60d3a141aaabd6e8eb1b4a996425f6279677e79c403aaedf31'
-  'cf43e6034d4c20f9344b19dd73e7ee033c7f69be3451e5e44418d69963ea0a4a'
-  '6db39f2e30d89703c770b49055d4848776a69e537fb6d6a3d2582225f194d51f'
+  '7b498b28492229bd0afe3b149db032572073ca335202601d2713a16d1fc7bcba'
+  '5e70cac069d05090ed79b4fa11b00c045817744967c1547f28c1d83aea4b271f'
+  '6897efd828b217193d4a6c577b6f328ba4a6bb4b6dd2b927f7d1bc23ea5cbbf9'
+  '16ccccdbbebdfaa74504e4b43a232ee320f6213e46c453e0bafb5158f14904d1'
+  'e33a4d1552252a06015898d406c0692f58a50d13d4563a35755c5fccc5d5f672'
+  'ef93c9e865c1a8b3ff06c04a08d382480dd65ca2abc6fa01a79ec22ca619168e'
+  '488e8eb05273a9fbeaec36b09fb85ea1f77a3dbf3f2a29a2807caeef44eeaba2'
+  '707ade3a8e8c3543a603248afb58da57552ff51891c752b9b502516f62205511'
   '65ae53cdc6fd4d323e8bab7796c0f743744d181897a349bccdc2e4259cf60cfc'
-  '6ade5c9e88ba9c99c479b41c099ef7c79505c2c97176df4972e236e223ae4169'
+  '922844faf6d570dce31c73ae32049d1b7a68526fdc476f0e7e072cbec0eea35f'
 )
 
 package() {
@@ -40,8 +55,18 @@ package() {
     "$pkgdir/usr/bin/omarchy-ps4-prepare-for-owner"
   install -Dm755 omarchy-ps4-provision-owner \
     "$pkgdir/usr/bin/omarchy-ps4-provision-owner"
+  install -Dm755 omarchy-ps4-finalize-owner \
+    "$pkgdir/usr/bin/omarchy-ps4-finalize-owner"
+  install -Dm755 omarchy-ps4-grow-root \
+    "$pkgdir/usr/bin/omarchy-ps4-grow-root"
   install -Dm644 omarchy-ps4-provision-owner.service \
     "$pkgdir/usr/lib/systemd/system/omarchy-ps4-provision-owner.service"
+  install -Dm644 omarchy-ps4-grow-root.service \
+    "$pkgdir/usr/lib/systemd/system/omarchy-ps4-grow-root.service"
+  install -Dm644 20-omarchy-ps4-owner-gate.conf \
+    "$pkgdir/usr/lib/systemd/system/lightdm.service.d/20-omarchy-ps4-owner-gate.conf"
+  install -Dm644 20-omarchy-ps4-sshd.conf \
+    "$pkgdir/etc/ssh/sshd_config.d/20-omarchy-ps4.conf"
   install -Dm440 10-omarchy-ps4-wheel \
     "$pkgdir/etc/sudoers.d/10-omarchy-ps4-wheel"
   install -Dm644 README.md \

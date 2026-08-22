@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+state_dir=/var/lib/omarchy-ps4
+layout_file=$state_dir/image-layout
+pending_file=$state_dir/provisioning/pending
+complete_file=$state_dir/storage-expanded
+log_file=/var/log/omarchy-ps4-grow-root.log
+minimum_growth_bytes=$((16 * 1024 * 1024))
+
+fail() {
+  printf 'omarchy-ps4-grow-root: %s\n' "$1" >&2
+  printf '[omarchy-ps4-grow-root] ERROR: %s\n' "$1" >/dev/kmsg 2>/dev/null || true
+  exit 1
+}
+
+log() {
+  printf '[omarchy-ps4-grow-root] %s\n' "$1"
+  printf '[omarchy-ps4-grow-root] %s\n' "$1" >/dev/kmsg 2>/dev/null || true
+  printf '[%s] %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$1" >>"$log_file"
+}
+
+layout_value() {
+  local key=$1
+  awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); exit }' "$layout_file"
+}
+
+filesystem_bytes() {
+  local device=$1 block_count block_size
+  block_count=$(LC_ALL=C dumpe2fs -h "$device" 2>/dev/null | awk -F: '$1 == "Block count" { gsub(/[[:space:]]/, "", $2); print $2; exit }')
+  block_size=$(LC_ALL=C dumpe2fs -h "$device" 2>/dev/null | awk -F: '$1 == "Block size" { gsub(/[[:space:]]/, "", $2); print $2; exit }')
+  [[ $block_count =~ ^[0-9]+$ && $block_size =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$((block_count * block_size))"
+}
+
+[[ $EUID -eq 0 ]] || fail 'must run as root'
+[[ $# -eq 0 ]] || fail 'takes no arguments'
+[[ -e $complete_file ]] && exit 0
+[[ -r $layout_file ]] || fail "image layout is missing: $layout_file"
+[[ -e $pending_file ]] || fail 'owner provisioning is not pending; refusing a late storage change'
+
+for command_name in awk blkid blockdev date dumpe2fs findmnt lsblk readlink resize2fs sync; do
+  command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
+done
+
+[[ $(layout_value schema) == 1 ]] || fail 'unsupported image-layout schema'
+[[ $(layout_value layout) == whole-device-filesystem ]] || fail 'image is not a whole-device filesystem'
+[[ $(layout_value filesystem) == ext4 ]] || fail 'image filesystem is not ext4'
+[[ $(layout_value label) == OMARCHY-PS4 ]] || fail 'image root label is not OMARCHY-PS4'
+[[ $(layout_value auto_grow) == 1 ]] || fail 'image does not authorize automatic growth'
+base_image_bytes=$(layout_value base_image_bytes)
+[[ $base_image_bytes =~ ^[0-9]+$ ]] || fail 'base image size is invalid'
+
+root_source=$(findmnt -nro SOURCE --target /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source" 2>/dev/null || true)
+[[ -b $root_device ]] || fail "cannot resolve root block device from $root_source"
+
+root_name=${root_device#/dev/}
+[[ $root_name != */* ]] || fail "unexpected root block-device path: $root_device"
+[[ ! -e /sys/class/block/$root_name/partition ]] || \
+  fail "$root_device is a partition; expected a whole-device filesystem"
+[[ $(lsblk -dnro TYPE "$root_device" 2>/dev/null) == disk ]] || \
+  fail "$root_device is not a whole disk device"
+
+sysfs_path=$(readlink -f "/sys/class/block/$root_name" 2>/dev/null || true)
+[[ $sysfs_path == *'/usb'* ]] || fail "$root_device is not below USB in sysfs"
+root_transport=$(lsblk -dnro TRAN "$root_device" 2>/dev/null | awk 'NF { print; exit }')
+[[ $root_transport == usb ]] || fail "root transport is ${root_transport:-unknown}; expected usb"
+[[ $(blkid -s LABEL -o value "$root_device" 2>/dev/null) == OMARCHY-PS4 ]] || \
+  fail 'root block-device label is not OMARCHY-PS4'
+[[ $(blkid -s TYPE -o value "$root_device" 2>/dev/null) == ext4 ]] || \
+  fail 'root block-device filesystem is not ext4'
+
+device_bytes=$(blockdev --getsize64 "$root_device")
+before_bytes=$(filesystem_bytes "$root_device") || fail 'could not read ext4 geometry'
+(( device_bytes >= base_image_bytes )) || fail 'physical USB is smaller than the flashed image'
+(( before_bytes <= device_bytes )) || fail 'filesystem is larger than its physical USB device'
+
+install -d -m 0700 "$state_dir"
+touch "$log_file"
+chmod 0600 "$log_file"
+log "verified $root_device: filesystem=$before_bytes device=$device_bytes"
+
+if (( device_bytes - before_bytes >= minimum_growth_bytes )); then
+  log 'expanding ext4 to the physical USB size'
+  resize2fs "$root_device"
+  sync
+fi
+
+after_bytes=$(filesystem_bytes "$root_device") || fail 'could not verify ext4 after expansion'
+(( after_bytes >= before_bytes )) || fail 'filesystem became smaller unexpectedly'
+(( device_bytes - after_bytes < minimum_growth_bytes )) || \
+  fail "ext4 did not consume the available USB capacity: filesystem=$after_bytes device=$device_bytes"
+
+temporary=$(mktemp "$state_dir/storage-expanded.XXXXXX")
+printf '%s\n' \
+  'schema=1' \
+  "device=$root_device" \
+  "before_bytes=$before_bytes" \
+  "after_bytes=$after_bytes" \
+  "device_bytes=$device_bytes" \
+  >"$temporary"
+chmod 0600 "$temporary"
+mv "$temporary" "$complete_file"
+sync -f "$state_dir" 2>/dev/null || sync
+log "storage ready: filesystem=$after_bytes device=$device_bytes"

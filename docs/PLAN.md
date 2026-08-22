@@ -1,10 +1,13 @@
 # Omarchy PS4 execution plan
 
-Status date: 2026-08-13
+Status date: 2026-08-22
 
-Current checkpoint: [`CHECKPOINT-2026-08-13.md`](CHECKPOINT-2026-08-13.md).
-The immediate next hardware action is A44's preflighted native RC3 foundation
-transaction. A45 is the following, separate splash boot experiment.
+Current checkpoint: [`CHECKPOINT-2026-08-22.md`](CHECKPOINT-2026-08-22.md),
+supplemented by the durable state in `experiments/SESSIONS.md`. Stable Omarchy
+4.0.0 now has one complete gift-USB hardware pass through internal boot files,
+automatic whole-device ext4 growth, first-owner provisioning and graphical
+login. First-boot/login UI, clean HDMI boot arguments, repeated cold boots and
+the final one-button FPKG launch remain separate gated work.
 
 This plan is the project sequence. Work moves forward by passing gates, not by
 installing the entire Omarchy stack and debugging all failures at once.
@@ -200,7 +203,7 @@ hardware gates pass.
 
 ## Phase 6 — Product integration
 
-Status: active; Quattro RC3 source, deferred-owner design, package hosting
+Status: active; Quattro 4.0.0 source, deferred-owner design, package hosting
 architecture, and the Orbis manager protocol draft are pinned. Native FPKG,
 installer implementation, and real-hardware acceptance remain.
 

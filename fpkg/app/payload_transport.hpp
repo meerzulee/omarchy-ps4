@@ -8,8 +8,11 @@ namespace omarchy_ps4 {
 
 using WriteOperation = std::function<std::ptrdiff_t(const std::uint8_t*, std::size_t)>;
 
-// Repeats short writes until the complete ELF has reached PayLoader. The
-// platform adapter owns socket creation, timeouts and error reporting.
-bool send_complete(const std::uint8_t* bytes, std::size_t size, const WriteOperation& write);
+// GoldHEN's in-console loopback path must receive the ELF from one application
+// write. The platform adapter must prove its socket send buffer can queue the
+// entire payload before it connects. A short write is terminal and is never
+// retried on the same connection.
+bool send_once(const std::uint8_t* bytes, std::size_t size,
+               const WriteOperation& write);
 
 }  // namespace omarchy_ps4

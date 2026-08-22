@@ -1,0 +1,3 @@
+# Replace upstream request names with the canonical package that Pacman must
+# resolve in the pinned Arch snapshot. Format: UPSTREAM_NAME REPLACEMENT_NAME.
+nvim neovim

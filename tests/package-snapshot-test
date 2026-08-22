@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'package-snapshot-test: %s\n' "$1" >&2
+  exit 1
+}
+
+[[ $# -eq 1 ]] || fail 'usage: package-snapshot-test SNAPSHOT_DIRECTORY'
+snapshot=$1
+[[ -d $snapshot ]] || fail "snapshot directory is missing: $snapshot"
+
+for required in \
+  RELEASE.env \
+  SHA256SUMS \
+  pacman.conf \
+  manifest/forbidden-closure-packages.txt \
+  manifest/packages.requested.txt \
+  manifest/packages.lock \
+  manifest/transaction.lock \
+  repo/omarchy-ps4-snapshot.db.tar.gz; do
+  [[ -f $snapshot/$required ]] || fail "snapshot is missing $required"
+done
+
+(
+  cd "$snapshot"
+  sha256sum -c SHA256SUMS >/dev/null
+)
+
+release_value() {
+  sed -n "s/^$1=//p" "$snapshot/RELEASE.env"
+}
+
+mode=$(release_value mode)
+signature_policy=$(release_value signature_policy)
+production_signing=$(release_value production_signing)
+package_file_count=$(release_value package_file_count)
+closure_package_count=$(release_value closure_package_count)
+
+[[ $mode == gift-dev-offline-package-snapshot ]] || fail 'snapshot mode is invalid'
+[[ $signature_policy == development-checksums-only ]] || \
+  fail 'development signature policy is not explicit'
+[[ $production_signing == required-before-publication ]] || \
+  fail 'production signing gate is missing'
+[[ $(grep -Fxc 'SigLevel = Never' "$snapshot/pacman.conf") -eq 2 ]] || \
+  fail 'development snapshot must explicitly disable Pacman signature lookup'
+grep -Fxq 'LocalFileSigLevel = Never' "$snapshot/pacman.conf" || \
+  fail 'development snapshot must explicitly disable local signature lookup'
+! grep -Fq 'TrustAll' "$snapshot/pacman.conf" || \
+  fail 'TrustAll still attempts unknown-key retrieval in an offline install'
+
+actual_files=$(find -L "$snapshot/repo" -maxdepth 1 -type f -name '*.pkg.tar.*' \
+  ! -name '*.sig' | wc -l | tr -d ' ')
+[[ $actual_files == "$package_file_count" ]] || \
+  fail "release says $package_file_count package files; found $actual_files"
+
+lock_count=$(wc -l <"$snapshot/manifest/packages.lock" | tr -d ' ')
+transaction_count=$(wc -l <"$snapshot/manifest/transaction.lock" | tr -d ' ')
+[[ $lock_count == "$package_file_count" ]] || fail 'package lock count is inconsistent'
+[[ $transaction_count == "$closure_package_count" ]] || \
+  fail 'transaction lock count is inconsistent'
+
+while IFS= read -r raw; do
+  forbidden=${raw%%#*}
+  forbidden=${forbidden//[[:space:]]/}
+  [[ -n $forbidden ]] || continue
+  if awk -F '\t' -v package="$forbidden" '$1 == package { found=1 } END { exit !found }' \
+    "$snapshot/manifest/transaction.lock"; then
+    fail "forbidden package is present: $forbidden"
+  fi
+done <"$snapshot/manifest/forbidden-closure-packages.txt"
+
+for required_package in base lightdm omarchy-ps4 omarchy-ps4-provisioning omarchy-ps4-settings; do
+  awk -F '\t' -v package="$required_package" \
+    '$1 == package { found=1 } END { exit !found }' \
+    "$snapshot/manifest/packages.lock" || fail "required package is missing: $required_package"
+done
+
+printf '%s\n' 'Offline package snapshot policy passed.'

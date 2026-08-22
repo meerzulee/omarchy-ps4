@@ -1,37 +1,27 @@
 # Development session ledger
 
-Updated: 2026-08-11
+Updated: 2026-08-21
 
 This is the resume point for the project. Read this file, `docs/PLAN.md`, and
 `docs/COMPATIBILITY.md` before proposing a new PS4-side action.
 
 ## Current position
 
-- active phase: Phase 1, real-hardware XFCE baseline acceptance
+- active phase: stable Omarchy 4.0.0 migration and private boot-capable FPKG
+  development after the existing external USB desktop passed a fresh boot
 - local preparation gate: `PREP-20260810-001` complete through read-only
   GoldHEN FTP after the Kingston USB was connected directly to the PS4.
   `/mnt/usb0` contains one complete boot bundle; `EXP-20260810-000-A1`
   corrected its only blocker and reverified every core-file hash
-- active hardware experiment: `EXP-20260810-000` is closed as inconclusive
-  because insertion happened without a bounded UART marker; its read-only FTP
-  observation is still valid source-state evidence. `EXP-20260810-000-A1`
-  completed. The first `EXP-20260810-001` capture was aborted before launch
-  when the Vue menu exposed only an unverified BIN. `EXP-20260810-001-A1`
-  installed and verified v25 ELF but the Vue refresh crashed; the separate ELF
-  loader survived on port `9021`, but `EXP-20260810-001-A2` proved that its
-  ELF handoff was unhealthy. `EXP-20260810-001-A3` completed a clean shutdown
-  and `EXP-20260810-001-A4` completed a clean cold boot. The operator confirmed
-  the installed jailbreak UI is full Vue After Free 2.0;
-  `EXP-20260810-001-A5` established a clean GoldHEN runtime;
-  `EXP-20260810-001-A6` passed loader/kexec handoff but the integrated boot
-  failed, and `EXP-20260810-001-A7` captured the terminal root-device timeout
-- next hardware action: none until the local 6.15.4-versus-6.18.44 scanout
-  comparison and one-variable A39 diagnostic kernel are complete. A38 left
-  Linux running with the ext4 root mounted read-write, so recovery to Orbis is
-  itself the next separately declared bounded hardware action
-- continuous UART: last verified `READY` on `/dev/cu.wchusbserial140`, PID
-  `97034`, generation `274d8db2bb43469ea93e25d7befa6db1`; runtime
-  identifiers must still be rechecked before every action
+- active hardware experiment: none. `EXP-20260821-001-A2` is closed as a pass;
+  the accepted external USB system is running and internal PS4 storage was not
+  modified
+- next hardware action: none until local stable-migration transaction tests
+  pass. Stable package installation and FPKG installation remain separate
+  later actions
+- continuous UART: last confirmed `READY` on `/dev/cu.wchusbserial3110`, PID
+  `5950`, generation `266b3d42494146d1afa5f4028ab6cfcf`; runtime identifiers
+  must be rechecked before every action
 - known-good rollback: internal Linux `5.4.247-neocine-1.1` boot set plus FAT
   `recovery/` files on the prepared USB
 - authoritative kernel repository:
@@ -5358,7 +5348,8 @@ but they are not evidence of a Linux 6.18 boot.
 - preservation evidence: Hyprland PID 439 and native Quickshell PID 19771 with
   `-p /usr/share/omarchy/shell` remained; shell IPC returned `ok`; LightDM and
   sshd remained active. The remote temporary PNG was removed after its verified
-  copy became `docs/assets/omarchy-ps4-quattro-rc3.png`
+  copy became `docs/assets/omarchy-ps4-quattro.png` (captured during the
+  prerelease acceptance run)
 - bounded UART context:
   [`20260814_032728_511428-exp-20260814-001-a5-capture-current-native-rc3-desktop-for-readm-e0806ec2.md`](../../ps4-uart/sessions/20260814_032728_511428-exp-20260814-001-a5-capture-current-native-rc3-desktop-for-readm-e0806ec2.md),
   exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
@@ -5445,6 +5436,3742 @@ but they are not evidence of a Linux 6.18 boot.
 - operator action: after the bounded session is active and the artifact is
   staged, boot Linux once and report the splash appearance, whether anything
   overwrites it for longer than one second, and the final desktop outcome
+
+### EXP-20260814-002-A1 — stage audited UI-only FPKG in GoldHEN
+
+- state: complete — pass
+- question: is the console currently in the operator-reported Orbis/GoldHEN
+  runtime, and can the exact audited UI-only package be staged under
+  `/data/pkg` without touching PS4BOOT, OMARCHY-PS4, boot files or any existing
+  installed title?
+- changed variable: create or reuse `/data/pkg` and upload exactly
+  `IV0000-BREW09004_00-OMARCHYPS4UI0000.pkg`, 6.3 MiB, SHA-256
+  `0e59847d8d3107fd183175fdca31285808e694b0135a7834e80fdecab4d97d5e`.
+  No Package Installer selection, title installation, application launch,
+  payload, boot, USB write or GoldHEN setting change belongs to A1
+- source evidence: OpenOrbis package validation and extraction audit pass;
+  exactly 16 normalized 1920x1080 wallpapers are present; no loader, payload,
+  kernel, initramfs, rootfs, release bundle, network client or PayLoader string
+  is packaged
+- expected evidence: anonymous FTP at `192.168.50.215:2121` is reachable;
+  upload completes to `/data/pkg`; a streamed reread returns the exact package
+  SHA-256 and size; UART continuity remains `completed` with no panic, storage
+  or service fault
+- timeout: 3 minutes while transfer makes forward progress
+- rollback: if upload or verification fails, remove only the exact partial A1
+  destination before closing the session. After a successful A1, keep the
+  staging file for A2; removing it after installation is a later bounded action
+- stop condition: close and review A1 before opening Debug Settings or Package
+  Installer. Any need to return from Linux to Orbis closes A1 without upload
+- operator action: none; leave the current screen untouched during transfer
+- result: anonymous GoldHEN FTP was reachable at `192.168.50.215:2121`. The
+  exact package uploaded to `/data/pkg` in one transfer, and the remote listing
+  reported 6,619,136 bytes. Streaming the staged file back through FTP returned
+  SHA-256
+  `0e59847d8d3107fd183175fdca31285808e694b0135a7834e80fdecab4d97d5e`,
+  exactly matching the locally audited build
+- bounded UART context:
+  [`20260814_124655_026989-exp-20260814-002-a1-stage-audited-ui-only-fpkg-in-goldhen-821deead.md`](../../ps4-uart/sessions/20260814_124655_026989-exp-20260814-002-a1-stage-audited-ui-only-fpkg-in-goldhen-821deead.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `ac7a80625286433a86e5323e6136e68d`, epoch `1`
+- UART conclusion: completed continuity with ordinary Orbis shell screensaver
+  and memory telemetry only. No panic, filesystem, storage, USB or service
+  fault appeared
+- rollback: not applied. The exact verified staging file remains under
+  `/data/pkg` for the next bounded installation action
+- next action: A2 may select GoldHEN's HDD `/data/pkg` package source only;
+  installation remains A3 and launch remains A4
+
+### EXP-20260814-002-A2 — select GoldHEN internal package source
+
+- state: complete — degraded (planned source-selection scope was crossed)
+- question: can GoldHEN select its documented HDD package source
+  `/data/pkg` without installing, launching or otherwise changing a title?
+- changed variable: Package Installer source setting only, from its current
+  value to HDD `/data/pkg` if needed. Do not select the staged package, confirm
+  installation, launch an app, send a payload, boot Linux or modify USB
+- expected evidence: the Package Installer source visibly reads HDD
+  `/data/pkg`; UART continuity remains completed without a shell crash or panic
+- timeout: 2 minutes, operator-paced
+- rollback: if the setting causes an error, restore its exact prior value before
+  closing A2. A successful HDD selection remains in place through A3, then may
+  be restored in a later bounded cleanup action
+- stop condition: close and review immediately after reporting the visible
+  source setting. Opening/selecting an actual PKG is outside A2
+- operator action: after the bounded marker is active, open GoldHEN Debug
+  Settings, set Package Installer source to HDD `/data/pkg`, then stop without
+  choosing a package and report the exact on-screen source text
+- operator report: the operator installed and launched the staged title, then
+  reported `ok loaded nice`; this is positive visual evidence for the UI but
+  crossed the declared A2 stop condition
+- result: GoldHEN installed `BREW09004` from the exact 6,619,136-byte staged
+  package. UART recorded `sceAppInstaller::AppInstallApp=0`, task error `0x0`,
+  and a 4.961-second install. Orbis then launched `BREW09004` v0.11 and executed
+  `/app0/eboot.bin` as PID 73 without a panic or application crash. The title's
+  first read-only SaveData mount and its later create/read-write mount both
+  failed: internal result `0x809f8022`, mapped result `0x809f0008`. The rendered
+  UI is accepted for this private prototype, but theme persistence is not
+  accepted
+- bounded UART context:
+  [`20260814_124817_164170-exp-20260814-002-a2-select-goldhen-internal-package-source-973f6236.md`](../../ps4-uart/sessions/20260814_124817_164170-exp-20260814-002-a2-select-goldhen-internal-package-source-973f6236.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `ac7a80625286433a86e5323e6136e68d`, 51,840-byte raw slice
+- UART conclusion: continuity is valid and install/launch behavior is normal,
+  but A2 cannot be classified as a strict pass because multiple unplanned
+  operator actions occurred and SaveData persistence failed
+- rollback: not applied. The installed v0.11 title is a UI-only prototype and
+  does not contain a payload, kernel, initramfs or rootfs; the staged package
+  remains under `/data/pkg`
+- next action: local-only v0.12 work must load and initialize the PS4 SaveData
+  module correctly, rebuild, audit, and preserve UI-only scope. A later console
+  update must receive its own bounded experiment ID
+
+### EXP-20260814-003-A1 — stage audited private UI-only FPKG v0.12
+
+- state: complete — degraded (staging passed; isolation condition was crossed)
+- question: can GoldHEN FTP replace the staged v0.11 package with the exact
+  locally audited v0.12 package without installing, launching or modifying any
+  other console path?
+- changed variable: the single regular file
+  `/data/pkg/IV0000-BREW09004_00-OMARCHYPS4UI0000.pkg`, from the prior v0.11
+  bytes to the audited v0.12 bytes. No title installation state, boot file,
+  payload, USB path or system setting may change
+- local input: 6,684,672 bytes; SHA-256
+  `5fc3d24a3a61b4ed04fd7422ccccb0a9a9b50591ab44f92eefa832cc30d8146a`
+- expected evidence: the prior remote file is preserved locally before the
+  write; one FTP upload completes; remote listing reports 6,684,672 bytes; a
+  streamed read-back produces the exact local SHA-256; UART continuity remains
+  completed without a shell crash, storage error or panic
+- timeout: 3 minutes for FTP reachability and 5 minutes total
+- rollback: keep the read-only local copy of the prior staged file. If upload
+  or verification fails, do not install or launch; restore that exact backup to
+  the same remote path and reverify its size/hash before closing the experiment
+- stop condition: close and review immediately after exact remote verification.
+  Opening Package Installer, installing v0.12 or launching the title is outside
+  A1
+- operator action: none during transfer; leave the current Orbis screen and
+  controller untouched
+- result: before writing, the prior staged v0.11 package was preserved locally
+  as 6,619,136 bytes with SHA-256
+  `0e59847d8d3107fd183175fdca31285808e694b0135a7834e80fdecab4d97d5e`.
+  One GoldHEN FTP upload replaced the target. FTP then reported a
+  `Content-Length` of 6,684,672 bytes, and a complete streamed read-back
+  produced SHA-256
+  `5fc3d24a3a61b4ed04fd7422ccccb0a9a9b50591ab44f92eefa832cc30d8146a`,
+  exactly matching the locally audited v0.12 package
+- local rollback copy:
+  `backups/fpkg-stage/2026-08-14/IV0000-BREW09004_00-OMARCHYPS4UI0000-v0.11.pkg`
+- bounded UART context:
+  [`20260814_141020_319204-exp-20260814-003-a1-stage-audited-private-ui-only-fpkg-v0-12-337661e4.md`](../../ps4-uart/sessions/20260814_141020_319204-exp-20260814-003-a1-stage-audited-private-ui-only-fpkg-v0-12-337661e4.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `ac7a80625286433a86e5323e6136e68d`, epoch `1`
+- UART conclusion: continuity is valid and no package install, title launch,
+  storage error, shell crash or panic appeared. The slice does contain ordinary
+  navigation from Package Installer options back to GoldHEN Debug Settings,
+  contrary to the declared untouched-screen condition. That unplanned UI
+  action makes experimental isolation degraded but does not invalidate the
+  independently exact FTP size/hash evidence
+- rollback: not applied; v0.12 is the exact verified staged file and v0.11 is
+  preserved locally for recovery
+- next action: stop. Do not install or launch until the owner explicitly asks
+  and a new bounded experiment is declared
+
+### EXP-20260821-001-A1 — read-only GoldHEN and PS4BOOT preflight
+
+- state: complete — pass
+- question: before attempting one Linux boot, do the current GoldHEN runtime,
+  PayLoader service and attached `PS4BOOT` volume still expose the exact
+  previously accepted boot chain without changing console state?
+- changed variable: none. Perform only one loopback PayLoader status read and
+  read-only FTP listing/streaming of `/mnt/usb0/SHA256SUMS`, `bzImage`,
+  `initramfs.cpio.gz`, `bootargs.txt` and `vram.txt`. Do not upload, delete,
+  rename, install, launch the manager, send a payload, reboot, power-cycle or
+  change any GoldHEN, USB or Orbis setting
+- expected evidence: PayLoader reports ready; `/mnt/usb0` exposes one complete
+  boot set; streamed hashes match kernel
+  `b54490ed1f5d12432bf4ead11f27f1cf8aed008f0b76787c0060141b97414614`,
+  initramfs
+  `307fcce4d3a4893fb9a729c9c43dec886979afe088e7d6f44e430e1132709264`,
+  product boot arguments
+  `3c023f27188299545d4929adfa9c2738f01f6a5108a706135516b23a9d27ee2c`,
+  and `vram.txt=1024`; UART continuity remains completed without reconnect,
+  panic, filesystem, USB or storage fault
+- timeout: 3 minutes
+- rollback: none because A1 is read-only. If any endpoint, file, size, hash or
+  continuity check fails, close A1 as fail or inconclusive and do not send the
+  loader
+- stop condition: close and review A1 before any payload connection. A Linux
+  boot belongs only to separately declared `EXP-20260821-001-A2`
+- operator action: none; leave the current Orbis screen, USB and controller
+  untouched during the preflight
+- result: pass. `http://192.168.50.215:9090/status` returned
+  `{ "status": "ready" }`; anonymous FTP listed one complete boot set under
+  `/mnt/usb0`. Streaming each file returned the exact expected SHA-256 for
+  `bzImage`, `initramfs.cpio.gz`, `bootargs.txt` and `vram.txt`, and the remote
+  `SHA256SUMS` listed the same four digests. `vram.txt` contains `1024`; the
+  product command line retains `root=LABEL=OMARCHY-PS4`, `rootwait`,
+  `pci=nocrs intremap=off` and `libata.force=1.00:disable`
+- bounded UART context:
+  [`20260821_195003_680204-exp-20260821-001-a1-read-only-goldhen-and-ps4boot-preflight-4734703d.md`](../../ps4-uart/sessions/20260821_195003_680204-exp-20260821-001-a1-read-only-goldhen-and-ps4boot-preflight-4734703d.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event
+  sidecar, generation `266b3d42494146d1afa5f4028ab6cfcf`, epoch `1`
+- UART conclusion: completed continuity with ordinary Orbis heap/network
+  telemetry only. No logger restart, serial reconnect, panic, filesystem, USB
+  or storage fault appeared
+- rollback: none required; A1 made no changes
+- next action: `EXP-20260821-001-A2` may send the unchanged pinned v25
+  1024 MiB loader exactly once, then stop and review before any recovery action
+
+### EXP-20260821-001-A2 — boot current USB through one pinned loader send
+
+- state: complete — pass
+- question: does one unchanged launch of the pinned v25 1024 MiB loader boot
+  the currently attached, preflight-verified `PS4BOOT` set into the existing
+  external `OMARCHY-PS4` Linux desktop?
+- changed variable: one complete raw-socket send of exactly 320,936 bytes from
+  `payloads/ps4-linux-loader/v25/elf/linux-1024mb.elf`, SHA-256
+  `c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef0846d67fa9d1e5ce65`,
+  to the recorded console PayLoader address on port 9090. Do not reconnect,
+  resend, change
+  the FPKG, boot files, USB, VRAM, monitor, GoldHEN settings or PS4 power state
+- precondition: A1 passed with PayLoader ready and exact accepted hashes for
+  kernel, initramfs, product boot arguments and `vram.txt=1024`; continuous
+  UART is READY and a fresh bounded A2 session must be active before the send
+- expected evidence: GoldHEN accepts exactly one ELF; v25 identifies the tested
+  firmware, Baikal and 1024 MiB VRAM; kexec enters Linux 6.18.44; initramfs finds
+  `LABEL=OMARCHY-PS4`; systemd reaches the graphical target; HDMI shows the
+  splash followed by the existing Omarchy desktop; UART shows no panic, ext4
+  error, USB I/O fault or GPU reset/ring/page fault
+- timeout: 5 minutes from the single send while UART makes forward progress
+- rollback: no second payload. If the connection fails before acceptance,
+  close A2 and restore PayLoader only in a separate action. If Linux stalls or
+  fails after acceptance, preserve the visible and UART outcome, close A2,
+  and declare any power-cycle or recovery as a separate experiment
+- stop condition: exactly one payload connection and one boot observation.
+  Installing/updating the manager, changing Linux configuration, rebooting,
+  power-cycling or testing the unfinished FPKG Boot button is outside A2
+- operator action: after A2 is active, do not press controller or keyboard
+  buttons. Watch HDMI and report whether the Omarchy splash appears, whether
+  the desktop appears, and any visible error, signal loss or corruption
+- payload result: pass. The primary agent verified the local 320,936-byte ELF
+  against its pinned SHA-256, opened exactly one raw TCP connection to the
+  recorded console PayLoader address, and completed one `sendall()` with no
+  retry or second connection. The loader reported the expected firmware,
+  `VRAM 1024 MB`, Baikal and
+  the exact 11,064,320-byte kernel plus 1,673,725-byte initramfs before kexec
+- Linux result: pass. The initramfs resolved `LABEL=OMARCHY-PS4` to
+  `/dev/sda2` at 11.570 seconds and mounted the expected ext4 UUID read/write.
+  OpenSSH started at 18.547 seconds, LightDM at 18.619 seconds, the graphical
+  target at 18.633 seconds, and system startup completed in 17.911 seconds
+- operator report: `yes, i see omarchy`; HDMI therefore passed the declared
+  visible desktop condition with no reported signal loss, error text, tiling
+  or corruption
+- bounded UART context:
+  [`20260821_195134_364091-exp-20260821-001-a2-boot-current-usb-through-one-pinned-loader-s-cc8815d8.md`](../../ps4-uart/sessions/20260821_195134_364091-exp-20260821-001-a2-boot-current-usb-through-one-pinned-loader-s-cc8815d8.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event
+  sidecar, generation `266b3d42494146d1afa5f4028ab6cfcf`, epoch `1`
+- UART conclusion: completed continuity from the single PayLoader send through
+  the visible graphical desktop. No kernel panic, ext4 error, USB I/O fault,
+  AMDGPU reset/ring timeout/page fault or logger reconnect appeared. The
+  downstream MT7668 driver retained its known verbose P2P/regulatory warnings
+  while continuing through association; they did not block this boot
+- rollback: none required. Linux remains running from the external USB root;
+  internal PS4 storage and the UI-only FPKG were not modified
+- next action: audit and build the latest pinned Omarchy gift snapshot plus a
+  native boot-capable manager locally. Any root migration, FPKG installation
+  or FPKG-triggered boot requires separately declared bounded experiments
+
+### EXP-20260821-002-A1 — read-only stable Omarchy 4.0.0 migration preflight
+
+- state: complete — pass
+- question: is the running external USB system healthy, recoverable and ready
+  for a narrow migration from the installed prerelease project packages to the
+  locally built stable `4.0.0-1` package trio?
+- changed variable: none. Use key-only SSH only to inspect the root device,
+  filesystem, free space, installed project package versions, provisioning
+  marker, active targets, Pacman lock and the existing restricted recovery
+  status command. Do not transfer files, change configuration, run Pacman,
+  restart a service or touch boot media
+- expected evidence: `/` is the writable external ext4 filesystem labeled
+  `OMARCHY-PS4`; at least 2 GiB is free; the three project packages are the
+  expected prerelease versions; no Pacman lock or provisioning marker exists;
+  `sshd`, LightDM and `graphical.target` are active; the independently armed
+  recovery status command succeeds; UART remains continuous without a GPU,
+  USB, ext4 or kernel fault
+- timeout: 3 minutes
+- rollback: none because the action is read-only. Any failed invariant blocks
+  package transfer and installation
+- stop condition: close and review before staging any stable package. Package
+  transfer and installation require a separate bounded action
+- operator action: leave the visible Omarchy desktop, keyboard, USB and
+  controller untouched; report any blanking, corruption or visible error
+- result: pass. `/` is `/dev/sda2`, ext4, label `OMARCHY-PS4`, read-write, with
+  107,246,399,488 bytes available. The running kernel is
+  `6.18.44-ps4-baikal`; `omarchy-ps4`, `omarchy-ps4-settings` and
+  `omarchy-ps4-provisioning` are each `4.0.0rc3-1`. The provisioning marker
+  and Pacman lock are absent. `sshd`, LightDM and `graphical.target` are active;
+  `omarchy-recovery` UID 1001 completed its permitted root/device, package and
+  recovery-status check
+- bounded UART context:
+  [`20260821_200303_417442-exp-20260821-002-a1-read-only-stable-omarchy-4-0-0-migration-pre-c11ae42f.md`](../../ps4-uart/sessions/20260821_200303_417442-exp-20260821-002-a1-read-only-stable-omarchy-4-0-0-migration-pre-c11ae42f.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event
+  sidecar, generation `266b3d42494146d1afa5f4028ab6cfcf`, epoch `1`
+- UART conclusion: completed continuity. UART shows only clean SSH session
+  creation and teardown for the `ps4` and recovery users; no kernel, GPU,
+  filesystem, USB or service fault appeared
+- rollback: none required; no console state changed
+- next action: locally verify a stable migration bundle and its exact
+  transaction. Only then may a fresh bounded action transfer and install the
+  three `4.0.0-1` packages
+
+### EXP-20260821-002-A2 — stage checksum-verified stable 4.0.0 migration bundle
+
+- state: complete — pass
+- question: can the exact locally tested stable migration bundle be staged in
+  the development user's external-root home and fully verified without running
+  a package or recovery transaction?
+- changed variable: create only
+  `/home/ps4/omarchy-ps4-dev/releases/stable-4.0.0`, upload the 252,334,028-byte
+  archive as a temporary name, verify SHA-256, rename it, extract it beneath
+  that directory and run its read-only manifest policy check. Do not run sudo,
+  Pacman, recovery update, service change, boot-file write or desktop restart
+- expected evidence: remote archive SHA-256 equals
+  `d33048fdbab2bab947a8b574a748b994327246b0d299e2a09689c80d5d81f709`;
+  manifest verification passes; the extracted repository contains exactly the
+  three stable project packages plus pinned `desktop-file-utils`,
+  `xdg-user-dirs` and `xdg-utils`; UART stays continuous without USB, ext4,
+  kernel or GPU failure
+- timeout: 5 minutes
+- rollback: remove only the newly created stable staging directory in a later
+  declared action if transfer, hash or manifest verification fails. Do not
+  install from an incomplete or mismatched directory
+- operator action: leave the desktop, keyboard, controller and USB untouched;
+  report any visible error or corruption
+- result: pass. One SSH copy completed. The remote archive is exactly
+  252,334,028 bytes with the expected SHA-256; extraction and the bundle's full
+  content manifest passed. All six intended package files were listed. An
+  initial read-back command failed before rename/extraction because its remote
+  `awk` field was incorrectly shell-expanded; the corrected read used Bash
+  `read`, the transfer bytes were not repeated, and the exact digest then
+  passed
+- bounded UART context:
+  [`20260821_201938_933994-exp-20260821-002-a2-stage-checksum-verified-stable-4-0-0-migrati-d6bd07b1.md`](../../ps4-uart/sessions/20260821_201938_933994-exp-20260821-002-a2-stage-checksum-verified-stable-4-0-0-migrati-d6bd07b1.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event
+  sidecar, generation `266b3d42494146d1afa5f4028ab6cfcf`, epoch `1`
+- UART conclusion: completed continuity with clean SSH session teardown and
+  only the known MT7668 trace/roaming messages. No kernel, ext4, USB, GPU or
+  service fault appeared
+- rollback: not applied; the exact verified bundle remains staged for the next
+  recovery-command action
+- next action: update only the restricted recovery command and record the
+  installed predecessor version before any stable package transaction
+
+### EXP-20260821-002-A3 — update restricted recovery command for stable migration
+
+- state: complete — blocked before change; sudo authentication is required
+- question: can the already-armed recovery path replace only its restricted
+  command with the locally rehearsed version that accepts either the recorded
+  predecessor or stable `4.0.0-1`, while preserving key-only SSH and denying
+  general sudo?
+- changed variable: intended but not applied —
+  `/usr/local/sbin/omarchy-ps4-dev-recovery` plus the root-owned recovery marker
+  recording the exact installed predecessor version. No package, service,
+  account, sudo policy, boot file or desktop change is allowed
+- expected evidence: the new command SHA-256 is
+  `a7fe6b08e6ec7c866e1647aaf72818e962822a1bc1b2c4d27e46b1d8986e5b75`;
+  the marker records the pre-migration foundation version; a fresh recovery
+  status login succeeds; arbitrary sudo remains denied
+- timeout: 3 minutes
+- rollback: if the authenticated update starts and fails, restore the exact
+  command and marker copies written by `arm-recovery` into its root-only
+  evidence directory. Do not begin stable package installation
+- operator action: none in this attempt
+- result: blocked before change. The `ps4` account's non-interactive sudo
+  correctly returned `a password is required`; key-only root SSH correctly
+  returned permission denied. No privileged command ran and the old restricted
+  recovery command and marker remain unchanged
+- bounded UART context:
+  [`20260821_202200_701774-exp-20260821-002-a3-update-restricted-recovery-command-for-stabl-ae873249.md`](../../ps4-uart/sessions/20260821_202200_701774-exp-20260821-002-a3-update-restricted-recovery-command-for-stabl-ae873249.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event
+  sidecar, generation `266b3d42494146d1afa5f4028ab6cfcf`, epoch `1`
+- UART conclusion: completed continuity. UART shows one clean `ps4` SSH session
+  and only known MT7668 roaming traces; no package, service, filesystem, USB,
+  GPU or kernel event occurred
+- rollback: not required because the intended variable did not change
+- next action: in a fresh bounded session, the operator must run the one staged
+  `arm-recovery --apply` command in the visible terminal and enter the existing
+  `ps4` sudo password. Close and verify before package installation
+
+### EXP-20260821-002-A4 — operator-authenticated stable recovery command update
+
+- state: complete — aborted before operator action; no console state changed
+- question: can the operator authenticate the already staged
+  `arm-recovery --apply` command so the restricted recovery path can be updated
+  for the stable migration?
+- changed variable: intended but not applied — the restricted recovery command
+  and its root-owned predecessor marker only
+- expected evidence: authenticated command success, exact command and marker
+  hashes, a successful recovery-status login and continued denial of arbitrary
+  sudo
+- timeout: 3 minutes
+- rollback: restore the exact root-owned command and marker backups if the
+  authenticated update begins but fails; no rollback is required if it never
+  begins
+- operator action: not performed. The discussion moved to end-user
+  installation architecture before the sudo command was started
+- result: aborted. No authenticated command, package transaction, service
+  change, boot-file write or desktop restart occurred
+- bounded UART context:
+  [`20260821_202403_878257-exp-20260821-002-a4-operator-authenticated-stable-recovery-comma-f7bfb7dd.md`](../../ps4-uart/sessions/20260821_202403_878257-exp-20260821-002-a4-operator-authenticated-stable-recovery-comma-f7bfb7dd.md),
+  exact sibling `.raw`; evidence state `aborted`, empty logger-event sidecar,
+  generation `266b3d42494146d1afa5f4028ab6cfcf`, epoch `1`
+- UART conclusion: continuity remained intact. The slice contains only known
+  MT7668 roaming traces; no authenticated action or kernel, ext4, USB, GPU or
+  service fault occurred
+- rollback: not required because the intended variable did not change
+- next action: stop hardware work while the end-user installation architecture
+  is decided. Any later migration attempt requires a fresh bounded session
+
+### EXP-20260821-003-A1 — stage audited OMCH42069 kernel-manager FPKG
+
+- state: complete — pass
+- question: can the exact audited `OMCH42069` v0.15 kernel-manager FPKG be
+  uploaded to GoldHEN `/data/pkg` and read back byte-for-byte without
+  installing or launching it?
+- changed variable: create only
+  `/data/pkg/omarchy-ps4-v0.15-OMCH42069-beta.pkg`, first under a `.partial`
+  name and then by same-directory rename after an exact read-back check. The
+  local source is 20,119,552 bytes with SHA-256
+  `82ad5425ea9d5ae95446918c7b38b4f67948f1834fb1693561290ae277098636`
+- preconditions: continuous UART is READY on `/dev/cu.wchusbserial3130`, no
+  bounded session is active, the operator reports GoldHEN and FTP active, and
+  the flashed Omarchy USB remains untouched
+- expected evidence: anonymous FTP at `192.168.50.215:2121` accepts one
+  package upload; a single read-back has the exact local byte count and
+  SHA-256; rename succeeds; UART continuity remains completed with no PS4,
+  storage or filesystem fault
+- timeout: 5 minutes
+- rollback: if transfer or verification fails, remove only the newly created
+  `.partial` file, or the final file if and only if it fails the exact
+  verification. Do not alter any other `/data/pkg` entry
+- stop condition: close and review the bounded session immediately after the
+  verified rename or failure. Installing, launching, sending a loader,
+  changing the USB or changing boot files is outside this action
+- operator action: leave Orbis and GoldHEN idle; do not open Package Installer
+  or launch Omarchy during A1. Report any visible error, notification,
+  controller disconnect or unexpected screen change
+- result: pass. Anonymous GoldHEN FTP accepted one upload to the declared
+  `.partial` name. The remote temporary file was exactly 20,119,552 bytes; one
+  complete FTP read-back produced SHA-256
+  `82ad5425ea9d5ae95446918c7b38b4f67948f1834fb1693561290ae277098636`.
+  Only after that match, FTP renamed it within `/data/pkg` to
+  `omarchy-ps4-v0.15-OMCH42069-beta.pkg`; its final reported size remained
+  20,119,552 bytes. No installation, launch, payload send, USB access or boot
+  file change occurred
+- bounded UART context:
+  [`20260821_232213_928802-exp-20260821-003-a1-stage-audited-omch42069-kernel-manager-fpkg-1e90f8a9.md`](../../ps4-uart/sessions/20260821_232213_928802-exp-20260821-003-a1-stage-audited-omch42069-kernel-manager-fpkg-1e90f8a9.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event
+  sidecar, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity. The slice contains four routine
+  Orbis `SceWorkaroundCtl`/`SceShellCore` lines and no package, storage,
+  filesystem, kernel or logger fault. No separate visible operator anomaly
+  was reported before session close
+- rollback: none required; the exact verified final package remains staged
+- next action: installing `OMCH42069` from Package Installer requires a fresh
+  `EXP-20260821-003-A2` bounded session and an explicit operator action. Do not
+  combine installation with first launch or Linux boot
+
+### EXP-20260822-001-A1 — stage audited OMCH42069 v0.19 FPKG
+
+- state: complete — aborted before hardware action; no FTP connection or
+  upload occurred
+- question: can the exact audited `OMCH42069` v0.19 kernel-manager FPKG be
+  uploaded to GoldHEN `/data/pkg` and read back byte-for-byte without
+  installing or launching it?
+- changed variable: create only
+  `/data/pkg/omarchy-v0.19-OMCH42069-beta.pkg`, first under a `.partial` name
+  and then by same-directory rename after an exact read-back check. The local
+  source is 20,905,984 bytes with SHA-256
+  `b1ddd4eca8eda76bfdc0803cb3883cb2845fcfa5c6b6d17db5af5531c2eaed97`
+- preconditions: continuous UART is READY on `/dev/cu.wchusbserial3130`, no
+  bounded session is active, the v0.19 package audit passed, and the flashed
+  Omarchy USB remains untouched
+- expected evidence: anonymous FTP at `192.168.50.215:2121` accepts one
+  package upload; a single read-back has the exact local byte count and
+  SHA-256; rename succeeds; UART continuity remains completed with no console,
+  storage or filesystem fault
+- timeout: 5 minutes
+- rollback: if transfer or verification fails, remove only the newly created
+  `.partial` file, or the final file if and only if it fails exact verification.
+  Do not alter any other `/data/pkg` entry
+- stop condition: close and review the bounded session immediately after the
+  verified rename or failure. Installing, launching, sending a loader,
+  changing the USB or changing boot files is outside this action
+- operator action: leave Orbis and GoldHEN idle; do not open Package Installer
+  or launch Omarchy during A1. Report any visible error, notification,
+  controller disconnect or unexpected screen change
+- result: aborted. The local transfer command was rejected before execution,
+  and the operator redirected work back to interface design. No FTP connection,
+  package upload, rename, installation, launch, payload send, USB access or
+  boot-file change occurred
+- bounded UART context:
+  [`20260822_001703_416435-exp-20260822-001-a1-stage-audited-omch42069-v0-19-fpkg-a3e1a963.md`](../../ps4-uart/sessions/20260822_001703_416435-exp-20260822-001-a1-stage-audited-omch42069-v0-19-fpkg-a3e1a963.md),
+  exact sibling `.raw`; evidence state `aborted`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: continuity remained intact. The slice contains routine Orbis
+  shell/RNPS maintenance messages and no package, storage, filesystem, kernel
+  or logger fault
+- rollback: not required because no hardware-side action began
+- next action: continue local UI work. Any later FTP staging or installation
+  requires a fresh bounded experiment
+
+### EXP-20260822-002-A1 — stage audited OMCH42069 v0.20 FPKG
+
+- state: complete — pass
+- question: can the exact audited `OMCH42069` v0.20 kernel-manager FPKG be
+  uploaded to GoldHEN `/data/pkg` and read back byte-for-byte without
+  installing or launching it?
+- changed variable: create only
+  `/data/pkg/omarchy-v0.20-OMCH42069-beta.pkg`, first under a `.partial` name
+  and then by same-directory rename after an exact read-back check. The local
+  source is 20,905,984 bytes with SHA-256
+  `3dae32b7869b662f69e031e82ff65fe25f0bde42c0d64a6ee9d2af8448db2a9e`
+- preconditions: continuous UART is READY on `/dev/cu.wchusbserial3130`, no
+  bounded session is active, the v0.20 package audit passed, and the flashed
+  Omarchy USB remains untouched
+- expected evidence: anonymous FTP at `192.168.50.215:2121` accepts one
+  package upload; one read-back has the exact local byte count and SHA-256;
+  rename succeeds; UART continuity remains completed without console, storage
+  or filesystem fault
+- timeout: 5 minutes
+- rollback: if transfer or verification fails, remove only the newly created
+  `.partial` file, or the final file if and only if it fails exact verification.
+  Do not alter any other `/data/pkg` entry
+- stop condition: close and review immediately after verified rename or
+  failure. Installation, launch, loader send, USB access and boot-file changes
+  are outside this action
+- operator action: leave Orbis and GoldHEN idle; do not open Package Installer
+  or launch Omarchy during A1. Report any visible error, notification,
+  controller disconnect or unexpected screen change
+- result: pass. Anonymous GoldHEN FTP accepted one upload to the declared
+  `.partial` name. One complete read-back was exactly 20,905,984 bytes with
+  SHA-256
+  `3dae32b7869b662f69e031e82ff65fe25f0bde42c0d64a6ee9d2af8448db2a9e`,
+  exactly matching the audited local v0.20 package. FTP then renamed it within
+  `/data/pkg` to `omarchy-v0.20-OMCH42069-beta.pkg`; the partial name no longer
+  appeared. No installation, launch, loader send, USB access or boot-file
+  change occurred
+- bounded UART context:
+  [`20260822_002212_182066-exp-20260822-002-a1-stage-audited-omch42069-v0-20-fpkg-64a821d2.md`](../../ps4-uart/sessions/20260822_002212_182066-exp-20260822-002-a1-stage-audited-omch42069-v0-20-fpkg-64a821d2.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity. The slice contains routine Orbis shell
+  heap/VM telemetry and no package, filesystem, storage, kernel or logger fault
+- rollback: none required; the exact verified package remains staged at the
+  declared final path
+- next action: installing or replacing `OMCH42069` through Package Installer
+  requires a separate bounded operator-action session. Do not combine install
+  with launch or Linux boot
+
+### EXP-20260822-002-A2 — install v0.20 over existing OMCH42069 app
+
+- state: complete — degraded; v0.20 installed and launched, but the operator
+  path deleted/reinstalled the app and exceeded the install-only boundary
+- question: does Package Installer accept the higher-version v0.20 FPKG with
+  the same `OMCH42069` title/content identity as an in-place replacement while
+  preserving application SaveData and without launching the app?
+- changed variable: install only the already verified
+  `/data/pkg/omarchy-v0.20-OMCH42069-beta.pkg` through the console Package
+  Installer. Do not launch Omarchy, stage boot files, send a loader, touch the
+  USB or alter any other package
+- expected evidence: Package Installer reports success as an update/replace;
+  one Omarchy icon remains; no delete-data prompt is accepted; UART continuity
+  is completed and shows no package database, filesystem or kernel fault
+- timeout: 5 minutes
+- rollback: if installation fails before replacement, leave the current app
+  untouched. If v0.20 installs but later proves unusable, reinstall the exact
+  staged v0.15 package only in a separately declared rollback session. Do not
+  delete app SaveData
+- stop condition: cancel immediately if the UI requires deleting the current
+  application or saved data. Otherwise close and review immediately after the
+  install succeeds or fails; do not launch Omarchy in A2
+- operator action: open GoldHEN Package Installer, select
+  `omarchy-v0.20-OMCH42069-beta.pkg`, and accept only an install/update/replace
+  prompt. Do not accept deletion of the current app or SaveData. Report the
+  exact prompt/result and any visible error, then leave Omarchy closed
+- result: degraded. UART first recorded
+  `SCE_BGFT_ERROR_SAME_APPLICATION_ALREADY_INSTALLED`. The subsequent UI path
+  entered the content-delete flow, suspended/killed/deleted `OMCH42069`,
+  installed one 20,119,552-byte package, entered delete flow again, and then
+  installed the intended 20,905,984-byte v0.20 package successfully with
+  `sceAppInstaller::AppInstallApp(...)=0x00000000`. The console then launched
+  `OMCH42069`, exceeding the declared install-only stop condition. Final UART
+  identity is content ID `IV0000-OMCH42069_00-OMARCHYPS4UI0000`, version
+  `0.20`. The app reached Home with controller and framebuffer ready,
+  `boot-files=missing`, Tokyo Night wallpaper index 0 loaded, and structured
+  `[omarchy-ui]` logging active. No boot files were staged and Linux was not
+  launched
+- bounded UART context:
+  [`20260822_002353_729035-exp-20260822-002-a2-install-v0-20-over-existing-omch42069-app-38aaac07.md`](../../ps4-uart/sessions/20260822_002353_729035-exp-20260822-002-a2-install-v0-20-over-existing-omch42069-app-38aaac07.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity. Final v0.20 startup and Home rendering
+  are proven. No package database, filesystem, storage or kernel fault appears.
+  GoldHEN's pre-existing missing `plugins.ini`/game-patch XML notices remain
+  non-blocking. SaveData mount reported no existing `Settings` entry, so this
+  session does not prove preference retention across deletion
+- rollback: not applied because the intended v0.20 build is the final installed
+  and running app. The internal boot set remains missing
+- next action: return to local UI iteration. Any later v0.21 package install or
+  launch requires a fresh bounded session and must not be combined with
+  boot-file staging
+
+### EXP-20260822-003-A1 — stage audited OMCH42069 v0.21 FPKG
+
+- state: complete — pass
+- question: can the exact audited `OMCH42069` v0.21 kernel-manager FPKG be
+  uploaded to GoldHEN `/data/pkg` and read back byte-for-byte without
+  installing or launching it?
+- changed variable: create only
+  `/data/pkg/omarchy-v0.21-OMCH42069-beta.pkg`, first under a `.partial` name
+  and then by same-directory rename after exact read-back verification. The
+  local source is 20,905,984 bytes with SHA-256
+  `15dbca5a84a5b83a28508b12b14ae523050aee39677cc2de63e678705d60b086`
+- preconditions: continuous UART is READY on `/dev/cu.wchusbserial3130`, no
+  bounded session is active, the v0.21 package audit passed, and the Omarchy
+  USB remains untouched
+- expected evidence: anonymous FTP at `192.168.50.215:2121` accepts the
+  upload; one read-back has the exact local byte count and SHA-256; rename
+  succeeds; UART continuity remains completed without a console, storage or
+  filesystem fault
+- timeout: 5 minutes
+- rollback: if transfer or verification fails, remove only the newly created
+  `.partial` file, or the v0.21 final file if and only if it fails exact
+  verification. Do not alter any other `/data/pkg` entry
+- stop condition: close and review immediately after the verified rename or
+  failure. Installation, launch, loader send, USB access and boot-file changes
+  are outside this action
+- operator action: leave Orbis and GoldHEN idle; do not open Package Installer
+  or launch Omarchy during A1
+- result: pass. Anonymous GoldHEN FTP accepted the upload under the declared
+  `.partial` name. One complete read-back was exactly 20,905,984 bytes with
+  SHA-256
+  `15dbca5a84a5b83a28508b12b14ae523050aee39677cc2de63e678705d60b086`,
+  exactly matching the audited local v0.21 package. FTP then renamed it within
+  `/data/pkg` to `omarchy-v0.21-OMCH42069-beta.pkg`; the partial name no longer
+  appeared. No installation, launch, loader send, USB access or boot-file
+  change occurred
+- bounded UART context:
+  [`20260822_003522_287597-exp-20260822-003-a1-stage-audited-omch42069-v0-21-fpkg-18428264.md`](../../ps4-uart/sessions/20260822_003522_287597-exp-20260822-003-a1-stage-audited-omch42069-v0-21-fpkg-18428264.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity. The slice contains one routine system
+  timer line and no package, filesystem, storage, kernel or logger fault
+- rollback: none required; the exact verified package remains staged at the
+  declared final path
+- next action: `EXP-20260822-003-A2` installs only the verified package;
+  launch/visual review will use `EXP-20260822-003-A3`
+
+### EXP-20260822-003-A2 — install v0.21 over existing OMCH42069 app
+
+- state: complete — degraded; v0.21 installed and launched, but the session was
+  finalized as an abort before its captured action was inspected
+- question: does Package Installer accept the higher-version v0.21 FPKG with
+  the same `OMCH42069` title/content identity as an update without deleting the
+  current application or SaveData?
+- changed variable: install only the already verified
+  `/data/pkg/omarchy-v0.21-OMCH42069-beta.pkg` through GoldHEN Package
+  Installer. Do not launch Omarchy, stage boot files, send a loader, touch the
+  USB or alter another package
+- expected evidence: Package Installer reports success; one Omarchy icon
+  remains; UART shows final version 0.21 without package database, filesystem
+  or kernel faults
+- timeout: 5 minutes
+- rollback: if Package Installer refuses the update, cancel and retain the
+  working v0.20 app. Do not delete the application or SaveData in this action
+- stop condition: cancel immediately if the UI requests deletion, or close and
+  review immediately after install success/failure. Do not launch Omarchy
+- operator action: open GoldHEN Package Installer, select
+  `omarchy-v0.21-OMCH42069-beta.pkg`, and accept only an install/update prompt.
+  Do not accept deletion and do not launch Omarchy. Report the exact result
+- result: degraded. UART proves Package Installer copied all 20,905,984 bytes
+  and completed `sceAppInstaller::AppInstallApp(...)=0x00000000`. The console
+  then launched content ID `IV0000-OMCH42069_00-OMARCHYPS4UI0000`, version
+  `0.21`, exceeding the install-only boundary. The app reached Home with the
+  framebuffer and controller ready, reported `boot-files=missing`, loaded
+  Tokyo Night wallpaper 0, and emitted structured `[omarchy-ui]` logs. No boot
+  set was staged and Linux was not launched. Because the marker was aborted
+  under the incorrect assumption that the operator action had not begun, this
+  is useful diagnostic evidence but not a clean hardware acceptance session
+- bounded UART context:
+  [`20260822_003632_406539-exp-20260822-003-a2-install-v0-21-over-existing-omch42069-app-e04baca9.md`](../../ps4-uart/sessions/20260822_003632_406539-exp-20260822-003-a2-install-v0-21-over-existing-omch42069-app-e04baca9.md),
+  exact sibling `.raw`; evidence state `aborted`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: the captured bytes contain a successful v0.21 install and
+  startup with no package, filesystem, storage or kernel fault, but the aborted
+  evidence state cannot be promoted to clean acceptance
+- rollback: not applied; v0.21 is the currently installed and running app
+- next action: return to local UI iteration and build v0.22 with the System
+  Check panel vertically centered. A future upload/install requires a new
+  bounded experiment
+
+### EXP-20260822-004-A1 — stage audited centered-layout v0.22 FPKG
+
+- state: complete — pass
+- question: can the exact audited `OMCH42069` v0.22 FPKG be uploaded and read
+  back byte-for-byte without disturbing the currently running v0.21 app?
+- changed variable: create only
+  `/data/pkg/omarchy-v0.22-OMCH42069-beta.pkg`, first under a `.partial` name
+  and then by same-directory rename after exact verification. The local source
+  is 20,905,984 bytes with SHA-256
+  `5d83080b0aeb4bd02ffa6857b886b28641b5ea702d9c85f884843113b18dd51b`
+- expected evidence: anonymous FTP accepts the upload; one read-back has the
+  exact local size and SHA-256; rename succeeds; UART continuity remains valid
+- timeout: 5 minutes
+- rollback: on failure remove only the new v0.22 partial, or the v0.22 final
+  file if it alone fails verification; preserve v0.21 and every other package
+- stop condition: close immediately after verified rename or failure. Do not
+  install, relaunch, stage boot files, touch USB or send the loader
+- operator action: none; leave the running v0.21 UI idle
+- result: pass. Anonymous GoldHEN FTP accepted the upload under the declared
+  `.partial` name. One complete read-back was exactly 20,905,984 bytes with
+  SHA-256
+  `5d83080b0aeb4bd02ffa6857b886b28641b5ea702d9c85f884843113b18dd51b`,
+  exactly matching the audited local v0.22 package. FTP renamed it within
+  `/data/pkg` to `omarchy-v0.22-OMCH42069-beta.pkg`; the partial no longer
+  appeared. v0.21 remained running and no install, relaunch, boot-file, USB or
+  loader action occurred
+- bounded UART context:
+  [`20260822_004831_835854-exp-20260822-004-a1-stage-audited-centered-layout-v0-22-fpkg-79ab9544.md`](../../ps4-uart/sessions/20260822_004831_835854-exp-20260822-004-a1-stage-audited-centered-layout-v0-22-fpkg-79ab9544.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity. The slice contains routine Orbis
+  background service messages and no app, storage, filesystem or logger fault
+- rollback: none required; exact v0.22 remains staged at its declared path
+- next action: `EXP-20260822-004-A2` installs v0.22 only; visual launch follows
+  in `EXP-20260822-004-A3`
+
+### EXP-20260822-004-A2 — install centered-layout v0.22
+
+- state: complete — degraded; v0.22 installed and launched, then the operator
+  exercised boot-file staging outside the install-only action
+- question: does Package Installer update the existing `OMCH42069` v0.21 app
+  to v0.22 without deleting the app or SaveData?
+- changed variable: close v0.21 and install only the verified
+  `/data/pkg/omarchy-v0.22-OMCH42069-beta.pkg`. Do not launch Omarchy, stage
+  boot files, touch USB or send the loader
+- expected evidence: Package Installer succeeds and UART reports final app
+  version 0.22 without package database, filesystem or kernel faults
+- timeout: 5 minutes
+- rollback: on refusal or deletion prompt, cancel and retain v0.21. Do not
+  delete app or SaveData
+- stop condition: close immediately after success/failure; do not launch
+- operator action: close Omarchy, open GoldHEN Package Installer, select
+  `omarchy-v0.22-OMCH42069-beta.pkg`, accept only install/update, and report the
+  exact result without launching Omarchy
+- operator report: "got internal boot files failed verification Linux was not
+  started"
+- result: degraded. The operator first deleted the running v0.21 application,
+  then Package Installer copied all 20,905,984 bytes and completed
+  `sceAppInstaller::AppInstallApp(...)=0x00000000`. v0.22 launched successfully
+  and reached Home with the framebuffer, controller, Tokyo Night wallpaper and
+  structured UART logging ready. The operator then entered Install boot files
+  and confirmed staging, exceeding the install-only boundary. Staging printed
+  `stage begin` and immediately returned result 8 before
+  `embedded-artifacts=verified`, proving the first `/app0` source verification
+  failed before `/data/linux/boot` was created or changed. Linux was not
+  started
+- bounded UART context:
+  [`20260822_004939_542012-exp-20260822-004-a2-install-centered-layout-v0-22-0b636c7c.md`](../../ps4-uart/sessions/20260822_004939_542012-exp-20260822-004-a2-install-centered-layout-v0-22-0b636c7c.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: v0.22 install and startup passed. Boot-file staging failed
+  closed at its first embedded-source verification. No loader send, kexec,
+  Linux boot, USB access or internal boot-set mutation appears
+- rollback: not required for boot files because staging stopped before its
+  first write. v0.22 remains installed and running
+- next action: replace the full-file heap verifier with bounded-memory streaming
+  SHA-256 and exact per-file telemetry; validate locally before one new
+  hardware attempt. Do not retry v0.22 unchanged
+
+### EXP-20260822-005-A1 — stage streaming-verifier v0.23 FPKG
+
+- state: complete — pass
+- question: can the audited v0.23 package be staged exactly while v0.22 stays
+  idle at its safe verification error?
+- changed variable: upload only
+  `/data/pkg/omarchy-v0.23-OMCH42069-beta.pkg` through a `.partial` name and
+  exact read-back. The local source is 20,905,984 bytes with SHA-256
+  `d834207d3fe6f23cb3c7d588e1e1ec6aa91deedcf071d0ee8084b151a99bc60e`
+- expected evidence: FTP upload, read-back and rename pass; continuous UART
+  remains valid with no app, storage or filesystem fault
+- timeout: 5 minutes
+- rollback: on failure remove only the new v0.23 partial, or the v0.23 final
+  file if that exact file fails verification; preserve all earlier packages
+- stop condition: close after verified rename or failure; no installation,
+  relaunch, boot staging, USB access or loader send
+- operator action: none; leave v0.22 idle and do not retry Install boot files
+- result: pass. Anonymous GoldHEN FTP accepted the v0.23 partial. One complete
+  read-back was exactly 20,905,984 bytes with SHA-256
+  `d834207d3fe6f23cb3c7d588e1e1ec6aa91deedcf071d0ee8084b151a99bc60e`,
+  exactly matching the audited local package. FTP renamed it to
+  `/data/pkg/omarchy-v0.23-OMCH42069-beta.pkg`; the partial disappeared. v0.22
+  remained idle and no installation or boot action occurred
+- bounded UART context:
+  [`20260822_005449_544796-exp-20260822-005-a1-stage-streaming-verifier-v0-23-fpkg-2dbf6c88.md`](../../ps4-uart/sessions/20260822_005449_544796-exp-20260822-005-a1-stage-streaming-verifier-v0-23-fpkg-2dbf6c88.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity with only routine Orbis background
+  traffic; no app, storage, filesystem or logger fault
+- rollback: none required; exact v0.23 remains staged at the declared path
+- next action: `EXP-20260822-005-A2` installs v0.23 only. The boot-file staging
+  retest remains a separate later action
+
+### EXP-20260822-005-A2 — install streaming-verifier v0.23
+
+- state: complete — degraded; v0.23 installed and launched, then boot-file
+  staging was exercised twice outside the install-only action
+- question: does Package Installer update v0.22 to the exact v0.23 build?
+- changed variable: close v0.22 and install only
+  `/data/pkg/omarchy-v0.23-OMCH42069-beta.pkg`; do not launch the app or retry
+  boot-file staging
+- expected evidence: installer succeeds and final app metadata is version 0.23
+  without a package database, filesystem or kernel fault
+- timeout: 5 minutes
+- rollback: on refusal or a delete-data prompt, cancel and retain working
+  v0.22. Do not delete SaveData
+- stop condition: stop immediately after install result; no app launch
+- operator action: close v0.22, open GoldHEN Package Installer, select the
+  v0.23 package, accept only install/update, and report the exact result
+- operator report: v0.23 installation completed, but Install boot files showed
+  the same safe verification message; requested diagnosis or a reset action
+- result: degraded. Package Installer completed
+  `sceAppInstaller::AppInstallApp(...)=0x00000000`, and UART proves final app
+  version 0.23. The app launched, reached Home, and the operator attempted boot
+  staging twice. Both attempts failed closed on the first source with
+  `verify path=/app0/assets/misc/bzImage status=stat-failed errno=78` before
+  any `/data/linux/boot` write. On this FreeBSD-derived runtime errno 78 is
+  `ENOSYS`: OpenOrbis libc declares `lstat()` but Orbis does not implement that
+  call. The packaged kernel was not corrupt; the unsupported metadata call was
+  the blocker
+- bounded UART context:
+  [`20260822_005556_402169-exp-20260822-005-a2-install-streaming-verifier-v0-23-93673839.md`](../../ps4-uart/sessions/20260822_005556_402169-exp-20260822-005-a2-install-streaming-verifier-v0-23-93673839.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: v0.23 installation and startup passed; staging failed before
+  mutation for a specific compatibility reason. No reset is required because
+  no transaction marker, staging directory or active boot set was created
+- rollback: none required; v0.23 remains installed and boot storage remains
+  missing/untouched
+- next action: use native `sceKernelStat()` in the FPKG while retaining `lstat()`
+  in host safety tests; build and audit v0.24 before one new staging attempt
+
+### EXP-20260822-006-A1 — stage native-stat v0.24 FPKG
+
+- state: complete — pass
+- question: can the exact audited native-stat build be staged without changing
+  the running v0.23 app or boot storage?
+- changed variable: upload only
+  `/data/pkg/omarchy-v0.24-OMCH42069-beta.pkg` via a temporary partial and one
+  exact read-back. The source is 20,905,984 bytes with SHA-256
+  `7609ecc9c6005e51f7897bbc79f3efa4afa8c8a176051b36029ea2194c7123e6`
+- expected evidence: verified FTP rename with completed UART continuity and no
+  app, filesystem or storage fault
+- timeout: 5 minutes
+- rollback: remove only the v0.24 partial, or final v0.24 if that exact file
+  fails verification; preserve every prior package
+- stop condition: close after verified rename or failure. Do not install,
+  relaunch, stage boot files, touch USB or send the loader
+- operator action: none; leave v0.23 idle and do not retry staging
+- result: pass. Anonymous FTP accepted the partial; an exact read-back was
+  20,905,984 bytes with SHA-256
+  `7609ecc9c6005e51f7897bbc79f3efa4afa8c8a176051b36029ea2194c7123e6`.
+  FTP renamed it to `/data/pkg/omarchy-v0.24-OMCH42069-beta.pkg` and the
+  partial disappeared. No install or boot action occurred
+- bounded UART context:
+  [`20260822_010153_183684-exp-20260822-006-a1-stage-native-stat-v0-24-fpkg-a3df3c8f.md`](../../ps4-uart/sessions/20260822_010153_183684-exp-20260822-006-a1-stage-native-stat-v0-24-fpkg-a3df3c8f.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity with routine Settings/GoldHEN and Orbis
+  background messages only; no app, storage, filesystem or logger fault
+- rollback: none required; verified v0.24 remains staged
+- next action: `EXP-20260822-006-A2` installs v0.24 only, followed by a separate
+  staging-only test
+
+### EXP-20260822-006-A2 — install native-stat v0.24
+
+- state: complete — pass
+- question: does Package Installer update the app to the exact v0.24 build?
+- changed variable: install only
+  `/data/pkg/omarchy-v0.24-OMCH42069-beta.pkg`; do not launch or stage boot files
+- expected evidence: install succeeds and app metadata becomes version 0.24
+- timeout: 5 minutes
+- rollback: cancel on refusal or SaveData-deletion prompt; retain v0.23
+- stop condition: close immediately after install result; no launch
+- operator action: select the v0.24 package in GoldHEN Package Installer,
+  accept only install/update, and report completion without launching Omarchy
+- operator report: installation completed
+- result: pass. Package Installer copied all 20,905,984 bytes and completed
+  `sceAppInstaller::AppInstallApp(...)=0x00000000`. No Omarchy launch or
+  boot-file staging followed inside this action
+- bounded UART context:
+  [`20260822_010258_825003-exp-20260822-006-a2-install-native-stat-v0-24-8d23f674.md`](../../ps4-uart/sessions/20260822_010258_825003-exp-20260822-006-a2-install-native-stat-v0-24-8d23f674.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed install continuity with no package database,
+  storage, filesystem, kernel or logger fault
+- rollback: none required; v0.24 is installed
+- next action: run one launch-and-stage test under `EXP-20260822-006-A3`
+
+### EXP-20260822-006-A3 — verify and stage internal boot set with native stat
+
+- state: complete — inconclusive for staging; pass for native inspection
+- question: does v0.24 verify all four embedded files through
+  `sceKernelStat()`, transactionally stage them to `/data/linux/boot`, and stop
+  at Ready without sending the loader?
+- changed variable: launch v0.24 and confirm Install boot files exactly once;
+  do not select Launch Omarchy afterward
+- expected evidence: UART reports four verified `/app0` sources, four verified
+  staged files, atomic activation, four verified active files and
+  `stage complete status=ready`; UI shows Ready. No loader handoff or Linux line
+- timeout: 3 minutes
+- rollback: on a pre-write failure, retain missing state. On an interrupted
+  transaction, leave the app at the error and preserve the journal for the
+  next recovery inspection. On success, retain the verified active set
+- stop condition: stop at Ready or the first exact error; do not launch Linux,
+  retry, delete files, reset state or touch USB
+- operator action: launch Omarchy, select Install boot files, confirm it once,
+  wait for Ready or an error, and report the exact screen without selecting
+  Launch Omarchy
+- operator report: launched v0.24 and saw `Update boot files`; asked whether to
+  clear the existing state and relaunch
+- result: inconclusive for staging because Update was not confirmed. The launch
+  itself passed and native `sceKernelStat()` successfully inspected the active
+  directory. UART found `/data/linux/boot/bzImage` at 19,392 bytes instead of
+  the bundled 11,060,224 bytes and classified the existing manager-owned set as
+  `update-available`. This is an old/placeholder boot set, not a transaction
+  created by the v0.22/v0.23 failures
+- bounded UART context:
+  [`20260822_010703_045287-exp-20260822-006-a3-verify-and-stage-internal-boot-set-with-nati-45c4bb5c.md`](../../ps4-uart/sessions/20260822_010703_045287-exp-20260822-006-a3-verify-and-stage-internal-boot-set-with-nati-45c4bb5c.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: the unsupported-stat defect is fixed. Manual deletion or a
+  Reset action is neither necessary nor safer; the transactional Update path
+  is the intended migration and retains the old complete set
+- rollback: no mutation occurred; the old 19,392-byte-kernel set remains active
+- next action: `EXP-20260822-006-A4` confirms Update boot files once and stops
+  at Ready without sending the loader
+
+### EXP-20260822-006-A4 — transactionally replace legacy internal boot set
+
+- state: complete — inconclusive; the operator action occurred immediately
+  before the bounded capture offset
+- question: can v0.24 verify the embedded set, preserve the old complete boot
+  directory, atomically activate the new set and stop at Ready?
+- changed variable: confirm Update boot files once in the already-running v0.24
+  app; do not relaunch or select Launch Omarchy afterward
+- expected evidence: all four `/app0` sources and staged files verify; old boot
+  becomes `boot.omarchy-prev`; new boot becomes active; final active verification
+  and `stage complete status=ready` appear; no loader send or Linux output
+- timeout: 3 minutes
+- rollback: the transaction journal and `boot.omarchy-prev` retain the prior
+  complete set. On any error, stop without retry or manual deletion
+- stop condition: stop at Ready or the first exact error; do not launch Linux
+- operator action: select Update boot files, confirm once, wait for Ready or an
+  error, and report the exact screen without selecting Launch Omarchy
+- operator report: `Internal boot files failed verification`; requested clearing
+  the installation
+- result: inconclusive as bounded evidence because the exact action fell just
+  before the session start offset. The adjacent continuous UART stream is
+  diagnostic only: it shows v0.24 entered staging, `sceKernelStat()` succeeded
+  on `/app0/assets/misc/bzImage`, but its `st_size` field reported 21,632 bytes
+  rather than the audited 11,060,224. Staging therefore stopped before the
+  first write. The bounded slice itself contains only a partial routine shell
+  telemetry line
+- bounded UART context:
+  [`20260822_010828_794431-exp-20260822-006-a4-transactionally-replace-legacy-internal-boot-fcf18d50.md`](../../ps4-uart/sessions/20260822_010828_794431-exp-20260822-006-a4-transactionally-replace-legacy-internal-boot-fcf18d50.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: no clean acceptance claim is possible from this slice. The
+  adjacent diagnostic establishes an OpenOrbis/native-stat size ABI mismatch,
+  not corrupt package data or stale destination state
+- rollback: none required because the failure occurred before the transaction
+  marker or staging directory was written; the legacy boot set remains active
+- next action: retain native type inspection but use the streamed byte count
+  and SHA-256 as the authoritative size/content checks in v0.25. Clearing the
+  legacy set is not authorized or useful for this source-side failure
+
+### EXP-20260822-007-A1 — stage streamed-size v0.25 FPKG
+
+- state: complete — pass
+- question: can the audited build that ignores unreliable Orbis `st_size` be
+  staged exactly without mutating the app or boot set?
+- changed variable: upload only
+  `/data/pkg/omarchy-v0.25-OMCH42069-beta.pkg` through a partial and exact
+  read-back. The source is 20,905,984 bytes with SHA-256
+  `fa984778438debdcb85ebe5986ae3476b847a357579442d4768bb0bce4da6023`
+- expected evidence: verified FTP rename and completed UART continuity
+- timeout: 5 minutes
+- rollback: remove only the new v0.25 partial, or final if that exact file
+  fails verification; preserve all other packages and boot files
+- stop condition: close after verified rename or failure; no install or boot
+- operator action: none; leave v0.24 idle
+- result: pass. Anonymous FTP accepted the partial; one complete read-back was
+  20,905,984 bytes with SHA-256
+  `fa984778438debdcb85ebe5986ae3476b847a357579442d4768bb0bce4da6023`.
+  FTP renamed it to `/data/pkg/omarchy-v0.25-OMCH42069-beta.pkg`; no install or
+  boot mutation occurred
+- bounded UART context:
+  [`20260822_011039_383741-exp-20260822-007-a1-stage-streamed-size-v0-25-fpkg-600e19ab.md`](../../ps4-uart/sessions/20260822_011039_383741-exp-20260822-007-a1-stage-streamed-size-v0-25-fpkg-600e19ab.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity; the slice contains one routine heap
+  line and no app, storage, filesystem or logger fault
+- rollback: none required; exact v0.25 remains staged
+- next action: `EXP-20260822-007-A2` installs v0.25 only
+
+### EXP-20260822-007-A2 — install streamed-size v0.25
+
+- state: complete — pass
+- question: does Package Installer install the exact v0.25 build?
+- changed variable: install only
+  `/data/pkg/omarchy-v0.25-OMCH42069-beta.pkg`; do not launch or update boot files
+- expected evidence: successful installer completion and final version 0.25
+- timeout: 5 minutes
+- rollback: cancel on refusal or SaveData-deletion prompt; retain v0.24
+- stop condition: close after install result; no app launch
+- operator action: install/update the v0.25 package and report completion
+  without launching Omarchy
+- result: pass. Package Installer copied all 20,905,984 bytes and completed
+  `sceAppInstaller::AppInstallApp(...)=0x00000000`. The action ended without an
+  Omarchy launch or boot-file update
+- bounded UART context:
+  [`20260822_011136_663880-exp-20260822-007-a2-install-streamed-size-v0-25-3ab55f3a.md`](../../ps4-uart/sessions/20260822_011136_663880-exp-20260822-007-a2-install-streamed-size-v0-25-3ab55f3a.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed install continuity with no app, package database,
+  filesystem, storage, kernel or logger fault
+- rollback: none required; v0.25 is installed and not running
+- next action: owner requested a recoverable cleanup of `/data/linux/boot` via
+  FTP before the v0.25 test. Inventory must precede any rename
+
+### EXP-20260822-008-A1 — inventory internal loader directory before cleanup
+
+- state: complete — pass
+- question: does `/data/linux/boot` contain only the four recognized loader
+  files, and are any transaction or backup siblings present?
+- changed variable: read-only anonymous FTP listings of `/data/linux` and
+  `/data/linux/boot`; no rename, delete, upload or app action
+- expected evidence: exact names and sizes for the directory and its children,
+  sufficient to resolve a safe recoverable cleanup target
+- timeout: 60 seconds
+- rollback: none; read-only inspection
+- stop condition: close immediately after both listings or first FTP failure
+- operator action: none; leave Omarchy closed
+- result: pass. FTP showed `/data/linux` contains only `boot`; that directory
+  contains exactly `bzImage` (9,872,896 bytes), `initramfs.cpio.gz` (4,102,011
+  bytes), `bootargs.txt` (132 bytes), and `vram.txt` (1 byte). No transaction,
+  staging, previous-set or other sibling exists
+- bounded UART context:
+  [`20260822_011310_418201-exp-20260822-008-a1-inventory-internal-loader-directory-before-c-23dc5549.md`](../../ps4-uart/sessions/20260822_011310_418201-exp-20260822-008-a1-inventory-internal-loader-directory-before-c-23dc5549.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity with routine Orbis background traffic;
+  no app, storage, filesystem or logger fault
+- rollback: none required; inspection was read-only
+- next action: rename the proven four-file directory intact to one explicit
+  backup name; do not delete its contents
+
+### EXP-20260822-008-A2 — recoverably clear active internal boot path
+
+- state: complete — pass
+- question: can FTP atomically rename the proven legacy directory away from
+  `/data/linux/boot` and leave the exact backup intact?
+- changed variable: rename only `/data/linux/boot` to
+  `/data/linux/boot.backup-20260822-v0.25-preclean`; do not alter any child
+- expected evidence: old path disappears, backup path appears, and listing the
+  backup returns the same four names and sizes
+- timeout: 60 seconds
+- rollback: rename the exact backup path back to `/data/linux/boot`
+- stop condition: close after verified rename or first failure; no app launch,
+  boot-file installation, USB access or loader send
+- operator action: none; leave Omarchy closed
+- result: pass. FTP atomically renamed `/data/linux/boot` to
+  `/data/linux/boot.backup-20260822-v0.25-preclean`. The old active path no
+  longer resolves. The backup contains the same `bzImage` (9,872,896 bytes),
+  `initramfs.cpio.gz` (4,102,011 bytes), `bootargs.txt` (132 bytes), and
+  `vram.txt` (1 byte); no content was deleted
+- bounded UART context:
+  [`20260822_011436_424732-exp-20260822-008-a2-recoverably-clear-active-internal-boot-path-d58d9012.md`](../../ps4-uart/sessions/20260822_011436_424732-exp-20260822-008-a2-recoverably-clear-active-internal-boot-path-d58d9012.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity; no UART output was emitted during the
+  FTP-only directory rename and verification
+- rollback: available as one FTP rename from the exact backup path back to
+  `/data/linux/boot`; not required
+- next action: launch v0.25 and install a fresh boot set in a separate session
+
+### EXP-20260822-009-A1 — observe already-launched v0.25 idle state
+
+- state: complete — degraded
+- question: after the operator launched v0.25 before a bounded session was
+  active, does the app remain stable while idle and navigating?
+- changed variable: post-launch observation only; no install, file mutation or
+  loader send
+- expected evidence: stable continuous UART generation, controller navigation,
+  and no app crash or storage fault
+- timeout: 60 seconds
+- rollback: close the app if it faults; the internal boot path remains clear
+- stop condition: close after the idle/navigation observation; do not use an
+  action button
+- operator action: leave the launched app open and do not confirm an action
+- result: degraded. The bounded slice captured controller navigation and
+  routine Orbis background traffic with no app, storage, filesystem or logger
+  fault. The immediately preceding continuous log shows v0.25 initialized its
+  framebuffer, controller, SaveData and Tokyo Night wallpaper and reported
+  `boot-files=missing`, but launch occurred before the bounded session and is
+  therefore contextual evidence rather than bounded launch acceptance
+- bounded UART context:
+  [`20260822_011601_342230-exp-20260822-009-a1-observe-already-launched-v0-25-idle-state-78cca633.md`](../../ps4-uart/sessions/20260822_011601_342230-exp-20260822-009-a1-observe-already-launched-v0-25-idle-state-78cca633.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity; no fault in the bounded post-launch
+  observation, but it cannot validate the already-completed launch transition
+- rollback: none required
+- next action: test `Install boot files` once under a new bounded session
+
+### EXP-20260822-009-A2 — install fresh v0.25 internal boot set
+
+- state: complete — pass
+- question: can v0.25 copy its packaged kernel, initramfs and metadata into a
+  newly created `/data/linux/boot` and pass streamed byte-count/SHA-256
+  verification?
+- changed variable: activate `Install boot files` exactly once in v0.25; do
+  not launch Linux or select any other action
+- expected evidence: UART copy, hash and transaction logs; UI reaches `Ready`;
+  FTP later shows the committed boot set while the legacy backup stays intact
+- timeout: 3 minutes
+- rollback: preserve `/data/linux/boot.backup-20260822-v0.25-preclean`; if the
+  transaction fails, inspect before removing only a proven v0.25 partial path
+- stop condition: stop at the first `Ready` or error screen; do not retry and
+  do not launch Linux
+- operator action: pressed `Install boot files`, confirmed its review once, and
+  stopped when the UI reported installation complete
+- result: pass. v0.25 streamed and verified all four embedded artifacts, copied
+  them into `boot.omarchy-new`, verified the staged set, atomically activated
+  it as `/data/linux/boot`, then verified the committed set again. Exact
+  committed byte counts were `bzImage` 11,060,224, `initramfs.cpio.gz`
+  1,686,508, `bootargs.txt` 459, and `vram.txt` 5. The UI reached
+  `boot-files=ready` and `screen=boot-files-ready`
+- bounded UART context:
+  [`20260822_011659_923309-exp-20260822-009-a2-install-fresh-v0-25-internal-boot-set-e1d82fc6.md`](../../ps4-uart/sessions/20260822_011659_923309-exp-20260822-009-a2-install-fresh-v0-25-internal-boot-set-e1d82fc6.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity and a complete successful transaction;
+  no copy, hash, filesystem, app or logger fault
+- rollback: not required; the independently named legacy backup remains the
+  rollback source pending read-only FTP confirmation
+- next action: read-only FTP inventory of the committed set and legacy backup
+  before any Linux loader send
+
+### EXP-20260822-009-A3 — verify committed boot set and rollback backup
+
+- state: complete — pass
+- question: does FTP independently show the exact newly committed v0.25 boot
+  set and the untouched legacy rollback directory?
+- changed variable: read-only listings of `/data/linux`, `/data/linux/boot`,
+  and `/data/linux/boot.backup-20260822-v0.25-preclean`; no writes or app input
+- expected evidence: new four-file sizes match UART, no staging sibling remains,
+  and legacy backup retains its original four-file sizes
+- timeout: 60 seconds
+- rollback: none; read-only inspection
+- stop condition: close after the three listings or the first FTP failure
+- operator action: none; remain on the installed/ready screen
+- result: pass. FTP independently showed only the active `boot` directory and
+  the named legacy backup under `/data/linux`; no staging or transaction
+  sibling remained. The active set exactly matches UART byte counts:
+  `bzImage` 11,060,224, `initramfs.cpio.gz` 1,686,508, `bootargs.txt` 459 and
+  `vram.txt` 5. The rollback directory retains its original `bzImage`
+  9,872,896, `initramfs.cpio.gz` 4,102,011, `bootargs.txt` 132 and `vram.txt` 1
+- bounded UART context:
+  [`20260822_012116_009053-exp-20260822-009-a3-verify-committed-boot-set-and-rollback-backu-8bf42610.md`](../../ps4-uart/sessions/20260822_012116_009053-exp-20260822-009-a3-verify-committed-boot-set-and-rollback-backu-8bf42610.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity with one routine shell heap line and no
+  app, storage, filesystem or logger fault
+- rollback: none required; the legacy set remains independently preserved
+- next action: one separately bounded loader send and Linux boot attempt
+
+### EXP-20260822-009-A4 — launch v0.25 Linux from verified internal boot set
+
+- state: complete — fail
+- question: can v0.25 verify the committed set and embedded loader, hand the
+  loader to GoldHEN once, and reach Linux/initramfs with the connected Omarchy
+  USB?
+- changed variable: confirm `Launch Omarchy` exactly once; do not send another
+  payload, unplug USB, alter settings or power-cycle during observation
+- expected evidence: v0.25 logs committed-set and loader verification, connects
+  to local PayLoader, sends the complete ELF, followed by loader/kernel UART
+  and initramfs USB/root-resolution evidence
+- timeout: 3 minutes from confirmation
+- rollback: if Linux does not take over, close the result as failed or
+  inconclusive before a separately bounded power-cycle; the legacy internal
+  boot backup remains available and the USB is not formatted by the FPKG
+- stop condition: close on established Linux userspace, explicit initramfs/
+  loader failure, or 3-minute timeout; no retry in the same action
+- operator action: selected `Launch Omarchy`, confirmed the review exactly once,
+  then reported `The local handoff ended before the Linux loader was complete`
+- result: fail before Linux. v0.25 reverified the full active boot set and the
+  320,936-byte embedded loader, connected once to loopback PayLoader, but the
+  handoff ended before the sender completed. GoldHEN saved and attempted to
+  execute only 51,200 bytes from `127.0.0.1`; launching that truncated ELF
+  produced `Fatal trap 12: page fault while in kernel mode`. No loader, kexec,
+  kernel or Linux marker followed
+- bounded UART context:
+  [`20260822_012217_582340-exp-20260822-009-a4-launch-v0-25-linux-from-verified-internal-bo-9e840040.md`](../../ps4-uart/sessions/20260822_012217_582340-exp-20260822-009-a4-launch-v0-25-linux-from-verified-internal-bo-9e840040.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity and conclusive local-handoff failure.
+  The exact 51,200-byte acceptance boundary isolates the current defect to the
+  in-console loopback sender/PayLoader interaction, not the boot files, loader
+  digest, USB root or Linux kernel
+- rollback: do not retry. The active v0.25 boot files and preserved legacy
+  backup were not changed by launch; PayLoader must be treated as consumed or
+  faulted until separately recovered
+- next action: read-only post-fault Orbis/FTP liveness check without touching
+  PayLoader, then fix and host-test the sender before another payload attempt
+
+### EXP-20260822-009-A5 — read-only liveness after truncated local handoff
+
+- state: complete — pass
+- question: after GoldHEN faulted while launching the 51,200-byte truncated
+  ELF, are continuous UART and anonymous FTP still alive without recovery?
+- changed variable: none; inspect UART continuity and list `/data/linux` over
+  FTP only. Do not connect to port 9090, press controller buttons, reload
+  GoldHEN, resend, reboot or power-cycle
+- expected evidence: completed UART continuity and either a successful FTP
+  listing proving Orbis remains responsive or a bounded connection failure
+- timeout: 30 seconds
+- rollback: none; read-only inspection
+- stop condition: close after one FTP listing attempt; no fallback probe
+- operator action: none; leave the current screen untouched
+- result: pass. Continuous UART remained READY on the same generation and
+  epoch, and anonymous FTP immediately listed both `/data/linux/boot` and
+  `/data/linux/boot.backup-20260822-v0.25-preclean`. Orbis and its storage
+  service therefore remain responsive; no power-cycle is required for basic
+  recovery. PayLoader was not contacted and remains untrusted after A4
+- bounded UART context:
+  [`20260822_012513_995207-exp-20260822-009-a5-read-only-liveness-after-truncated-local-han-2c575907.md`](../../ps4-uart/sessions/20260822_012513_995207-exp-20260822-009-a5-read-only-liveness-after-truncated-local-han-2c575907.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity with no new UART output during the
+  short read-only FTP listing
+- rollback: none required; internal active and backup sets remain present
+- next action: fix the sender locally and build/test a new FPKG before any
+  GoldHEN recovery or payload retry
+
+### EXP-20260822-009-A6 — stage buffered-single-write v0.26 FPKG
+
+- state: complete — pass
+- question: can anonymous FTP stage the exact locally audited v0.26 package
+  without altering the installed title, boot set or PayLoader state?
+- changed variable: upload the 20,905,984-byte v0.26 FPKG once as a partial,
+  stream it back for SHA-256 verification, then rename it to
+  `/data/pkg/omarchy-v0.26-OMCH42069-beta.pkg`; no install or app action
+- expected evidence: read-back SHA-256
+  `b3f780a40dc26bdefa0c97974b02ffd2c699a576e5655132f7c516512046e5cd`
+  and completed UART continuity
+- timeout: 5 minutes
+- rollback: remove only the v0.26 partial, or the exact final name if its
+  read-back fails; preserve all other packages and both internal boot sets
+- stop condition: close after verified rename or first failure; do not install,
+  reload GoldHEN, touch PayLoader or launch Linux
+- operator action: none; leave the console on its current screen
+- result: pass. The package was uploaded once as a partial, streamed back as
+  exactly 20,905,984 bytes with SHA-256
+  `b3f780a40dc26bdefa0c97974b02ffd2c699a576e5655132f7c516512046e5cd`,
+  then renamed to `/data/pkg/omarchy-v0.26-OMCH42069-beta.pkg`. No install,
+  GoldHEN reload, PayLoader connection or boot action occurred
+- bounded UART context:
+  [`20260822_013109_662758-exp-20260822-009-a6-stage-buffered-single-write-v0-26-fpkg-4df9a6bf.md`](../../ps4-uart/sessions/20260822_013109_662758-exp-20260822-009-a6-stage-buffered-single-write-v0-26-fpkg-4df9a6bf.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity with only routine Orbis idle telemetry;
+  no package, filesystem, storage or logger fault
+- rollback: none required; the exact v0.26 package remains staged
+- next action: install v0.26 under a separate action, then inspect its socket
+  buffer telemetry before any new payload attempt
+
+### EXP-20260822-009-A7 — install buffered-single-write v0.26
+
+- state: complete — pass
+- question: does Package Installer update the title from v0.25 to the exact
+  staged v0.26 build without changing SaveData or either internal boot set?
+- changed variable: install only
+  `/data/pkg/omarchy-v0.26-OMCH42069-beta.pkg`; do not launch the app, reload
+  GoldHEN, connect to PayLoader or boot Linux
+- expected evidence: successful 20,905,984-byte package installation and final
+  installed app version 0.26
+- timeout: 5 minutes
+- rollback: cancel on refusal or any SaveData-deletion prompt; v0.25 package
+  remains preserved and staged
+- stop condition: close after the installer result; do not launch Omarchy
+- operator action: closed the running v0.25 title, opened Package Installer,
+  installed the staged v0.26 package, and stopped without launching it
+- result: pass. Package Installer copied all 20,905,984 bytes and completed
+  `sceAppInstaller::AppInstallApp(...)=0x00000000`. The prior app process was
+  cleanly terminated first; no Omarchy launch or boot-set mutation followed
+- bounded UART context:
+  [`20260822_013239_587879-exp-20260822-009-a7-install-buffered-single-write-v0-26-8b2761c0.md`](../../ps4-uart/sessions/20260822_013239_587879-exp-20260822-009-a7-install-buffered-single-write-v0-26-8b2761c0.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed install continuity without package, filesystem,
+  storage or logger failure. A pre-install CPU sample showed the prior
+  `bin_loader_payload_thread` consuming 98%, reinforcing that PayLoader remains
+  untrusted after A4 and must be recovered before another handoff
+- rollback: none required; v0.26 is installed and not running, and v0.25 is
+  preserved locally and staged on the PS4
+- next action: launch v0.26 only, then review startup before a separate handoff
+
+### EXP-20260822-009-A8 — launch v0.26 UI without loader handoff
+
+- state: complete — fail
+- question: does the installed v0.26 title launch cleanly and recognize the
+  already-verified internal boot set without touching the faulted PayLoader?
+- changed variable: launch Omarchy v0.26 only and leave it on the home/Ready
+  screen; do not activate `Launch Omarchy`, update boot files or reload GoldHEN
+- expected evidence: Orbis reports app version 0.26; framebuffer, controller,
+  SaveData and wallpaper initialize; system check reports `boot-files=ready`
+  with no PayLoader or kernel activity
+- timeout: 60 seconds
+- rollback: close the app if startup faults; boot sets remain unchanged
+- stop condition: close after a stable Ready screen or first startup error
+- operator action: launched the installed v0.26 title and reported a black
+  screen without pressing an in-app action
+- result: fail before application startup. Orbis identified and executed app
+  version 0.26, but UART never reached the first `[omarchy-ui] startup` line,
+  framebuffer setup or any manager code. A CPU sample again showed the
+  faulted GoldHEN `bin_loader_payload_thread` at 98%, followed by a delayed
+  `ScePartyIpcService` call. This is a pre-main stall in the contaminated
+  post-A4 Orbis/GoldHEN runtime, not evidence that v0.26 rendered a black UI
+- bounded UART context:
+  [`20260822_013748_362909-exp-20260822-009-a8-launch-v0-26-ui-without-loader-handoff-2e20b0c9.md`](../../ps4-uart/sessions/20260822_013748_362909-exp-20260822-009-a8-launch-v0-26-ui-without-loader-handoff-2e20b0c9.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity and conclusive pre-main stall; no
+  v0.26 code path, PayLoader connection, boot-file write or Linux transition
+- rollback: recover the contaminated Orbis runtime before judging v0.26; both
+  internal boot directories remain unchanged
+- next action: recover GoldHEN/PayLoader separately before any v0.26 handoff
+
+### EXP-20260822-009-A9 — return from stalled app to Orbis home
+
+- state: complete — pass
+- question: does one controller PS-button action return from the black app
+  screen to responsive Orbis without a forced power action?
+- changed variable: press the controller PS button once only; do not close the
+  title, reload GoldHEN, restart, power-cycle or relaunch Omarchy
+- expected evidence: Orbis focus changes back to Shell UI and the operator sees
+  the home screen; UART continuity remains completed
+- timeout: 30 seconds
+- rollback: if the PS button has no effect, stop and plan a separately bounded
+  controlled power recovery; do not repeat the button press
+- stop condition: close after visible home or 30-second timeout
+- operator action: pressed the controller PS button once and reported the
+  normal PS4 main page
+- result: pass. UART recorded focus moving from `OMCH42069` back to
+  `NPXS20001` and Shell UI becoming foreground. The faulted
+  `bin_loader_payload_thread` remained at 97% CPU, so returning home restored
+  control but did not clean the contaminated GoldHEN target process
+- bounded UART context:
+  [`20260822_014001_260630-exp-20260822-009-a9-return-from-stalled-app-to-orbis-home-8403eaa4.md`](../../ps4-uart/sessions/20260822_014001_260630-exp-20260822-009-a9-return-from-stalled-app-to-orbis-home-8403eaa4.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity and responsive Orbis shell; the stale
+  payload thread is still active and requires a full controlled restart
+- rollback: none required; shell is responsive and storage was not changed
+- next action: if home is responsive, perform one controlled restart in its
+  own action to clear the faulted GoldHEN target process
+
+### EXP-20260822-009-A10 — controlled restart after faulted PayLoader ELF
+
+- state: complete — degraded
+- question: does one normal PS4 restart clear the faulted
+  `bin_loader_payload_thread` and return to clean Orbis without storage or UART
+  continuity faults?
+- changed variable: choose the PS4 system `Restart PS4` command once; do not
+  force power off, unplug power/USB/UART, load GoldHEN or launch Omarchy
+- expected evidence: orderly Orbis shutdown and boot, completed UART continuity,
+  and normal login/home screen with no stale payload thread from the old boot
+- timeout: 5 minutes
+- rollback: no repeat. If normal restart stalls, close the session and plan a
+  separate physical power recovery from the preserved evidence
+- stop condition: close after visible login/home or the timeout; do not load
+  GoldHEN in the same action
+- operator action: used the physical power button multiple times instead of
+  selecting the controller-menu `Restart PS4` command, then reported that a
+  restart could not be performed
+- result: degraded. Completed UART continuity proves the console was not
+  bricked: it recorded a long-press Shutdown transition, a subsequent complete
+  boot to `State Change: WORKING`, and later a separate short-press Suspend
+  transition ending at `MAIN_ON_STANDBY`. Because multiple physical actions
+  occurred and the final state is standby, this is not acceptance of the
+  requested single normal restart
+- bounded UART context:
+  [`20260822_014104_607212-exp-20260822-009-a10-controlled-restart-after-faulted-payloader--961c66de.md`](../../ps4-uart/sessions/20260822_014104_607212-exp-20260822-009-a10-controlled-restart-after-faulted-payloader--961c66de.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: the full raw slice contains 6,362 normalized lines and
+  proves shutdown, boot and later standby on uninterrupted capture. No Linux
+  launch or internal boot-file mutation occurred
+- rollback: no storage rollback required; establish the current liveness state
+  read-only before requesting one precise wake action
+- next action: load GoldHEN cleanly, then retest v0.26 startup before handoff
+
+### EXP-20260822-009-A11 — read-only current state after mixed power actions
+
+- state: complete — inconclusive
+- question: after A10 ended in standby, is Orbis currently network-responsive
+  or still asleep/off?
+- changed variable: none; inspect continuous UART status and attempt one
+  read-only anonymous FTP listing with a five-second connection timeout. Do not
+  press a button, wake, reload GoldHEN, launch an app or touch PayLoader
+- expected evidence: one bounded online listing or one bounded connection
+  failure sufficient to choose the next recovery action
+- timeout: 15 seconds
+- rollback: none; read-only observation
+- stop condition: close immediately after the single FTP attempt
+- operator action: none; leave the console untouched
+- result: inconclusive for exact power state. The single FTP connection was
+  refused/unavailable and the bounded UART slice was empty on completed
+  continuity. That is consistent with the final A10 standby transition, but
+  FTP is also unavailable after a clean boot until GoldHEN is loaded, so this
+  probe alone cannot distinguish standby from awake Orbis without GoldHEN
+- bounded UART context:
+  [`20260822_014943_365263-exp-20260822-009-a11-read-only-current-state-after-mixed-power-a-c21d00b6.md`](../../ps4-uart/sessions/20260822_014943_365263-exp-20260822-009-a11-read-only-current-state-after-mixed-power-a-c21d00b6.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: valid quiet slice; no panic, logger event or evidence of
+  storage damage
+- rollback: none required; inspection was read-only
+- next action: if asleep, wake once with the controller PS button; if awake,
+  verify the post-boot runtime before GoldHEN
+
+### EXP-20260822-009-A12 — wake clean Orbis with controller
+
+- state: complete — degraded
+- question: does one controller PS-button press wake the console from its final
+  A10 standby state to the normal login/home screen?
+- changed variable: press the controller PS button once only; do not touch the
+  physical power button, load GoldHEN, launch Omarchy or send a payload
+- expected evidence: UART resume/working transition, controller assignment and
+  visible normal login/home screen on completed continuity
+- timeout: 2 minutes
+- rollback: no repeat; if it does not wake, close and plan physical recovery as
+  a separate action
+- stop condition: close after visible login/home or timeout
+- operator action: pressed controller input after the prior standby/power
+  sequence, then reported concern that the console might be broken rather than
+  a confirmed visible home screen
+- result: system wake pass, visible HDMI inconclusive. UART completed every
+  resume phase, reached `State Change: WORKING`, assigned the controller,
+  showed `ContentAreaScene` and then a live `QuickMenuScene`, and retained
+  healthy ShellCore memory. The stale `bin_loader_payload_thread` is absent and
+  there is no fatal trap, panic, Safe Mode, storage corruption or app launch.
+  VideoOut configured `1080P_5994 RGB444 limited`, identified an HDMI sink that
+  supports HDCP 1.4, and repeatedly reported `hdcp done`; the operator did not
+  confirm a visible image, so the remaining symptom is isolated to HDMI/display
+  presentation
+- bounded UART context:
+  [`20260822_015031_024840-exp-20260822-009-a12-wake-clean-orbis-with-controller-da6928a7.md`](../../ps4-uart/sessions/20260822_015031_024840-exp-20260822-009-a12-wake-clean-orbis-with-controller-da6928a7.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: clean Orbis resume and responsive shell/controller with an
+  unresolved visible HDMI path; evidence rules out a bricked console
+- rollback: no console/storage rollback required; do not reload GoldHEN or
+  Omarchy until display is restored
+- next action: verify clean runtime, then load GoldHEN separately
+
+### EXP-20260822-009-A13 — reacquire visible HDMI after clean resume
+
+- state: complete — degraded
+- question: with Orbis proven WORKING, does one display-side HDMI hotplug
+  restore the visible Shell UI?
+- changed variable: unplug the HDMI cable from the monitor/capture-device side,
+  wait five seconds, then reconnect the same cable to the same port once. Do
+  not touch PS4 power, controller, USB, UART, GoldHEN or Omarchy
+- expected evidence: UART HDMI disconnect/connect and successful 1080p/HDCP
+  setup, plus operator confirmation of the normal PS4 screen
+- timeout: 60 seconds after reconnect
+- rollback: the action itself reconnects the same known cable and port; no
+  second hotplug if the image remains absent
+- stop condition: close after visible image or 60-second timeout
+- operator action: replugged the HDMI path and reported the display working;
+  then, outside the requested single variable, launched the GoldHEN host before
+  the bounded session was closed
+- result: HDMI pass with mixed-action degradation. UART recorded the old HDMI
+  device disconnecting, a new HDMI device connecting, successful
+  `1080P_5994 RGB444 limited` setup and HDCP completion; the operator confirmed
+  visible video. The later unplanned GoldHEN action completed `All done!` and
+  started a fresh PayLoader server on port 9090. It did not send a payload or
+  launch Omarchy
+- bounded UART context:
+  [`20260822_015350_224698-exp-20260822-009-a13-reacquire-visible-hdmi-after-clean-resume-7cd2ce3f.md`](../../ps4-uart/sessions/20260822_015350_224698-exp-20260822-009-a13-reacquire-visible-hdmi-after-clean-resume-7cd2ce3f.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity, visible HDMI restored and fresh
+  GoldHEN/PayLoader loaded; classified degraded only because two operator
+  variables occurred in one slice
+- rollback: none required; no payload was sent and storage was not changed
+- next action: if still black, diagnose the display chain separately without
+  changing console software or storage
+
+### EXP-20260822-009-A14 — launch v0.26 UI on clean GoldHEN runtime
+
+- state: complete — degraded
+- question: after the clean reboot and fresh GoldHEN load, does v0.26 reach its
+  normal Ready/home screen without touching PayLoader?
+- changed variable: launch the installed Omarchy title once and stop at its
+  first screen; do not navigate, update boot files, or activate `Launch Omarchy`
+- expected evidence: app version 0.26, `[omarchy-ui] startup`, framebuffer,
+  controller, SaveData, wallpaper and `boot-files=ready` logs with no handoff
+- timeout: 60 seconds
+- rollback: press PS once in a separately bounded action if startup stalls;
+  internal active and backup sets remain unchanged
+- stop condition: close on visible home/Ready or first startup error
+- operator action: launched v0.26 and, outside the requested UI-only scope,
+  confirmed the focused launch action and its review. Linux became visible;
+  the operator then reported an apparent login/password screen, but both image
+  attachments contained only the generic HEIC placeholder and did not preserve
+  the photographed screen contents
+- result: degraded because the action mixed UI startup and the first v0.26
+  loader handoff. The transport fix passed on hardware: v0.26 requested a
+  1,048,576-byte socket buffer, received 524,288 bytes, issued exactly one
+  320,936-byte write, GoldHEN received all 320,936 bytes and launched the ELF,
+  the loader selected the tested firmware, 1024 MB VRAM and Baikal, and Linux
+  6.18.44-ps4-baikal began booting. Orbis also enumerated the 118,240 MB
+  Kingston DataTraveler immediately before kexec, while the command line
+  required `root=LABEL=OMARCHY-PS4`, `rootfstype=ext4`, `rootwait` and
+  `omarchy.require_usb=1`. UART output ended when the kernel disabled the
+  legacy early boot console at 0.731 seconds, so this slice does not prove the
+  later initramfs USB-ancestry check, root mount, first-owner service or login
+  state. The built/flashed gift manifest declares `owner-ready-offline-rootfs`
+  with no owner/default password; the reported login screen is therefore not
+  an accepted first-owner result
+- bounded UART context:
+  [`20260822_015633_183294-exp-20260822-009-a14-launch-v0-26-ui-on-clean-goldhen-runtime-1277ec27.md`](../../ps4-uart/sessions/20260822_015633_183294-exp-20260822-009-a14-launch-v0-26-ui-on-clean-goldhen-runtime-1277ec27.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: complete continuity through v0.26 handoff and early Linux;
+  no truncated payload, kernel trap or internal-storage verification failure.
+  Later USB-root and owner provisioning are unobserved because the active
+  kernel stopped emitting on the configured UART after early-console handoff
+- rollback: do not guess credentials or alter accounts. Keep the running
+  system unchanged until the exact visible prompt is captured as JPEG/PNG or
+  transcribed; if it is a display-manager login rather than the owner form,
+  shut Linux down cleanly in a separately bounded action and inspect the USB
+  offline
+- next action: identify the exact visible prompt without interacting with it;
+  then either complete the intended first-owner form or diagnose why the
+  owner service did not own tty1
+
+### EXP-20260822-009-A15 — unbounded restart and GoldHEN reload
+
+- state: invalid — operator action occurred without a bounded session
+- question: not predeclared; after the unaccepted first-owner screen, did a
+  restart return the console to healthy Orbis and was GoldHEN loaded again?
+- changed variable: the operator restarted from Linux and loaded GoldHEN before
+  a new bounded session was active
+- operator report: `so i did restart, and goldhen active now`
+- continuous-capture observation: capture generation
+  `80973222038e43548cda68da099cb054` remained READY and the unsliced global log
+  after A14 contains the tested firmware startup, `State Change: WORKING`, normal
+  Orbis login/home activity, GoldHEN `All done!`, and PayLoader listening on
+  port 9090. No fatal trap or Linux payload launch appears in the reviewed
+  tail
+- conclusion: the console is back at a healthy Orbis staging point, but this
+  is not hardware acceptance because no exact `.raw` slice, event sidecar or
+  compact bounded context was opened before the action
+- rollback: none. Leave Orbis home and GoldHEN idle; do not launch installed
+  Omarchy v0.26 again
+- next action: finish and locally validate the corrected FPKG/root image, then
+  stage each hardware change in a fresh bounded session
+
+### EXP-20260822-009-A16 — stage persistent-UART v0.27 FPKG
+
+- state: complete — pass
+- question: can anonymous FTP stage the exact locally audited v0.27 package
+  without altering the installed v0.26 title, either internal boot set, the
+  external USB or PayLoader state?
+- changed variable: upload the 20,905,984-byte v0.27 FPKG once under a unique
+  partial name, stream it back for exact size/SHA-256 verification, then rename
+  it to `/data/pkg/omarchy-v0.27-OMCH42069-beta.pkg`; no install or app action
+- expected evidence: read-back size 20,905,984 bytes and SHA-256
+  `e15e0e78c011b1f367a2c5d2a0644b06f6ec1d3fe5766a164091065b3ea1439b`,
+  a final FTP listing with the versioned name, and completed UART continuity
+- timeout: 5 minutes
+- rollback: if verification fails, remove only the uniquely named v0.27
+  partial (or the exact v0.27 final name after a failed rename verification);
+  preserve every earlier package, installed title, USB and both boot sets
+- stop condition: close after verified rename or first failure; do not install,
+  launch Omarchy, contact PayLoader or update internal boot files
+- operator action: none; leave the console on Orbis home with GoldHEN idle
+- result: pass. FTP uploaded the package once under the unique partial name,
+  streamed it back as exactly 20,905,984 bytes with SHA-256
+  `e15e0e78c011b1f367a2c5d2a0644b06f6ec1d3fe5766a164091065b3ea1439b`,
+  then renamed it to `/data/pkg/omarchy-v0.27-OMCH42069-beta.pkg`. The final
+  listing reports the same size. No install, title launch, PayLoader contact,
+  boot-file write or Linux transition occurred
+- bounded UART context:
+  [`20260822_024036_956803-exp-20260822-009-a16-stage-persistent-uart-v0-27-fpkg-09b0e05b.md`](../../ps4-uart/sessions/20260822_024036_956803-exp-20260822-009-a16-stage-persistent-uart-v0-27-fpkg-09b0e05b.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity with routine ShellCore/NetEv idle
+  telemetry only; no package, filesystem, storage, logger or fatal fault
+- rollback: none required; the exact v0.27 package remains staged and v0.26
+  remains installed but idle
+- next action: install only staged v0.27 in a separate bounded session; do not
+  launch Omarchy or update internal boot files in the installation action
+
+### EXP-20260822-009-A17 — install persistent-UART v0.27
+
+- state: complete — pass
+- question: does GoldHEN Package Installer update the installed Omarchy title
+  from v0.26 to the exact staged v0.27 build without changing SaveData, either
+  internal boot set, the external USB or PayLoader state?
+- changed variable: install only
+  `/data/pkg/omarchy-v0.27-OMCH42069-beta.pkg` as an update; do not launch the
+  title, reload GoldHEN, select an in-app action or boot Linux
+- expected evidence: successful 20,905,984-byte package installation, final
+  installed app version 0.27, completed UART continuity, and no storage or
+  installer fault
+- timeout: 5 minutes
+- rollback: cancel on refusal, downgrade warning or any SaveData-deletion
+  prompt; locally preserved v0.26 remains available for a separate rollback
+- stop condition: close immediately after the installer result; do not launch
+  Omarchy in this action
+- operator action: opened GoldHEN Package Installer, installed the staged v0.27
+  package and reported `installed`; no Omarchy launch was reported
+- result: pass. UART recorded a complete 20,905,984-byte transaction,
+  `sceAppInstaller::AppInstallApp(...)=0x00000000`, install task
+  `error=0x0`, and a 4.801-second whole install. The transient missing
+  `/user/appmeta/OMCH42069/icon0.png` warning occurred while app metadata was
+  being replaced and did not fail the transaction. No title launch, PayLoader
+  contact, internal boot-file write or Linux transition followed
+- bounded UART context:
+  [`20260822_024321_951970-exp-20260822-009-a17-install-persistent-uart-v0-27-ab76a5ba.md`](../../ps4-uart/sessions/20260822_024321_951970-exp-20260822-009-a17-install-persistent-uart-v0-27-ab76a5ba.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed install continuity with no installer, storage,
+  logger or fatal fault. The long idle interval before the operator action does
+  not invalidate continuity but is not part of the install evidence
+- rollback: none required; v0.27 is installed and idle, and v0.26 remains
+  locally preserved as a separate rollback package
+- next action: do not launch against the old USB image. Disconnect that USB in
+  a separate bounded action, then flash the corrected owner-ready image on the
+  Mac before the first v0.27 launch
+
+### EXP-20260822-009-A18 — disconnect old gift USB for reflash
+
+- state: complete — degraded
+- question: can the old OMARCHY-PS4 USB be removed from the idle Orbis runtime
+  without a console, storage or UART fault so it can be reflashed on the Mac?
+- changed variable: unplug only the Omarchy USB drive from the PS4; do not
+  launch Omarchy, open Package Installer, reload GoldHEN, reconnect another
+  device, suspend, restart or power off
+- expected evidence: operator confirms the USB is physically removed; UART
+  either records its single detach or remains quiet with completed continuity;
+  Orbis stays responsive on HDMI
+- timeout: 60 seconds
+- rollback: no immediate reconnect. Keep the removed drive off-console and
+  flash the already audited corrected image; if Orbis reports an unexpected
+  storage error, stop and preserve the exact screen text
+- stop condition: close immediately after the one unplug and visible responsive
+  Orbis confirmation
+- operator action: unplugged the USB, launched v0.27 outside the requested
+  action, reconnected the USB to the PS4, then removed it again; reported
+  `nothing changed`
+- result: degraded because several variables were mixed. UART first recorded a
+  clean Kingston DataTraveler detach with no mounted filesystem, then proved
+  that installed app version 0.27 launched and reached its home screen. v0.27
+  correctly rejected the old internal `bootargs.txt` as 459 bytes versus the
+  corrected 488-byte artifact and reported `boot-files=update-available`. It
+  did not stage boot files or contact PayLoader. The same 118,240 MB USB was
+  then reinserted, recognized as the expected unknown ext4 format, and removed
+  cleanly again. A read-only Mac inventory after the session found no external
+  physical disk, so the USB is not attached to the Mac
+- bounded UART context:
+  [`20260822_100209_404005-exp-20260822-009-a18-disconnect-old-gift-usb-for-reflash-a30560b0.md`](../../ps4-uart/sessions/20260822_100209_404005-exp-20260822-009-a18-disconnect-old-gift-usb-for-reflash-a30560b0.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: no fatal, storage or logger fault and no Linux handoff, but
+  the mixed action cannot serve as the planned single-detach acceptance
+- rollback: USB is currently absent from both the PS4 UART inventory and the
+  Mac disk inventory; v0.27 remains open on its home screen
+- next action: return to Orbis home with one PS-button action, then connect the
+  removed USB to the Mac only for separately verified flashing
+
+### EXP-20260822-009-A19 — return from v0.27 to Orbis home
+
+- state: aborted — no PS4 action occurred
+- question: does one controller PS-button action leave the unintentionally
+  launched v0.27 screen and return to responsive Orbis without changing boot
+  files or contacting PayLoader?
+- changed variable: press the controller PS button once only; do not confirm an
+  in-app action, reconnect USB, close/delete the title, suspend or power off
+- expected evidence: focus returns from `OMCH42069` to Shell UI, operator sees
+  the Orbis home screen, and UART continuity remains completed
+- timeout: 30 seconds
+- rollback: no repeat; if focus does not change, report the exact visible
+  screen before another action
+- stop condition: close after visible Orbis home or the timeout
+- operator action: instead of pressing PS, connected the removed Kingston USB
+  to the Mac for the already planned local flash
+- result: aborted before the requested action. The bounded slice contains only
+  routine Orbis network/heap telemetry and no focus change, input, title action,
+  USB event, PayLoader contact or Linux transition
+- bounded UART context:
+  [`20260822_100557_631307-exp-20260822-009-a19-return-from-v0-27-to-orbis-home-a3159ecb.md`](../../ps4-uart/sessions/20260822_100557_631307-exp-20260822-009-a19-return-from-v0-27-to-orbis-home-a3159ecb.md),
+  exact sibling `.raw`; evidence state `aborted`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- local follow-up: the guarded macOS flasher wrote the audited 16 GiB image to
+  the exact 123,983,626,240-byte Kingston DataTraveler, read it back from the
+  raw device, matched SHA-256
+  `46ea6ca2c20b15cba9b40cb75bd07dbfa4c8a04d5d553eb27d0513b5c5f053df`,
+  and ejected it. The first background-root attempt wrote zero bytes because
+  macOS denied raw access; the successful retry changed execution context to
+  visible Terminal with user-approved removable-volume access
+- rollback: no PS4 rollback required; corrected USB is verified and ejected,
+  while v0.27 remains open on its home screen
+- next action: perform the still-required one-button return to Orbis in a new
+  bounded session before reconnecting the corrected USB
+
+### EXP-20260822-009-A20 — return from v0.27 after verified USB flash
+
+- state: complete — pass
+- question: does one controller PS-button action return from the idle v0.27
+  home screen to responsive Orbis without changing boot files or contacting
+  PayLoader?
+- changed variable: press the controller PS button once only; do not confirm an
+  in-app action, reconnect USB, close/delete the title, suspend or power off
+- expected evidence: focus returns from `OMCH42069` to Shell UI, operator sees
+  the Orbis home screen, and UART continuity remains completed
+- timeout: 30 seconds
+- rollback: no repeat; if focus does not change, report the exact visible
+  screen before another action
+- stop condition: close after visible Orbis home or timeout
+- operator action: pressed the controller PS button once and reported
+  `orbis visible`
+- result: pass. UART recorded `AppFocusChanged [OMCH42069] -> [NPXS20001]`,
+  Shell UI returning to the foreground and `ContentAreaScene` becoming active.
+  No in-app action, boot-file write, PayLoader contact or Linux transition
+  occurred
+- bounded UART context:
+  [`20260822_103756_370736-exp-20260822-009-a20-return-from-v0-27-after-verified-usb-flash-eae21a7c.md`](../../ps4-uart/sessions/20260822_103756_370736-exp-20260822-009-a20-return-from-v0-27-after-verified-usb-flash-eae21a7c.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed focus transition to responsive Orbis with no
+  fatal, storage or logger fault
+- rollback: none required; v0.27 remains installed but backgrounded and the
+  verified corrected USB remains physically off-console
+- next action: connect only the verified corrected USB in a separate bounded
+  action; do not launch or resume v0.27 in the insertion action
+
+### EXP-20260822-009-A21 — connect verified corrected Omarchy USB
+
+- state: complete — pass
+- question: does Orbis enumerate the physically verified corrected Kingston
+  USB once without a console, storage or UART fault?
+- changed variable: insert only that Kingston DataTraveler into the same PS4
+  USB port; do not launch/resume Omarchy, press an in-app action, reload
+  GoldHEN, suspend, restart or power off
+- expected evidence: UART identifies the 118,240 MB Kingston once and reports
+  its expected unknown ext4 format without mounting it; operator confirms
+  Orbis remains visible and responsive
+- timeout: 60 seconds
+- rollback: if enumeration faults or the UI reports an unexpected storage
+  prompt, remove the same USB only after closing/reviewing this session
+- stop condition: close after one complete enumeration and visible responsive
+  Orbis confirmation or the timeout
+- operator action: connected the verified Kingston to the same PS4 port and
+  reported Orbis `file system is not supported`
+- result: pass. UART identified the expected Kingston DataTraveler serial,
+  SuperSpeed port, 118,240 MB capacity and 242,155,520 sectors. Orbis reported
+  `unknown format(0)` because it cannot read ext4, did not mount the filesystem,
+  and presented the expected unsupported-filesystem modal. No destructive
+  initialization, storage fault, title action, PayLoader contact or Linux
+  transition occurred
+- bounded UART context:
+  [`20260822_104103_887907-exp-20260822-009-a21-connect-verified-corrected-omarchy-usb-6fa905a5.md`](../../ps4-uart/sessions/20260822_104103_887907-exp-20260822-009-a21-connect-verified-corrected-omarchy-usb-6fa905a5.md),
+  exact sibling `.raw`; evidence state `completed`, empty logger-event sidecar,
+  generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed expected ext4 enumeration with no fatal, panic,
+  mounted Orbis filesystem or logger fault
+- rollback: none required; corrected USB remains connected and untouched by
+  Orbis. Never accept a format/initialize action in Orbis
+- next action: dismiss only the unsupported-filesystem modal, then stop before
+  any v0.27 action
+
+### EXP-20260822-009-A22 — dismiss expected Orbis ext4 modal
+
+- state: skipped — modal no longer blocks the manager
+- question: can the expected unsupported-filesystem modal be dismissed with
+  one confirmation while leaving the connected Linux USB and v0.27 state
+  unchanged?
+- changed variable: if the modal is still visible, press Cross once on its
+  existing `OK`/dismiss action only; if it is already gone, press nothing and
+  report the visible screen
+- expected evidence: modal closes, corrected USB remains connected, and the
+  operator sees either Orbis home or the already-running v0.27 home screen
+- timeout: 30 seconds
+- rollback: no repeat; never choose format, initialize or extended storage
+- stop condition: close immediately after the modal disappears or if it was
+  already absent
+- operator action: no separately bounded dismiss was requested; the operator's
+  next report asked whether to select `Update boot files` and `Launch Omarchy`,
+  establishing that the manager actions are visible
+- result: skipped because the modal was already out of the interaction path.
+  This records no hardware acceptance and does not infer how it was dismissed
+- rollback: none; corrected USB remains connected and v0.27 is visible
+- next action: update the corrected internal boot set only, then close/review
+  before a separately bounded Linux launch
+
+### EXP-20260822-009-A23 — update corrected internal boot set with v0.27
+
+- state: complete — pass
+- question: can v0.27 transactionally replace the old 459-byte boot arguments
+  with the audited 488-byte persistent-UART set while verifying all four files
+  and retaining the previous boot set?
+- changed variable: select `Update boot files`, review/confirm that one update,
+  and stop on its completion/Ready result; do not select `Launch Omarchy`,
+  contact PayLoader, remove USB, reload GoldHEN or leave the title
+- expected evidence: embedded kernel, initramfs, bootargs and VRAM verify;
+  staging completes; active set verifies with 488-byte bootargs; previous set
+  is retained; UI reports Ready without a loader handoff
+- timeout: 2 minutes
+- rollback: do not retry on failure. The transactional writer must retain the
+  active or previous set; close/review UART before choosing restore or retry
+- stop condition: close after the first update success/failure result, before
+  any launch action
+- operator action: selected `Update boot files`, confirmed only that update,
+  stopped on the completed/Ready result and reported `done`; no launch was
+  requested in this session
+- bounded UART context:
+  [`20260822_104415_789775-exp-20260822-009-a23-update-corrected-internal-boot-set-with-v0--31d52786.md`](../../ps4-uart/sessions/20260822_104415_789775-exp-20260822-009-a23-update-corrected-internal-boot-set-with-v0--31d52786.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass. v0.27 verified the four embedded artifacts, recovered or found
+  no interrupted transaction, wrote and re-verified the staged set, activated
+  it as current, retained the previous set, and re-verified active sizes:
+  bzImage `11060224`, initramfs `1686508`, bootargs `488`, VRAM `5`. The UI
+  reported `boot-files=ready`; no loader handoff occurred
+- rollback: not applied. `/data/linux/boot.omarchy-prev` remains the retained
+  previous set
+- next action: launch Omarchy once in a new bounded session and stop when the
+  corrected gift reaches its branded first-owner setup or emits a terminal
+  boot failure
+
+### EXP-20260822-009-A24 — launch corrected gift to first-owner setup
+
+- state: complete — fail for owner-setup UX; pass for boot, USB validation and
+  full-device growth
+- question: does the verified v0.27 boot set hand off once to the Linux loader,
+  retain UART after early boot, resolve the corrected external gift by USB
+  ancestry, grow its filesystem and reach branded first-owner setup without a
+  generic login prompt?
+- changed variable: select `Launch Omarchy` exactly once from the ready v0.27
+  screen; do not update boot files, disconnect the USB, re-enter Orbis, reload
+  GoldHEN, enter credentials or power-cycle the console
+- expected evidence: one local loader handoff; Linux UART continues beyond the
+  prior early-console cutoff; initramfs selects and mounts the corrected gift;
+  first-boot grow succeeds or reports already complete; owner lifecycle reaches
+  `prompt-ready`; the display shows branded Omarchy owner setup rather than a
+  generic username/password login
+- timeout: 5 minutes; continuing UART progress extends observation, but stop on
+  the first owner-setup screen or terminal failure
+- rollback: on a terminal failure, do not retry or power-cycle automatically;
+  close/review UART first. The retained previous boot set remains available
+- stop condition: no credential entry or owner creation belongs to A24
+- operator action: selected `Launch Omarchy` exactly once, entered no
+  credentials, and reported the visible `omarchy-ps4 login:` prompt
+- bounded UART context:
+  [`20260822_105053_589967-exp-20260822-009-a24-launch-corrected-gift-to-first-owner-setup-72613fce.md`](../../ps4-uart/sessions/20260822_105053_589967-exp-20260822-009-a24-launch-corrected-gift-to-first-owner-setup-72613fce.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: the v0.27 no-op verified the active four-file set and sent the exact
+  `320936`-byte loader once. Linux retained UART, detected the exact Kingston
+  USB serial `E0D55EA573F0194049CD0236`, resolved `LABEL=OMARCHY-PS4` to
+  `/dev/sda`, validated and mounted it, then grew ext4 from `17179869184` to
+  the full `123983626240` bytes. Owner setup emitted `stage=start` and
+  `stage=root-verified` but neither `stage=prompt-ready` nor `stage=failed`;
+  the operator instead saw the generic getty prompt. No owner credentials were
+  entered and no account-creation/finalization stage was reached
+- conclusion: fail for the required password-only first-owner UX. The bounded
+  evidence narrows the stall to the code path after USB root verification and
+  before the prompt-ready marker, likely during console/header acquisition;
+  the correct image, kernel, initramfs and root filesystem were used
+- local exact-image reproduction: the published image with uncompressed SHA-256
+  `46ea6ca2c20b15cba9b40cb75bd07dbfa4c8a04d5d553eb27d0513b5c5f053df`
+  was booted through the same kernel/initramfs in QEMU inside the required
+  OrbStack Ubuntu VM, with its root disk exposed as USB and writes isolated by
+  QEMU snapshot mode. It reached grow ready, `stage=start`,
+  `stage=root-verified`, then `stage=prompt-ready`. A VGA capture after
+  switching to tty1 showed the complete branded `WELCOME TO OMARCHY` keyboard
+  form, while the separate serial console simultaneously displayed
+  `omarchy-ps4 login:`. This proves the exact image can run the form and makes
+  wrong active-VT/console ownership the next hardware hypothesis
+- rollback: no boot or storage rollback. Preserve the expanded USB and pending
+  owner state; do not attempt a guessed login
+- next action: request one orderly console reboot, prove ext4 unmount, then
+  inspect the actual USB owner log and systemd state offline on the Mac
+
+### EXP-20260822-009-A25 — orderly reboot from stalled owner setup
+
+- state: superseded before action by the exact-image VM console finding
+- question: does one console Ctrl+Alt+Delete request stop userspace, remount the
+  expanded external ext4 root read-only and return to Orbis without forced
+  power loss?
+- changed variable: press `Ctrl+Alt+Delete` once at the visible login prompt;
+  do not enter credentials, unplug USB, press the PS4 power button or repeat
+  the key sequence
+- expected evidence: systemd enters reboot, stops the owner/grow services,
+  unmounts or remounts `/dev/sda` read-only, synchronizes storage and returns to
+  the Orbis boundary
+- timeout: 3 minutes
+- rollback: if the key sequence has no effect, stop/review before choosing a
+  different shutdown mechanism; never unplug the mounted USB
+- stop condition: no USB removal, relaunch, payload or second reboot belongs to
+  A25
+- operator action: none; no reboot was requested
+- result: skipped. The new QEMU evidence provides a smaller reversible test:
+  switch once to tty1, where the same exact image renders the owner wizard
+- next action: A26 switches only the active Linux virtual terminal
+
+### EXP-20260822-009-A26 — switch stalled first boot to owner tty1
+
+- state: complete — fail
+- question: is the owner wizard alive on tty1 while the operator is viewing a
+  different console's generic getty prompt?
+- changed variable: press `Ctrl+Alt+F1` once at the visible
+  `omarchy-ps4 login:` screen; do not type credentials, repeat the shortcut,
+  reboot, remove USB or press the PS4 power button
+- expected evidence: tty1 becomes active, the branded `WELCOME TO OMARCHY`
+  keyboard-selection form appears, and UART advances to `stage=prompt-ready`;
+  no account is created merely by switching VTs
+- timeout: 30 seconds
+- rollback: if the display remains at login or becomes blank, press nothing;
+  stop/review before any alternate VT or shutdown action
+- stop condition: no form input belongs to A26
+- operator action: pressed `Ctrl+Alt+F1` once and reported `same console`; no
+  credentials, retry, reboot or USB change followed
+- bounded UART context:
+  [`20260822_110504_593823-exp-20260822-009-a26-switch-stalled-first-boot-to-owner-tty1-1696570c.md`](../../ps4-uart/sessions/20260822_110504_593823-exp-20260822-009-a26-switch-stalled-first-boot-to-owner-tty1-1696570c.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: fail. The display remained on the generic login prompt. UART showed
+  only ordinary Wi-Fi scan traffic and no `prompt-ready`, `failed`, account or
+  storage event. The PS4 owner process is therefore stopped or stalled before
+  rendering, rather than merely waiting unseen on tty1
+- rollback: none required; no account or storage state changed
+- next action: perform an orderly console reboot, prove external-root unmount,
+  then inspect the persisted service journal and owner log offline
+
+### EXP-20260822-009-A27 — orderly reboot after owner renderer stall
+
+- state: complete — degraded pass
+- question: can one console Ctrl+Alt+Delete request cleanly stop the stalled
+  first-owner service, synchronize and unmount the expanded USB, and return to
+  Orbis for offline diagnosis?
+- changed variable: press `Ctrl+Alt+Delete` once at the visible login prompt;
+  do not enter credentials, remove USB, repeat the shortcut or use the PS4
+  power button
+- expected evidence: systemd enters reboot, terminates the stalled owner unit,
+  remounts or unmounts `/dev/sda`, synchronizes storage and returns to Orbis
+- timeout: 3 minutes
+- rollback: if the shortcut has no effect, stop/review before any forced
+  shutdown; never unplug the mounted root USB
+- stop condition: no USB removal or next boot belongs to A27
+- operator action: pressed `Ctrl+Alt+Delete` once, did not repeat it or remove
+  USB, and reported that the console rebooted
+- bounded UART context:
+  [`20260822_110938_076538-exp-20260822-009-a27-orderly-reboot-after-owner-renderer-stall-f22a0527.md`](../../ps4-uart/sessions/20260822_110938_076538-exp-20260822-009-a27-orderly-reboot-after-owner-renderer-stall-f22a0527.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: degraded pass. Linux journald received SIGTERM from
+  `systemd-shutdown`, firmware entered S5 preparation, and the kernel emitted
+  `reboot: Restarting system`/`machine restart`; no panic or forced-power event
+  appeared. Continuous UART subsequently showed a complete Orbis boot and
+  `network ready` at `192.168.50.215`
+- degradation: the persistent boot console did not print an explicit ext4
+  unmount/remount-read-only or sync line. Verify the filesystem with offline
+  read-only `e2fsck -fn` before any write
+- rollback: none; console is back in Orbis and the external root is no longer
+  Linux-mounted
+- next action: disconnect only the corrected USB from stable Orbis, then close
+  the session before attaching it to the Mac
+
+### EXP-20260822-009-A28 — disconnect expanded gift USB from Orbis
+
+- state: complete — pass; offline audit found and fixed owner-console bug
+- question: can the corrected expanded USB be disconnected from stable Orbis
+  without changing any other console state?
+- changed variable: physically remove only the Kingston Omarchy USB; leave
+  power, UART, HDMI, controller, keyboard and all other devices unchanged
+- expected evidence: Orbis records the matching USB device removal and remains
+  responsive; no Linux/storage activity occurs
+- timeout: 30 seconds
+- rollback: if Orbis shows a prompt, do not select format/initialize; report it
+  and stop
+- stop condition: do not attach the USB to the Mac in A28
+- operator action: removed the USB from Orbis and connected it to the Mac
+- bounded UART context:
+  [`20260822_111104_611449-exp-20260822-009-a28-disconnect-expanded-gift-usb-from-orbis-286d80d7.md`](../../ps4-uart/sessions/20260822_111104_611449-exp-20260822-009-a28-disconnect-expanded-gift-usb-from-orbis-286d80d7.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- offline conclusion: the actual USB journal proved
+  `omarchy-ps4-provision-owner.service` was killed by `status=1/HUP` when
+  `console-getty.service` occupied the PS4 console. Ext4 was repaired and
+  rechecked clean. The USB was atomically upgraded to `omarchy-ps4-settings
+  4.0.0-2`, `omarchy-ps4 4.0.0-2`, and provisioning `4.0.0-6`, adding the
+  console-getty conflict plus the omitted fixed 1080p60/scale-one and
+  animations-off overrides
+- exact physical-USB VM result: QEMU snapshot boot in OrbStack reached owner
+  `start`, `root-verified`, and `prompt-ready`; VGA tty1 displayed the branded
+  keyboard form, with no HUP, failed unit, getty login or physical-disk write.
+  Final `e2fsck -fn` returned zero
+- next action: one direct-PayLoader PS4 boot of the hotfixed USB; the FPKG UI
+  is not part of this iteration
+
+### EXP-20260822-009-A29 — direct-loader boot of hotfixed owner USB
+
+- state: complete — fail before Linux takeover
+- objective: boot the hotfixed physical USB once through GoldHEN PayLoader and
+  verify that PS4 hardware reaches the branded owner form without HUP/getty
+- sequence: connect the clean USB, enable GoldHEN/PayLoader if needed, send the
+  already-pinned loader once to port 9090, and observe through `prompt-ready`;
+  do not enter owner data in this acceptance step
+- expected evidence: existing internal boot set verifies, initramfs mounts the
+  exact Kingston USB, owner service remains alive and reaches `prompt-ready`,
+  and HDMI shows `WELCOME TO OMARCHY` rather than a login prompt
+- timeout: 5 minutes; stop on the first owner form or terminal fault
+- rollback: one Ctrl+Alt+Delete orderly return if the boot reaches a stable
+  console failure; no repeated payload send
+- operator action: connected the exact hotfixed USB, activated GoldHEN and
+  PayLoader, and performed no input after the host sent the pinned loader once
+- bounded UART context:
+  [`20260822_113008_809346-exp-20260822-009-a29-direct-loader-boot-of-hotfixed-owner-usb-59ca2f3e.md`](../../ps4-uart/sessions/20260822_113008_809346-exp-20260822-009-a29-direct-loader-boot-of-hotfixed-owner-usb-59ca2f3e.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: fail before Linux takeover. The host `nc` process exited nonzero and
+  UART recorded `[GoldHEN] <payloader> Error handling payload`; no loader,
+  kernel, initramfs or USB-root output followed. Orbis remained running, so no
+  boot or USB state changed
+- conclusion: the generic `nc` stream did not preserve the FPKG adapter's
+  required transport contract: a send buffer large enough for the complete
+  `320936`-byte loader followed by exactly one application `send()` call
+- rollback: none required; Linux never took over and the USB was not mounted
+- next action: repeat only the transport with a locally verified single-write
+  sender; keep the loader, internal boot set, USB and console state unchanged
+
+### EXP-20260822-009-A30 — single-write direct-loader boot
+
+- state: complete — pass on UART; HDMI confirmation pending
+- question: does the pinned loader boot correctly when the remote transport
+  matches the FPKG's proven one-buffer, one-`send()` contract?
+- changed variable: replace `nc` with `fpkg/tools/send-loader-once.c`, using a
+  1 MiB send buffer and exactly one application `send()` for the same verified
+  `320936`-byte loader; change nothing else
+- expected evidence: the sender reports `requested=320936 written=320936`,
+  GoldHEN begins loader output without a payloader error, the initramfs mounts
+  Kingston serial `E0D55EA573F0194049CD0236`, and owner setup reaches
+  `stage=prompt-ready` with the branded HDMI form
+- timeout: 5 minutes; continuing UART progress extends observation, but stop
+  on the owner form or first terminal fault
+- rollback: if Linux reaches a stable console failure, request one orderly
+  Ctrl+Alt+Delete only after closing/reviewing the session; never resend the
+  payload in the same experiment
+- operator action: re-enabled GoldHEN BinLoader after the pre-send connection
+  refusal, then performed no input while the verified sender made one complete
+  loader write; visible HDMI outcome is pending operator report
+- bounded UART context:
+  [`20260822_120247_694265-exp-20260822-009-a30-single-write-direct-loader-boot-0ffb5de2.md`](../../ps4-uart/sessions/20260822_120247_694265-exp-20260822-009-a30-single-write-direct-loader-boot-0ffb5de2.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass for the UART acceptance criteria. The host reported one complete
+  `320936`-byte write; GoldHEN logged the same received size and successful ELF
+  launch. Linux 6.18.44-ps4-baikal started, detected exact Kingston serial
+  `E0D55EA573F0194049CD0236`, mounted ext4 UUID
+  `abb7b8bc-79f9-4efe-a325-01eabca940bb`, and owner setup advanced through
+  `stage=start`, `stage=root-verified`, and `stage=prompt-ready` without the
+  former HUP, console-getty collision or generic-login marker
+- conclusion: the owner-console hotfix works on real PS4 hardware and direct
+  iteration must use the new single-write sender rather than generic `nc`.
+  Final visual classification waits only for the operator's HDMI report
+- rollback: none; Linux is intentionally left at the non-destructive owner
+  prompt and no credentials have been entered
+- next action: record whether HDMI shows the branded `WELCOME TO OMARCHY`
+  owner form; do not enter owner data until that report is captured
+
+### EXP-20260822-009-A31 — local live graphics and Wi-Fi audit
+
+- state: complete — pass; both causes identified
+- question: did the PS4 no-tiling environment reach the current Hyprland
+  session, and does NetworkManager see the built-in MT7668 radio?
+- changed variable: none; print only `AMD_DEBUG` and `nmcli device` in the
+  existing graphical terminal. Do not connect a network, start SSH, restart a
+  process or modify configuration
+- expected evidence: `AMD_DEBUG=notiling`; NetworkManager lists a Wi-Fi device
+  and its exact state. The operator reports the terminal output while UART
+  remains free of a new GPU, filesystem or USB fault
+- timeout: 2 minutes after the operator command
+- rollback: none for read-only inspection; leave the current desktop running
+- operator action: opened Foot in the existing Omarchy session and ran exactly
+  `echo AMD_DEBUG=$AMD_DEBUG; nmcli device`; supplied physical HDMI photo
+  `IMG_0175.HEIC`
+- bounded UART context:
+  [`20260822_121436_516206-exp-20260822-009-a31-local-live-graphics-and-wi-fi-audit-52056e3f.md`](../../ps4-uart/sessions/20260822_121436_516206-exp-20260822-009-a31-local-live-graphics-and-wi-fi-audit-52056e3f.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass for diagnosis. The terminal printed an empty `AMD_DEBUG`,
+  proving the packaged global UWSM override did not reach this owner session;
+  this exactly explains recurrence of the previously proven Liverpool tiled
+  scanout corruption. NetworkManager listed `ap0`, `ap1`, and `wlan0` as Wi-Fi
+  devices, all disconnected, plus their P2P interfaces. UART independently
+  showed repeated successful MT7668 scan-to-idle cycles with no firmware-probe
+  failure, so the internal Wi-Fi driver is present and operating
+- conclusion: install the no-tiling environment in the owner-visible UWSM
+  user-config boundary, not only `/usr/share/uwsm`; add Wi-Fi selection to the
+  owner/onboarding flow instead of adding duplicate driver packages
+- rollback: none; the diagnostic changed no state
+- next action: implement and locally test the corrected session environment,
+  quiet-HDMI boot profile, one-time first-owner autologin, branded LightDM
+  recovery greeter, and PS4-owned update policy before one live application
+
+### EXP-20260822-009-A32 — attach freshly flashed gift USB
+
+- state: complete — inconclusive; scope mixed before attachment was proven
+- question: does Orbis detect attachment of the freshly flashed, Etcher-verified
+  Kingston gift USB without attempting to initialize or alter it?
+- changed variable: attach only the freshly flashed Kingston DataTraveler 3.0
+  USB to the PS4; do not open Omarchy, update boot files, send a payload, or
+  launch Linux
+- expected evidence: UART records one matching USB attachment while Orbis
+  remains responsive; no Linux, loader, filesystem-mount, or storage-write
+  activity occurs
+- timeout: 30 seconds after attachment
+- rollback: if Orbis offers to format or initialize the unsupported filesystem,
+  cancel or dismiss the prompt; do not accept it, then leave the USB attached
+- operator action: no attachment outcome was reported; during the open window,
+  the operator attempted to launch the Netflix/Hack Vue mini-app instead
+- bounded UART context:
+  [`20260822_143746_989542-exp-20260822-009-a32-attach-freshly-flashed-gift-usb-af59d8f7.md`](../../ps4-uart/sessions/20260822_143746_989542-exp-20260822-009-a32-attach-freshly-flashed-gift-usb-af59d8f7.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: inconclusive for USB attachment. UART records repeated launches of
+  `CUSA00960` version `01.24`, common-dialog focus/suspend activity, and a later
+  Orbis boot sequence. It does not identify the freshly flashed Kingston USB
+  or establish the predeclared attach-only outcome
+- rollback: none applied; do not infer anything about the flashed USB from
+  this mixed session
+- next action: restore the local JB/DNS services in OrbStack, then start a new
+  bounded attach-only session after the console-side Vue launcher is healthy
+
+### EXP-20260822-010-A1 — observe one Netflix launch through local proxy
+
+- state: superseded before bounded action; no UART session was started
+- question: does Netflix `01.53` reach the local proxy and request the
+  injectable error-page script before the app exits, hangs, or reboots?
+- changed variable: replace the proxy's interactive TUI with functionally
+  equivalent `mitmdump` request logging; leave DNS, proxy address, app,
+  firmware, USB and payload unchanged
+- expected evidence: proxy records the PS4 connection plus either the
+  `config.text.lruderrorpage` injection request or the exact last host/path;
+  UART identifies the CUSA/version and terminal app event
+- timeout: 60 seconds after selecting Netflix; stop immediately on reboot,
+  kernel panic or a displayed error
+- rollback: press PS once to return home if the app merely hangs; do not retry
+  the launch in this session
+- operator action: before the bounded session began, the operator independently
+  launched Netflix from the Apps library and reported that it worked
+- conclusion: the report establishes that the current DNS/proxy path can load
+  Netflix, but it is not bounded UART evidence and does not diagnose Vue. Close
+  this proposed action without inventing a session artifact
+- next action: recover Vue `CUSA00960` as a separate, predeclared backup and
+  reinstall sequence using the already-curated procedure
+
+### EXP-20260822-011-A1 — stage Vue recovery bundle over GoldHEN FTP
+
+- state: complete — pass; Vue application absent and recovery set verified
+- question: can the known-good Vue 1.01/1.24 recovery bundle be staged and
+  reread over GoldHEN FTP while preserving the installed application, save,
+  database and current GoldHEN runtime?
+- changed variable: create only `/data/vue-after-free-recovery` and place the
+  pinned local recovery artifacts there; inspect and back up current
+  `CUSA00960` metadata without overwriting its live paths
+- expected evidence: FTP inventory identifies the current Vue/save state and
+  reread SHA-256 values for every staged artifact match the Mac originals;
+  UART remains in the current stable Orbis/GoldHEN runtime
+- timeout: 10 minutes; stop on FTP disconnect, storage error, hash mismatch,
+  application exit or console reboot
+- rollback: remove only `/data/vue-after-free-recovery`; the installed Vue app,
+  live save, `/user/download/CUSA00960` and app database remain untouched
+- operator action: operator reported Netflix/GoldHEN active and made no
+  requested Vue install or delete action during staging
+- bounded UART context:
+  [`20260822_152121_109820-exp-20260822-011-a1-stage-vue-recovery-bundle-over-goldhen-ftp-57644cc3.md`](../../ps4-uart/sessions/20260822_152121_109820-exp-20260822-011-a1-stage-vue-recovery-bundle-over-goldhen-ftp-57644cc3.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass. FTP proved `CUSA00960` is absent from `/user/app`,
+  `/user/patch`, `/user/download`, and appmeta, so this is a missing
+  application rather than a DNS or app-database presentation fault. Encrypted
+  save containers and metadata for users `1ab07dc7`, `1ab07dc9`, and
+  `1ab07dca`, all three savedata databases, `app.db`, and `addcont.db` were
+  copied to `backups/vue-after-free/EXP-20260822-011-A1`
+- staged evidence: existing `/data/pkg` base 1.01 and patch 1.24 reread hashes
+  matched local SHA-256 `b6a0cb05...f797dd7` and
+  `3b738e36...26b9e9`. The three recovery archives were uploaded to
+  `/data/vue-after-free-recovery` and reread with exact matching hashes
+- UART conclusion: continuity completed with no storage, database or console
+  fault during transfer. The slice did show Apollo resident and an older
+  GoldHEN PayLoader error, neither correlated with the FTP writes
+- rollback: not required; live Vue/save/database paths were not modified
+- next action: install only the verified Vue 1.01 base from `/data/pkg`, then
+  close and inspect that bounded action before installing patch 1.24
+
+### EXP-20260822-011-A2 — install verified Vue 1.01 base
+
+- state: complete — pass
+- question: does GoldHEN Package Installer restore the missing `CUSA00960`
+  base application from the already-verified 1.01 FPKG?
+- changed variable: install only
+  `UT0016-CUSA00960_00-COBRAPCKGE000000-A0101-V0100.pkg`; do not install the
+  1.24 patch, restore a save, copy `download0.dat`, or launch Vue yet
+- expected evidence: package installation completes once, UART records the
+  corresponding BGFT/app registration without storage error, and the Vue icon
+  returns at base version 1.01
+- timeout: 3 minutes after selecting the base package; stop on the first
+  completion or exact error
+- rollback: on error, do not retry, delete, rebuild databases or select the
+  patch; leave the reported state for inspection
+- operator action: installed the base package once and reported `installed
+  v0100`; did not install patch 1.24 or launch Vue
+- bounded UART context:
+  [`20260822_152701_720359-exp-20260822-011-a2-install-verified-vue-1-01-base-93876276.md`](../../ps4-uart/sessions/20260822_152701_720359-exp-20260822-011-a2-install-verified-vue-1-01-base-93876276.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass. BGFT copied all `72417280` bytes, app install returned
+  `0x00000000`, and task `00000338` ended with `error=0x0`. FTP then proved
+  `/user/app/CUSA00960` and appmeta exist while `/user/patch/CUSA00960` is
+  still absent as required
+- version evidence: appmeta `param.sfo` reports `TITLE_ID=CUSA00960`,
+  `APP_VER=01.00`, and package `VERSION=01.01`; this is the intended base
+- rollback: not required; the clean base remains installed
+- next action: install only the verified 1.24 patch, then close and verify it
+  before touching the live save or `download0.dat`
+
+### EXP-20260822-011-A3 — install verified Vue 1.24 patch
+
+- state: complete — pass
+- question: does GoldHEN Package Installer apply the matching Vue 1.24 patch
+  cleanly to the verified 1.01 base?
+- changed variable: install only
+  `UT0016-CUSA00960_00-COBRAPCKGE000000-A0124-V0100.pkg`; do not restore a
+  save, copy `download0.dat`, launch Vue or alter account activation
+- expected evidence: package installation completes once, UART records a
+  clean patch registration, `/user/patch/CUSA00960` appears, and appmeta
+  reports application version 01.24
+- timeout: 3 minutes after selecting the patch; stop on the first completion
+  or exact error
+- rollback: on error, do not retry or launch Vue; retain the clean 1.01 base
+  and inspect the partial patch state
+- operator action: installed the 1.24 patch once and did not launch Vue
+- bounded UART context:
+  [`20260822_153426_205904-exp-20260822-011-a3-install-verified-vue-1-24-patch-3d81eb7f.md`](../../ps4-uart/sessions/20260822_153426_205904-exp-20260822-011-a3-install-verified-vue-1-24-patch-3d81eb7f.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass. BGFT transferred all `89849856` bytes,
+  `AppInstallPatch2` returned `0x00000000`, and task `0000033a` ended with
+  `error=0x0`. FTP proved `/user/patch/CUSA00960` exists and appmeta reports
+  `APP_VER=01.24`
+- rollback: not required; matching base 1.01 plus patch 1.24 remain installed
+- next action: copy and reread the pinned `download0.dat` at the exact live
+  `CUSA00960` path while leaving all saves unchanged
+
+### EXP-20260822-011-A4 — install verified Vue download data
+
+- state: complete — pass
+- question: can the pinned 256 MiB Vue `download0.dat` be placed at the exact
+  live path and reread byte-for-byte without disturbing the installed app or
+  saves?
+- changed variable: create `/user/download/CUSA00960` and write only
+  `/user/download/CUSA00960/download0.dat` from the local recovery artifact
+- expected evidence: FTP upload completes, remote size is `268435456`, reread
+  SHA-256 equals `e043246ac9eec77387630a1b8e359bf60d742c94a8f1b77c024ae159de888e31`,
+  and UART shows no storage fault
+- timeout: 10 minutes; stop on disconnect, short transfer, hash mismatch,
+  storage error or console reboot
+- rollback: delete only the newly written live `download0.dat` and its empty
+  `CUSA00960` download directory; retain the verified app and all saves
+- operator action: keep Vue closed and do not change application or account
+  state during the transfer
+- bounded UART context:
+  [`20260822_153605_629524-exp-20260822-011-a4-install-verified-vue-download-data-b13643d9.md`](../../ps4-uart/sessions/20260822_153605_629524-exp-20260822-011-a4-install-verified-vue-download-data-b13643d9.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass. FTP reported remote length `268435456`; a complete remote
+  reread produced SHA-256
+  `e043246ac9eec77387630a1b8e359bf60d742c94a8f1b77c024ae159de888e31`,
+  exactly matching the pinned local artifact
+- UART conclusion: continuity completed with no storage, application or
+  console fault during the write and reread
+- rollback: not required; verified `download0.dat` remains at the exact live
+  `CUSA00960` path
+- next action: stage the supplied decrypted Vue save as a distinct Apollo Fake
+  USB source without overwriting any live save
+
+### EXP-20260822-011-A5 — stage Vue save for Apollo
+
+- state: complete — pass
+- question: can the supplied Vue decrypted save be staged as a distinct Apollo
+  Fake USB entry with exact file hashes while preserving all live saves?
+- changed variable: create only
+  `/data/fakeusb/PS4/APOLLO/recovery_CUSA00960_localstorage.aes` from the pinned
+  `save.zip`; do not invoke Apollo copy/resign or alter the active user
+- expected evidence: all six staged files reread with hashes matching the
+  extracted local source and UART shows no storage fault
+- timeout: 5 minutes; stop on an existing-path conflict, disconnect, short
+  transfer, hash mismatch, storage error or console reboot
+- rollback: remove only the new `recovery_CUSA00960_localstorage.aes` Fake USB
+  source directory; all live saves and their databases remain untouched
+- operator action: keep Vue closed and do not use Apollo until staging is
+  verified and this session is closed
+- bounded UART context:
+  [`20260822_153938_702383-exp-20260822-011-a5-stage-vue-save-for-apollo-22c85027.md`](../../ps4-uart/sessions/20260822_153938_702383-exp-20260822-011-a5-stage-vue-save-for-apollo-22c85027.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass. A previously absent, uniquely named Fake USB source was
+  created and all six files reread with SHA-256 values exactly matching the
+  extracted pinned `save.zip`
+- UART conclusion: continuity completed with no storage or console fault; the
+  slice contains only a routine shell heap line
+- rollback: not required; no live save was modified
+- next action: use Apollo once to copy/resign this exact Fake USB source to the
+  active user `1ab07dc7`, then inspect before launching Vue
+
+### EXP-20260822-011-A6 — restore Vue save to active user with Apollo
+
+- state: complete — pass with corrected UI description
+- question: can Apollo copy and resign the verified supplied Vue save to the
+  current user while preserving the now-verified application and download
+  data?
+- changed variable: in Apollo, copy only
+  `recovery_CUSA00960_localstorage.aes` from Fake USB to HDD for the active
+  user `1ab07dc7`; do not activate accounts, rebuild databases, launch Vue or
+  alter the other two users' saves
+- expected evidence: Apollo reports a successful copy/resign, UART records no
+  save-mount/database fault, and the current user's CUSA00960 save remains
+  present afterward
+- timeout: 3 minutes after selecting Copy save game; stop on the first success
+  or exact error
+- rollback: do not launch Vue on error; retain the pre-action encrypted save,
+  savedata database and app database backup under
+  `backups/vue-after-free/EXP-20260822-011-A1` for deliberate recovery
+- operator action: selected the staged Vue item and chose Apollo's Copy save
+  game action. No separate user-selection or resign screen existed; the
+  current user was handled automatically
+- bounded UART context:
+  [`20260822_154048_541812-exp-20260822-011-a6-restore-vue-save-to-active-user-with-apollo-4e37471f.md`](../../ps4-uart/sessions/20260822_154048_541812-exp-20260822-011-a6-restore-vue-save-to-active-user-with-apollo-4e37471f.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass. UART records Apollo's PFS save mount and clean unmount, common
+  dialogs, and successful return to Apollo without a save/database fault.
+  Post-action FTP proves the active user's save remains present; its
+  `sdimg_localstorage.aes` changed from SHA-256 `3e54889c...f10730` to
+  `4cb93531...00a8e3`, while binding file `localstorage.aes.bin` correctly
+  remained `8a966544...d54e4`
+- correction: Apollo auto-detected the current user. The previously stated
+  separate user-selection and resign confirmation steps do not exist in this
+  flow and must not be repeated in operator guidance
+- rollback: not required; the pre-action encrypted save and databases remain
+  preserved locally
+- next action: close Apollo and launch restored Vue once; dismiss only the
+  documented PSN prompt with OK and stop on the first Vue UI or exact fault
+
+### EXP-20260822-011-A7 — launch restored Vue once
+
+- state: complete — pass
+- question: does the fully restored Vue 1.24 application reach its exploit UI
+  from the active user's resigned supplied save?
+- changed variable: close Apollo and launch `CUSA00960` once; if the documented
+  `This service requires you to sign in to PlayStation Network` prompt appears,
+  press OK exactly once and make no other selection
+- expected evidence: UART launches `CUSA00960` version 01.24 without package,
+  PFS or save fault, and HDMI reaches the Vue After Free interface after at
+  most the single expected PSN prompt
+- timeout: 90 seconds after selecting Vue; stop immediately on exploit UI,
+  exact displayed error, crash, hang or reboot
+- rollback: if Vue merely hangs, press PS once to return home after reporting;
+  do not relaunch, reinstall, rebuild or modify the save in this session
+- operator action: closed Apollo, launched PlayStation Vue once, followed the
+  documented prompt path, reported `done working`, and returned to the main
+  Omarchy task without retrying
+- bounded UART context:
+  [`20260822_165244_536318-exp-20260822-011-a7-launch-restored-vue-once-e59f7713.md`](../../ps4-uart/sessions/20260822_165244_536318-exp-20260822-011-a7-launch-restored-vue-once-e59f7713.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass. UART launched `CUSA00960` with `version: 01.24`, mounted the
+  exact `download0.dat`, mounted active-user save `localstorage.aes`, focused
+  the app, and later returned to Orbis through a deliberate app kill with all
+  PFS/download mounts cleanly unmounted. There was no crash, panic or reboot
+- conclusion: Vue After Free is restored and available as the known fallback;
+  DNS was not the cause. The missing application was repaired with exact base
+  1.01, patch 1.24, download data and Apollo save
+- rollback: not required; preserve the verified working Vue installation
+- next action: resume the Omarchy gift-USB boot plan from the last proven
+  Orbis/GoldHEN state
+
+### EXP-20260822-009-A33 — read-only gift USB presence check
+
+- state: complete — blocked precondition identified
+- question: is the freshly flashed Kingston Omarchy gift USB currently visible
+  to stable Orbis/GoldHEN before any Linux loader is sent?
+- changed variable: none; inspect only current FTP device/mount inventory and
+  bounded UART state without attaching, removing, formatting or writing USB
+- expected evidence: current Orbis device inventory distinguishes a connected
+  mass-storage device from no external root, while FTP/PayLoader and UART stay
+  healthy
+- timeout: 60 seconds; stop on FTP loss, serial continuity loss or any console
+  state transition
+- rollback: none for read-only inspection; do not send a payload or ask the
+  operator to reconnect hardware in this action
+- operator action: none; leave the console and USB exactly as they are
+- bounded UART context:
+  [`20260822_165629_645931-exp-20260822-009-a33-read-only-gift-usb-presence-check-f31f4393.md`](../../ps4-uart/sessions/20260822_165629_645931-exp-20260822-009-a33-read-only-gift-usb-presence-check-f31f4393.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: blocked precondition. Orbis exposes only internal `da0`, known USB
+  endpoints `0.2.0` through `0.5.0`, and empty `/mnt/usb0` through `usb7`;
+  there is no external `da1` or Kingston device. The verified internal boot
+  directory still contains `bzImage`, `initramfs.cpio.gz`, `bootargs.txt`, and
+  `vram.txt`. PayLoader port 9090 is currently closed
+- UART conclusion: continuity completed with only routine shell heap output;
+  the read-only check changed no state
+- rollback: none
+- next action: attach only the freshly flashed Kingston gift USB and stop at
+  any unsupported-filesystem prompt before enabling PayLoader or booting
+
+### EXP-20260822-009-A34 — attach freshly flashed gift USB only
+
+- state: complete — pass
+- question: does Orbis enumerate the freshly flashed Kingston gift USB while
+  remaining stable and leaving its Linux filesystem untouched?
+- changed variable: attach only the Kingston DataTraveler 3.0 gift USB to the
+  PS4; do not enable PayLoader, update boot files, launch Omarchy, format,
+  initialize or dismiss a filesystem prompt
+- expected evidence: UART records one new mass-storage device corresponding to
+  the Kingston and Orbis remains responsive; the expected unsupported-filesystem
+  prompt may appear and is left untouched
+- timeout: 30 seconds after attachment; stop on the first prompt, device event,
+  console fault or timeout
+- rollback: if Orbis offers format/initialize, do not accept it; leave the USB
+  attached and report the exact prompt
+- operator action: attached the freshly flashed Kingston once and made no
+  other reported UI or hardware action
+- bounded UART context:
+  [`20260822_165748_493491-exp-20260822-009-a34-attach-freshly-flashed-gift-usb-only-af8cd6ed.md`](../../ps4-uart/sessions/20260822_165748_493491-exp-20260822-009-a34-attach-freshly-flashed-gift-usb-only-af8cd6ed.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass. UART identified exact Kingston serial
+  `E0D55EA573F0194049CD0236` as SuperSpeed `/dev/da1`, size `118240MB`, and
+  reported unknown format as expected for the Linux filesystem. Orbis did not
+  format, encrypt or mount it
+- rollback: none; leave the verified USB attached
+- next action: dismiss only the unsupported-filesystem modal if visible, then
+  separately enable PayLoader before one boot attempt
+
+### EXP-20260822-009-A35 — dismiss unsupported-filesystem modal
+
+- state: complete — pass by operator report
+- question: can Orbis clear only the expected unsupported-filesystem modal and
+  return to a responsive home screen while leaving `/dev/da1` attached?
+- changed variable: if the unsupported-filesystem modal is visible, press OK
+  once; otherwise perform no input and report that no modal is visible
+- expected evidence: the modal closes or is confirmed absent, Orbis remains
+  responsive, and UART records no USB detach, format, initialization or fault
+- timeout: 30 seconds after the one input or no-modal report
+- rollback: none; never select format, initialize or extended storage
+- operator action: operator confirmed the modal step and requested the next
+  action; no format, initialization or storage conversion was selected
+- bounded UART context:
+  [`20260822_165910_639070-exp-20260822-009-a35-dismiss-unsupported-filesystem-modal-497af87c.md`](../../ps4-uart/sessions/20260822_165910_639070-exp-20260822-009-a35-dismiss-unsupported-filesystem-modal-497af87c.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass. Orbis remained idle and stable with no USB detach, format,
+  initialization, storage write or fault in the bounded slice
+- rollback: none; exact Kingston remains attached
+- next action: enable only GoldHEN BinLoader/PayLoader and prove port 9090 is
+  listening before any loader send
+
+### EXP-20260822-009-A36 — enable GoldHEN BinLoader only
+
+- state: complete — degraded; listener enabled but consumed by invalid probe
+- question: does enabling GoldHEN BinLoader expose the expected PayLoader on
+  TCP 9090 while Orbis and the attached Kingston remain stable?
+- changed variable: enable only GoldHEN Settings → Servers Settings → BinLoader
+  Server; do not open Omarchy, send a payload, update boot files or alter USB
+- expected evidence: UART records the server start without payload handling or
+  USB detach; a raw TCP connection was initially specified as listener proof
+- timeout: 30 seconds after enabling; stop on listener proof or exact error
+- rollback: if enabling fails, leave it off and do not retry in this session
+- operator action: enabled only GoldHEN BinLoader in Servers Settings; no
+  Omarchy UI action, boot-file change or USB action was performed
+- bounded UART context:
+  [`20260822_170213_396805-exp-20260822-009-a36-enable-goldhen-binloader-only-26c6e95c.md`](../../ps4-uart/sessions/20260822_170213_396805-exp-20260822-009-a36-enable-goldhen-binloader-only-26c6e95c.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: degraded. UART proves `[GoldHEN] <payloader> Server started at 9090
+  port`, and the host TCP connection succeeded. GoldHEN then emitted
+  `<payloader> Error handling payload` because the empty health-check
+  connection was interpreted as a payload and consumed the one-shot listener.
+  Orbis remained responsive and no USB detach or storage write occurred
+- conclusion: never test GoldHEN BinLoader with a bare TCP connect. Listener
+  readiness must come from the UART start marker; after enabling it, the next
+  and only connection must be the complete loader transfer
+- rollback: no storage rollback is needed. Treat the current listener as spent;
+  toggle BinLoader off/on once in a new bounded action before the real send
+- next action: re-arm BinLoader only, without any network probe, then close and
+  review that bounded session before one separately bounded loader send
+
+### EXP-20260822-009-A37 — one-write gift-USB boot after operator re-arm
+
+- state: complete — blocked before payload transfer
+- question: will the already-proven pinned loader boot the freshly flashed
+  Kingston gift USB when its only BinLoader connection is one complete
+  application-level write?
+- changed variable: send exactly the pinned 320,936-byte PS4 Linux Loader v25
+  ELF, SHA-256
+  `c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef0846d67fa9d1e5ce65`,
+  to `192.168.50.215:9090` using the proven 1 MiB socket buffer and one
+  `send()` call; do not probe, reconnect, retry, alter boot files or touch USB
+- precondition note: the operator reports toggling BinLoader off/on immediately
+  before A37, but that toggle occurred before a bounded session and is not
+  accepted as standalone hardware evidence. A37 will rely only on the actual
+  transfer and resulting UART evidence
+- expected evidence: the sender reports
+  `requested=320936 written=320936`; GoldHEN logs the matching receive and ELF
+  launch; Linux 6.18.44-ps4-baikal identifies Kingston serial
+  `E0D55EA573F0194049CD0236`, mounts the intended external root, and advances
+  to either the branded owner setup or native Omarchy display without a login
+  prompt or terminal fault
+- timeout: 5 minutes; continuing boot output extends observation, but stop on
+  the owner form, desktop, exact terminal fault, reboot or HDMI loss
+- rollback: on connection failure or loader error, remain in Orbis and do not
+  retry. On a stable Linux failure, close and review before any orderly reboot;
+  never send another payload in A37
+- operator action: none during the send; the operator had reported restarting
+  BinLoader immediately before the bounded session
+- bounded UART context:
+  [`20260822_171012_352378-exp-20260822-009-a37-one-write-gift-usb-boot-after-operator-re-a-85ea55c6.md`](../../ps4-uart/sessions/20260822_171012_352378-exp-20260822-009-a37-one-write-gift-usb-boot-after-operator-re-a-85ea55c6.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`; the bounded slice contains
+  zero bytes because the connection failed before the console emitted output
+- result: blocked before payload transfer. The exact sender returned
+  `connect: Connection refused` and therefore made no `send()` call. Linux did
+  not start and neither internal boot files nor the attached USB were touched
+- conclusion: the operator-reported pre-session restart did not leave a live
+  listener. Continuous UART surrounding A37 contains no new
+  `<payloader> Server started at 9090 port` marker, so readiness cannot be
+  inferred from the UI report
+- rollback: none required; no payload bytes or storage writes occurred
+- next action: in a new bounded session, deliberately set BinLoader OFF, then
+  ON once and accept only the UART `Server started` marker as proof. Do not
+  connect to 9090 in that re-arm session
+
+### EXP-20260822-009-A38 — deliberate UART-proven BinLoader re-arm
+
+- state: complete — pass
+- question: does an explicit OFF-to-ON BinLoader transition create one fresh
+  listener, proven only by GoldHEN's UART start marker?
+- changed variable: in GoldHEN Servers Settings, set BinLoader Server OFF and
+  then ON exactly once; do not launch Omarchy, connect to port 9090, alter boot
+  files, touch USB or change any other setting
+- expected evidence: UART emits exactly one new
+  `[GoldHEN] <payloader> Server started at 9090 port` marker and no payload
+  handling error, crash, detach or storage event follows
+- timeout: 45 seconds after the ON transition; stop immediately on the marker
+  or exact error
+- rollback: if the marker does not appear, leave the displayed toggle state as
+  observed and do not repeat the transition in A38
+- operator action: set BinLoader Server OFF and then ON exactly once, then
+  returned to the Orbis content area without launching Omarchy or changing any
+  other reported setting
+- bounded UART context:
+  [`20260822_171117_374432-exp-20260822-009-a38-deliberate-uart-proven-binloader-re-arm-41f5d5ca.md`](../../ps4-uart/sessions/20260822_171117_374432-exp-20260822-009-a38-deliberate-uart-proven-binloader-re-arm-41f5d5ca.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass. UART contains exactly one fresh
+  `[GoldHEN] <payloader> Server started at 9090 port` marker and no payload
+  handling error, crash, USB detach or storage event
+- rollback: none; preserve the untouched one-shot listener for the next action
+- next action: send the pinned loader exactly once with the proven one-write
+  sender in a separately bounded boot session; never probe or retry
+
+### EXP-20260822-009-A39 — UART-proven one-write gift-USB boot
+
+- state: complete — functional pass; UI/UX acceptance remains open
+- question: does the pinned loader boot the freshly flashed Kingston gift USB
+  from the freshly UART-proven GoldHEN listener?
+- changed variable: make the listener's only connection and send exactly the
+  pinned 320,936-byte Loader v25 ELF, SHA-256
+  `c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef0846d67fa9d1e5ce65`,
+  with a 1 MiB socket buffer and one `send()` call; do not probe, reconnect,
+  retry, alter boot files or touch USB
+- expected evidence: host reports `requested=320936 written=320936`; GoldHEN
+  logs the matching receive and successful ELF launch; Linux
+  6.18.44-ps4-baikal finds Kingston serial `E0D55EA573F0194049CD0236`, mounts the
+  intended external root, and reaches the branded owner setup or native
+  Omarchy display without a generic login prompt or terminal fault
+- timeout: 5 minutes; continuing boot output extends observation, but stop on
+  the first stable owner form, desktop, exact terminal fault, reboot or HDMI
+  loss
+- rollback: if the connection or loader fails, remain in Orbis and do not
+  retry. If Linux reaches a stable failure, close and review before a separate
+  orderly reboot; never send another payload in A39
+- operator action: left the controller and USB untouched during handoff and
+  boot. After the branded owner form appeared, completed the username/password
+  setup and confirmed that Linux reached the graphical login screen
+- bounded UART context:
+  [`20260822_171638_096973-exp-20260822-009-a39-uart-proven-one-write-gift-usb-boot-44ec4cb3.md`](../../ps4-uart/sessions/20260822_171638_096973-exp-20260822-009-a39-uart-proven-one-write-gift-usb-boot-44ec4cb3.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- transfer result: pass. The host made one complete write,
+  `requested=320936 written=320936 send-buffer=1048576 errno=0`. GoldHEN
+  recorded the same 320,936-byte payload, launched the ELF successfully, and
+  emitted no PayLoader error
+- boot result: pass. Linux `6.18.44-ps4-baikal` detected exact Kingston serial
+  `E0D55EA573F0194049CD0236`; initramfs resolved `LABEL=OMARCHY-PS4` to
+  `/dev/sda`, mounted ext4 UUID `f04782f3-7809-4e38-9325-1ea948086f7d`
+  read-write, validated external root, and started systemd
+- first-boot result: pass. The whole-device filesystem grew automatically from
+  17,179,869,184 bytes to the full 123,983,626,240-byte device. Owner setup
+  reached `stage=start`, `root-verified`, `prompt-ready`, `finalizing`, and
+  `complete`; the operator confirmed the graphical login screen appeared
+- isolation note: owner entry occurred after the boot criteria passed but
+  before A39 closed. Functional evidence is valid within completed UART
+  continuity, though boot and owner-flow interaction were combined in this
+  bounded slice and therefore do not replace later repeated cold-boot
+  acceptance
+- HDMI UX finding: the post-setup login card is offset into the lower-right
+  quadrant instead of being centered. Source inspection identified
+  `position=50% 50%`, which anchors the card's top-left at the screen midpoint;
+  it must use `position=50%,center 50%,center`. The first-boot console also
+  exposes too much diagnostic output and needs a clean Omarchy-green branded
+  setup surface while detailed evidence remains on UART and in the root-only
+  provisioning log
+- conclusion: the product architecture is now proven once end-to-end on the
+  Baikal lab console: internal boot files plus GoldHEN Loader v25 start the
+  external whole-device Omarchy USB, expand it automatically, and complete
+  password-based first-owner provisioning. This is a development acceptance
+  success, not a public-support or final-UX claim
+- rollback: none required; preserve the running gift USB and newly created
+  owner. Do not re-arm provisioning or erase the owner merely to iterate on UI
+- next action: local-only first-boot/login UX work and tests. No console action
+  is required until a reviewed visual candidate and boot-argument delta are
+  ready for one separately bounded validation
+
+### EXP-20260822-012-A1 — scan with the PS4 station interface
+
+- state: complete — superseded before operator command
+- question: does NetworkManager return nearby access points when explicitly
+  scanning the PS4 station interface `wlan0`, independent of the empty Omarchy
+  network panel?
+- changed variable: trigger one NetworkManager scan on `wlan0` and print its
+  SSID, signal and security list; do not connect, save credentials, toggle the
+  radio, restart a service or modify network configuration
+- source hypothesis: the stable Omarchy 4.0.0 panel uses NetworkManager through
+  `Quickshell.Networking`, but its `findDevice(DeviceType.Wifi)` fallback picks
+  the first disconnected Wi-Fi device. Prior hardware evidence lists `ap0`,
+  `ap1`, then the real station `wlan0`; selecting `ap0` would produce an empty
+  network list even while the MT7668 radio successfully scans
+- expected evidence: `nmcli ... wifi list ifname wlan0 --rescan yes` prints one
+  or more nearby SSIDs, or returns one exact driver/NetworkManager error that
+  identifies the lower failing layer
+- timeout: 90 seconds after the command; stop on complete output, exact error,
+  display loss, hang or reboot
+- rollback: none for a transient scan. Do not enter a Wi-Fi password in A1
+- operator action: none. Before running the proposed command, the operator
+  requested the shorter direct Wi-Fi setup path
+- bounded UART context:
+  [`20260822_175326_136745-exp-20260822-012-a1-scan-with-the-ps4-station-interface-6e7cddb1.md`](../../ps4-uart/sessions/20260822_175326_136745-exp-20260822-012-a1-scan-with-the-ps4-station-interface-6e7cddb1.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: no `nmcli` command was executed, so A1 does not prove SSID output.
+  UART nevertheless retained repeated successful MT7668 full-scan transitions
+  from `IDLE` to `SCAN` and back without a firmware or device failure
+- rollback: none; no persistent configuration or connection changed
+- next action: use NetworkManager's standard `nmtui` once to select and connect
+  `wlan0`, rather than make the operator transcribe diagnostic commands
+
+### EXP-20260822-012-A2 — connect gift owner through NetworkManager TUI
+
+- state: pass
+- question: can NetworkManager's standard terminal UI list nearby networks and
+  connect the PS4 station interface without relying on the mis-selected
+  Quickshell Wi-Fi device?
+- changed variable: create and activate one NetworkManager Wi-Fi connection for
+  the operator-selected SSID through `nmtui`; do not restart networking, edit
+  drivers, change DNS, expose the password in a command line or modify another
+  interface
+- expected evidence: `nmtui` lists nearby networks, accepts the password
+  privately, reports the selected connection active, and UART shows association
+  without a driver crash, disconnect loop or display fault
+- timeout: 3 minutes after opening `nmtui`; stop on successful activation or the
+  first exact error
+- rollback: on failure, exit `nmtui` without repeating or deleting profiles;
+  inspect the exact NetworkManager state in a later bounded action
+- operator action: the operator opened `nmtui`, selected the intended Wi-Fi
+  network, entered its password privately, and reported `connected`
+- bounded UART context:
+  [`20260822_183902_717794-exp-20260822-012-a2-connect-gift-owner-through-networkmanager-tu-670fe043.md`](../../ps4-uart/sessions/20260822_183902_717794-exp-20260822-012-a2-connect-gift-owner-through-networkmanager-tu-670fe043.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass. UART recorded the MT7668 station progressing through scan,
+  authentication, association and key installation to `NORMAL_TR`; subsequent
+  station statistics showed the selected BSSID active without a disconnect or
+  driver crash. This proves the radio, firmware, driver and NetworkManager path
+  work. It also supports the source diagnosis that the empty native network
+  panel is selecting an AP-mode device instead of the station interface
+- isolation note: after connection, the operator also opened Omarchy's SSHD
+  setup before A2 was closed. It failed at UFW with `Couldn't determine
+  iptables version`; the additional action does not invalidate the earlier
+  Wi-Fi association evidence, but this slice is not evidence for a completed
+  SSH setup
+- SSH source conclusion: stable Omarchy starts `sshd.service` before calling
+  `ufw limit 22/tcp`. The PS4 6.18 Baikal config has
+  `# CONFIG_NETFILTER is not set`, so the generic UFW stage is incompatible
+  with this kernel and aborts before SSH-key authorization. The product must
+  either gain reviewed netfilter support or provide a PS4-aware SSH setup that
+  does not claim a firewall rule was installed
+- rollback: none; retain the working NetworkManager profile. Do not delete or
+  recreate it while repairing the native panel
+- next action: authorize the owner's existing GitHub ED25519 key and confirm
+  the already-started SSH daemon through a separately bounded setup action;
+  do not change the Wi-Fi profile or firewall in that action
+
+### EXP-20260822-012-A3 — complete LAN SSH access without UFW
+
+- state: pass — key installed; remote authentication pending A4
+- question: did the failed Omarchy helper leave `sshd` running, and can the
+  owner's existing GitHub ED25519 key complete key-only LAN access without
+  invoking the unavailable PS4 netfilter/UFW path?
+- changed variable: install the owner's already-verified GitHub public key as
+  `~/.ssh/authorized_keys`; do not alter password authentication, Wi-Fi,
+  firewall state, kernel modules or network services
+- expected evidence: the key installs with mode `0600`; no UART fault or Wi-Fi
+  disconnect occurs. Service/IP and remote authentication will be checked in
+  later read-only bounded actions rather than folded into this mutation
+- timeout: 60 seconds after the command; stop on a returned prompt or the
+  first exact error
+- rollback: remove only the newly created `~/.ssh/authorized_keys` if the
+  operator does not want this Mac key retained; otherwise preserve it
+- operator action: the operator installed the published `meerzulee` GitHub
+  ED25519 key and reported that SSH-key setup completed
+- bounded UART context:
+  [`20260822_184443_001374-exp-20260822-012-a3-complete-lan-ssh-access-without-ufw-5636e133.md`](../../ps4-uart/sessions/20260822_184443_001374-exp-20260822-012-a3-complete-lan-ssh-access-without-ufw-5636e133.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass for the declared key-install action. UART retained the Wi-Fi
+  station in `NORMAL_TR` with no disconnect, driver crash or console fault;
+  exact file mode and remote public-key authentication remain to be verified
+  read-only over SSH in A4
+- rollback: none; the operator wants this Mac key retained
+- next action: make one bounded read-only SSH connection to `ps4` at the
+  recorded private LAN address using the matching local ED25519 key and inspect only
+  identity, service, key mode and NetworkManager station state
+
+### EXP-20260822-012-A4 — verify key-only SSH and Wi-Fi state
+
+- state: degraded — SSH and Wi-Fi pass; key mode requires correction
+- question: can the Mac authenticate to `ps4` at the recorded private LAN
+  address with the newly
+  authorized ED25519 key, and does the remote read-only state confirm SSH and
+  the NetworkManager station connection are healthy?
+- changed variable: none on the console; open one noninteractive, read-only SSH
+  command using the matching local ED25519 key, with a temporary host-key
+  database on the Mac
+- expected evidence: remote identity is user `ps4`; `sshd.service` is active;
+  `authorized_keys` is mode `0600`; `wlan0` is connected with the reported
+  address; password authentication is not used
+- timeout: 15 seconds; stop on complete output, authentication rejection,
+  route failure, hang, Wi-Fi disconnect or UART fault
+- rollback: none for the console. Delete only the temporary Mac host-key file
+  after the check
+- operator action: none; the owner explicitly supplied the address and
+  requested the SSH connection
+- bounded UART context:
+  [`20260822_184638_588390-exp-20260822-012-a4-verify-key-only-ssh-and-wi-fi-state-0b228472.md`](../../ps4-uart/sessions/20260822_184638_588390-exp-20260822-012-a4-verify-key-only-ssh-and-wi-fi-state-0b228472.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`. The slice is empty because
+  the successful read-only SSH query emitted no kernel/UART messages
+- SSH result: pass. The Mac authenticated noninteractively as `ps4` using the
+  matching local ED25519 key; remote host `ps4` reported
+  `sshd.service=active`
+- network result: pass. NetworkManager reported `wlan0` connected to the
+  operator-selected network at the recorded private LAN address; `ap0` and
+  `ap1` were disconnected.
+  This is direct live confirmation of the top-bar source bug: the generic
+  Omarchy panel can select the first Wi-Fi device (`ap0`) instead of the
+  station device (`wlan0`)
+- firewall result: fail as expected. `iptables -V` returned
+  `Failed to initialize nft: Protocol not supported`, matching the kernel's
+  disabled netfilter configuration and the earlier UFW failure
+- image result: the running system identifies as Omarchy `4.0.0-3` and has 816
+  installed packages. Exact full-profile equality remains a local manifest
+  audit rather than a package-count claim
+- security finding: `~/.ssh/authorized_keys` is owned by `ps4:ps4` but is mode
+  `0644`, not the intended `0600`. OpenSSH accepted the key, but the mode should
+  be tightened in the next bounded mutation
+- rollback: none; the check was read-only and used no persistent Mac host-key
+  database
+- next action: correct the key mode in one bounded mutation, then keep all
+  Wi-Fi-panel and kernel changes local until their source tests pass and a
+  separately reviewed rebuild/update experiment is ready
+
+### EXP-20260822-012-A5 — tighten owner authorized-key mode
+
+- state: pass
+- question: can the owner key file be corrected from `0644` to the intended
+  private mode without disturbing the active SSH or Wi-Fi sessions?
+- changed variable: set only `/home/ps4/.ssh/authorized_keys` to mode `0600`;
+  do not alter its contents, owner, daemon configuration, firewall or network
+- expected evidence: remote `stat` returns `600 ps4 ps4`; the command completes
+  without an SSH disconnect, Wi-Fi transition or UART fault
+- timeout: 15 seconds; stop on verified mode, error or connection loss
+- rollback: restore `0644` only if OpenSSH unexpectedly rejects the standard
+  `0600` mode; otherwise preserve the tighter mode
+- operator action: none; the owner requested remote SSH access and correction
+  of the discovered integration faults
+- bounded UART context:
+  [`20260822_190017_640858-exp-20260822-012-a5-tighten-owner-authorized-key-mode-7e6bebd3.md`](../../ps4-uart/sessions/20260822_190017_640858-exp-20260822-012-a5-tighten-owner-authorized-key-mode-7e6bebd3.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`. The slice is empty because
+  the successful file-mode mutation emitted no kernel/UART messages
+- result: pass. Remote `stat` returned
+  `600 ps4 ps4 /home/ps4/.ssh/authorized_keys`; the same key-authenticated SSH
+  connection completed normally
+- rollback: none; preserve the standard `0600` mode
+- next action: local-only package/profile audit and source/build validation for
+  the station-device panel patch and netfilter kernel fragment. Do not update
+  the running package or boot kernel until those artifacts pass
+
+### EXP-20260822-012-A6 — compare running package set to pinned closure
+
+- state: pass
+- question: does the running gift image contain exactly the 816 name/version
+  pairs locked by the offline Omarchy 4.0.0 snapshot, rather than merely the
+  same package count?
+- changed variable: none on the console; read `pacman -Q` once over the proven
+  key-only SSH connection and compare it locally with the first two fields of
+  `manifest/packages.lock`
+- expected evidence: sorted name/version sets are identical with zero missing,
+  extra or version-drifted packages
+- timeout: 20 seconds; stop on zero diff, the first diff, authentication loss
+  or UART fault
+- rollback: none; the action is read-only and uses no persistent host-key file
+- operator action: none; the owner explicitly asked whether this is full or
+  trimmed Omarchy and supplied working SSH access
+- bounded UART context:
+  [`20260822_190123_303380-exp-20260822-012-a6-compare-running-package-set-to-pinned-closur-8d0a2d37.md`](../../ps4-uart/sessions/20260822_190123_303380-exp-20260822-012-a6-compare-running-package-set-to-pinned-closur-8d0a2d37.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`. The slice is empty because
+  the successful read-only package query emitted no kernel/UART messages
+- result: pass. The running system has 816 packages. A live name/version diff
+  against the earlier `owner-uart-v2` closure found exactly three differences:
+  the running PS4-owned packages are `omarchy-ps4 4.0.0-3`, settings
+  `4.0.0-3`, and provisioning `4.0.0-7` instead of their older revisions.
+  A local diff proves those are exactly the only three changes between
+  `owner-uart-v2` and the actual `ps4-fixes-v1` snapshot; therefore the running
+  name/version set equals all 816 entries in the correct `ps4-fixes-v1` lock
+- scope conclusion: this is the complete pinned **PS4-safe Omarchy profile**,
+  not a small desktop subset. It intentionally excludes the documented 17
+  upstream PC/storage packages whose services or dependency closure can probe
+  unsafe internal SATA, replace the accepted display manager/boot path, or are
+  irrelevant hardware helpers. Those exclusions are adaptations, not missing
+  snapshot packages
+- rollback: none; the action was read-only
+- next action: complete local build tests for the Wi-Fi station-selector patch
+  and UFW/nftables config. Installing the panel update and booting a new kernel
+  remain separate reviewed hardware experiments
+
+### EXP-20260822-012-A7 — install station-aware Omarchy runtime
+
+- state: fail — package unchanged; retry condition identified
+- question: can the tested `omarchy-ps4 4.0.0-4` package replace only the
+  running runtime package and preserve the active session, Wi-Fi and recovery
+  configuration?
+- changed variable: transfer and install only
+  `omarchy-ps4-4.0.0-4-any.pkg.tar.zst`; do not install the rebuilt settings or
+  provisioning packages, restart the shell, alter the kernel, firewall or
+  network profile
+- expected evidence: package SHA-256 verifies before transfer; Pacman upgrades
+  `4.0.0-3 -> 4.0.0-4` without dependency/file errors; current Wi-Fi and HDMI
+  session remain alive
+- timeout: 5 minutes for the 115 MiB Wi-Fi transfer plus installation; stop on
+  complete Pacman output, checksum mismatch, connection loss or UART fault
+- rollback: reinstall the preserved `4.0.0-3` runtime package from the
+  `ps4-fixes-v1` snapshot if the package transaction fails or the current
+  session becomes unusable. Do not reboot
+- operator action: the owner authorized use of the development account's test
+  sudo credential; the agent ran the single Pacman transaction remotely
+- bounded UART context:
+  [`20260822_190657_297894-exp-20260822-012-a7-install-station-aware-omarchy-runtime-86b33525.md`](../../ps4-uart/sessions/20260822_190657_297894-exp-20260822-012-a7-install-station-aware-omarchy-runtime-86b33525.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- transfer result: pass. Local and remote SHA-256 both equal
+  `57d219a74a3eeb6a8d5c23907da3b354309c055bbceca2cdda32bb3e2b965ef1`
+- install result: fail before transaction. Pacman returned
+  `package missing required signature`; the gift's required-signature policy
+  correctly rejected the unsigned local development package. No package file
+  was installed or replaced
+- UART result: the MT7668 station remained in `NORMAL_TR` through transfer and
+  rejection; no disconnect, display fault or kernel crash occurred
+- timeout note: the bounded session exceeded the declared five-minute wall
+  time while waiting for the operator credential decision, but the transfer
+  and transaction themselves completed promptly and continuity stayed valid
+- rollback: none required because Pacman rejected the package before mutation;
+  retain the verified file in `/tmp` for exactly one scoped retry
+- next action: retry once with the same verified local file and an ephemeral
+  Pacman configuration read from stdin that changes only `SigLevel = Never`.
+  Do not edit `/etc/pacman.conf` or generalize the exception to downloads
+
+### EXP-20260822-012-A8 — install verified unsigned development runtime
+
+- state: fail — package unchanged; coupled dependency identified
+- question: can the exact SHA-verified `omarchy-ps4 4.0.0-4` development
+  package install when signature enforcement is disabled only for that one
+  local transaction?
+- changed variable: upgrade only `omarchy-ps4 4.0.0-3 -> 4.0.0-4` while feeding
+  Pacman an ephemeral copy of its config with `SigLevel = Never`; do not write
+  the config, install another package, restart the shell, or alter network,
+  firewall, kernel or boot state
+- new evidence enabling retry: A7 proved the package bytes match the locally
+  tested artifact and that signature policy—not contents, dependency solving or
+  file conflict—blocked the transaction
+- expected evidence: Pacman reports the one-package upgrade and exits zero;
+  `/etc/pacman.conf` remains unchanged; `pacman -Q omarchy-ps4` returns
+  `4.0.0-4`; Wi-Fi and HDMI stay active
+- timeout: 90 seconds; stop on success, the first new Pacman error, connection
+  loss or UART fault
+- rollback: reinstall the preserved signed/locked `4.0.0-3` package if the
+  runtime upgrade completes but damages the current session. Do not reboot
+- operator action: none; the owner supplied the development sudo credential
+  for this test console
+- bounded UART context:
+  [`20260822_191609_326547-exp-20260822-012-a8-install-verified-unsigned-development-runtim-58af0da2.md`](../../ps4-uart/sessions/20260822_191609_326547-exp-20260822-012-a8-install-verified-unsigned-development-runtim-58af0da2.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: fail before transaction. The ephemeral signature policy allowed
+  Pacman to parse and solve the verified package, then dependency validation
+  correctly rejected runtime `4.0.0-4` because installed provisioning
+  `4.0.0-7` requires runtime `4.0.0-3`. Pacman confirmed the installed runtime
+  remains `4.0.0-3`
+- persistence result: pass. `/etc/pacman.conf` SHA-256 was identical before and
+  after (`eb496db460f7983f83b1a14bd433737373b58522db066418ca2efdfc8790d158`),
+  proving the signature exception was not persisted
+- UART result: Wi-Fi returned to `NORMAL_TR`; no disconnect, display fault or
+  kernel crash occurred
+- rollback: none required because dependency solving rejected the transaction
+  before mutation
+- next action: transfer the already-built matching provisioning `4.0.0-8`
+  package and install it atomically with runtime `4.0.0-4` under the same
+  ephemeral, local-file-only development signature exception
+
+### EXP-20260822-012-A9 — install matched runtime and provisioning pair
+
+- state: pass
+- question: can Pacman atomically upgrade the tested, dependency-matched
+  runtime/provisioning pair when both exact local artifacts are present?
+- changed variable: one coupled package state: `omarchy-ps4 4.0.0-3 -> 4.0.0-4`
+  and its exact dependency `omarchy-ps4-provisioning 4.0.0-7 -> 4.0.0-8`;
+  settings remains `4.0.0-3`. Use the ephemeral `SigLevel = Never` config only
+  for these two SHA-verified local files
+- new evidence enabling retry: A8 progressed past signature verification and
+  isolated the only solver error to the exact provisioning equality pin; the
+  matching provisioning package was built and passed package/owner tests in
+  the same artifact set
+- expected evidence: both upgrades complete atomically; permanent Pacman config
+  hash stays unchanged; queried versions are `4.0.0-4` and `4.0.0-8`; current
+  Wi-Fi and HDMI session stay active
+- timeout: 90 seconds after the small provisioning transfer; stop on success,
+  the first new Pacman error, connection loss or UART fault
+- rollback: reinstall both preserved `4.0.0-3`/`4.0.0-7` packages from
+  `ps4-fixes-v1` together if the transaction completes but damages the session
+- operator action: none; the owner supplied the development sudo credential
+  for this test console
+- bounded UART context:
+  [`20260822_191726_600420-exp-20260822-012-a9-install-matched-runtime-and-provisioning-pai-bc064ad9.md`](../../ps4-uart/sessions/20260822_191726_600420-exp-20260822-012-a9-install-matched-runtime-and-provisioning-pai-bc064ad9.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- transfer result: pass. Provisioning SHA-256 matched locally and remotely at
+  `6cdd2054faa7fbffa05bfb574cab5f046b0c1949aff66824619167d093fb0c2c`;
+  A7 already proved the runtime SHA-256
+- install result: pass. Pacman upgraded the exact two-package set and reported
+  `omarchy-ps4 4.0.0-4`, provisioning `4.0.0-8`, settings unchanged at
+  `4.0.0-3`. Its only warning was the pre-existing safer filesystem mode
+  `0750` on `/etc/sudoers.d` versus package directory mode `0755`; no file
+  conflict or hook failure occurred
+- persistence result: pass. `/etc/pacman.conf` retained exact SHA-256
+  `eb496db460f7983f83b1a14bd433737373b58522db066418ca2efdfc8790d158`
+  before and after the scoped unsigned development transaction
+- UART result: Wi-Fi returned to `NORMAL_TR`; no disconnect, HDMI fault or
+  kernel crash occurred
+- rollback: not required; preserve the matched runtime/provisioning pair. The
+  prior pair remains available in the `ps4-fixes-v1` snapshot
+- next action: restart only the Omarchy shell in a separate bounded action so
+  the live top bar loads the station-aware QML; do not restart Hyprland,
+  NetworkManager or the console
+
+### EXP-20260822-012-A10 — reload station-aware Omarchy shell
+
+- state: pass with driver-noise follow-up
+- question: can `omarchy-restart-shell` reload the newly installed top-bar
+  code while preserving Hyprland, the connected `wlan0` station and HDMI?
+- changed variable: restart only the user Omarchy/Quickshell process through
+  the upstream SSH-aware helper; do not restart the compositor, networking,
+  display manager, kernel or console
+- expected evidence: helper exits zero after shell IPC responds; current
+  graphical session remains visible; Wi-Fi stays connected; the top-bar
+  network panel lists station networks instead of binding to `ap0`
+- timeout: 30 seconds; stop on helper success/error, blank display, connection
+  loss or UART fault
+- rollback: invoke the preserved runtime `4.0.0-3` package pair only if the new
+  shell cannot start. Do not reboot
+- operator action: after automated reload, inspect the network panel and report
+  whether the connected network and nearby networks are visible
+- bounded UART context:
+  [`20260822_191917_044158-exp-20260822-012-a10-reload-station-aware-omarchy-shell-366becb2.md`](../../ps4-uart/sessions/20260822_191917_044158-exp-20260822-012-a10-reload-station-aware-omarchy-shell-366becb2.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: pass for the UI acceptance question. The helper returned the shell to
+  ready state and the operator confirmed that the top-bar network panel showed
+  the connected station and nearby networks instead of binding to `ap0`
+- UART result: the panel scan briefly moved the MediaTek station through
+  disconnect, scan, join and back to `NORMAL_TR`. It emitted repeated
+  `mtk_p2p_cfg80211_mgmt_frame_register` errors and one mailbox warning, then
+  recovered with `TxFailCount 0`; there was no logger discontinuity, kernel
+  crash or persistent network loss
+- rollback: not required; retain the station-aware runtime/provisioning pair
+- next action: treat the transient scan disruption and noisy P2P registration
+  as a separate Wi-Fi-driver follow-up. Do not combine it with another live
+  package, display or network change
+
+### EXP-20260822-013-A1 — Chromium software-rendering artifact isolation
+
+- state: fail — test instance did not reach Wayland
+- question: does disabling Chromium's GPU process eliminate the repeated
+  rectangular corruption captured inside the browser surface?
+- changed variable: gracefully close the current Chromium process and relaunch
+  the same installed Chromium/profile through UWSM with only
+  `--disable-gpu`; do not change Mesa, Hyprland, kernel, display mode, package
+  files or persistent Chromium flags
+- expected evidence: the new Chromium command line contains `--disable-gpu`;
+  the same browser toolbar/page renders without rectangular tiles; a new
+  screenshot does not contain the corruption; HDMI, compositor and Wi-Fi
+  remain active; UART shows no new GPU reset, ring timeout or display fault
+- timeout: 90 seconds from the relaunch; stop on clean/corrupt operator report,
+  launch error, Chromium failing to exit, blank display, network loss or UART
+  discontinuity
+- rollback: close the test Chromium instance and relaunch normally without
+  `--disable-gpu`; no persistent file is changed in this experiment
+- operator action: watch the automated close/relaunch, then inspect the same
+  GitHub toolbar area and report whether the rectangular blocks remain. If the
+  prior tab is not restored, open the same page without changing browser
+  settings
+- bounded UART context:
+  [`20260822_212512_036320-exp-20260822-013-a1-chromium-software-rendering-artifact-isolati-9f5cb561.md`](../../ps4-uart/sessions/20260822_212512_036320-exp-20260822-013-a1-chromium-software-rendering-artifact-isolati-9f5cb561.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: fail before the rendering test. The existing Chromium process exited
+  cleanly, but the UWSM client launched from SSH lacked the active
+  `WAYLAND_DISPLAY`/runtime environment. Chromium reported `Failed to connect
+  to Wayland display` and exited, so `--disable-gpu` was not evaluated
+- UART result: no GPU reset, ring timeout, display fault or logger
+  discontinuity occurred; the only bounded output was routine Wi-Fi roaming
+  discovery returning to `NORMAL_TR`
+- rollback: no persistent state changed. Chromium remains closed pending the
+  scoped relaunch retry
+- next action: retry once in a separate bounded action while passing the
+  already-active UWSM/Wayland session environment to the launcher. Do not
+  change Chromium flags beyond the original `--disable-gpu`
+
+### EXP-20260822-013-A2 — Chromium software-rendering retry in session environment
+
+- state: pass
+- question: with the existing graphical-session environment supplied to UWSM,
+  does `--disable-gpu` eliminate the browser-surface artifacts?
+- changed variable: relaunch the same Chromium/profile through UWSM with the
+  active user's existing `XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`, `DISPLAY`,
+  `XDG_SESSION_TYPE`, `AMD_DEBUG` and `OMARCHY_PATH`, plus only
+  `--disable-gpu`; do not modify persistent files or another graphics setting
+- new evidence enabling retry: A1 isolated the failure to a missing Wayland
+  socket environment before Chromium initialized; it did not exercise the GPU
+  flag and left no persistent mutation
+- expected evidence: Chromium remains running with `--disable-gpu`; the same
+  toolbar/page has no rectangular corruption; a new screenshot is clean;
+  HDMI, compositor and Wi-Fi remain active; UART has no GPU/display fault
+- timeout: 90 seconds from relaunch; stop on clean/corrupt operator report,
+  launch failure, blank display, network loss or UART discontinuity
+- rollback: close the test instance and use the same graphical-session launch
+  environment without `--disable-gpu`
+- operator action: inspect the relaunched Chromium at the same GitHub toolbar
+  and report whether the rectangular blocks are gone
+- bounded UART context:
+  [`20260822_212647_906639-exp-20260822-013-a2-chromium-software-rendering-retry-in-session-60461c7b.md`](../../ps4-uart/sessions/20260822_212647_906639-exp-20260822-013-a2-chromium-software-rendering-retry-in-session-60461c7b.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- launch result: pass. The Chromium main process remained active with
+  `--disable-gpu`; its GPU helper reported `--use-gl=disabled`, and renderer
+  processes reported `--disable-gpu-compositing`. The expected VA-API
+  initialization failure was non-fatal because hardware video acceleration is
+  not accepted on this image
+- operator result: pass. The owner inspected the same GitHub toolbar area and
+  confirmed that the rectangular artifacts were gone
+- UART result: completed with no logger event, GPU reset, ring timeout, HDMI
+  fault or kernel crash. The bounded output contained only routine MediaTek
+  roaming activity returning to `NORMAL_TR`
+- rollback: not required; leave the test Chromium instance running with
+  software rendering
+- next action: package `--disable-gpu` as the default PS4 Chromium
+  compatibility policy and document the narrower acceleration experiments
+  required before removing it
+
+### EXP-20260822-014-A1 — return from Linux to Orbis for clean-splash test
+
+- state: inconclusive — restart action not observed
+- question: can the current accepted USB root shut down cleanly and return the
+  console to Orbis before staging the clean product boot arguments?
+- changed variable: request one normal system restart from the current Omarchy
+  session; do not change packages, boot files, USB connection, display mode or
+  power manually
+- expected evidence: systemd unmounts the external root cleanly; UART remains
+  continuous through shutdown; the PS4 returns to the Orbis home screen; the
+  operator reports visible HDMI and controller response
+- timeout: 150 seconds; stop on Orbis home, shutdown hang, filesystem error,
+  black HDMI after the normal restart interval or UART discontinuity
+- rollback: if HDMI alone is missing but UART shows Orbis, reseat HDMI once. If
+  shutdown is genuinely stuck after the timeout, stop and review UART before
+  considering a physical power action
+- operator action: use Omarchy's normal Restart action once, then report when
+  the Orbis home screen is visible. Do not launch GoldHEN or the Omarchy FPKG
+  yet
+- bounded UART context:
+  [`20260822_214152_878914-exp-20260822-014-a1-return-from-linux-to-orbis-for-clean-splash--f9562c5d.md`](../../ps4-uart/sessions/20260822_214152_878914-exp-20260822-014-a1-return-from-linux-to-orbis-for-clean-splash--f9562c5d.md),
+  exact sibling `.raw`; evidence state `completed`, generation
+  `80973222038e43548cda68da099cb054`, epoch `1`
+- result: inconclusive because the declared restart did not occur before the
+  timeout and no operator outcome arrived. UART continued to show the live
+  Linux MediaTek station returning to `NORMAL_TR`; there was no systemd
+  shutdown, unmount or Orbis transition
+- rollback: none required because no hardware state changed
+- next action: only after the operator confirms readiness, open a new bounded
+  retry for the same normal Restart action; do not stage boot files in this
+  state
+
+### EXP-20260822-015-A1 — attach deferred-owner USB at Orbis
+
+- state: aborted — operator action occurred, but the marker was closed as
+  unused before that was recognized; preserve evidence but do not count it as
+  acceptance
+- question: does the prepared whole-device ext4 Omarchy USB attach while the
+  console remains stable and responsive in Orbis?
+- changed variable: move only the verified Kingston DataTraveler from the Mac
+  to one PS4 USB port; do not launch the Omarchy FPKG or another payload
+- expected evidence: continuous UART remains valid with no panic, reboot or
+  fatal USB error; Orbis remains visible and controller-responsive. An Orbis
+  unsupported-filesystem notice is acceptable because the product root is
+  intentionally ext4
+- timeout: 60 seconds from attachment; stop on stable Orbis/operator report,
+  panic, reboot, black display or UART discontinuity
+- rollback: leave the USB connected after a stable attach. If attachment alone
+  destabilizes Orbis, close this session before unplugging it in a separately
+  declared bounded recovery action
+- operator action: unplug the prepared Kingston USB from the Mac, plug it into
+  the PS4, and report the exact visible result; do not launch Omarchy yet
+- bounded UART context:
+  [`20260822_223307_791457-exp-20260822-015-a1-attach-deferred-owner-usb-at-orbis-d6d611ed.md`](../../ps4-uart/sessions/20260822_223307_791457-exp-20260822-015-a1-attach-deferred-owner-usb-at-orbis-d6d611ed.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `aborted`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- observed evidence: the exact Kingston serial attached as a 118240 MB
+  SuperSpeed mass-storage device. Orbis correctly classified the intentional
+  whole-device ext4 filesystem as an unknown/unsupported format and remained
+  active in the retained slice, with no panic or reboot
+- conclusion: informative only. Because finalization state is `aborted` and
+  there is no operator display/controller outcome, this cannot promote the USB
+  attach path
+- rollback: none recorded. Before another console action, confirm current USB
+  and Orbis state and open a fresh bounded session
+- next action: finish and rebuild the locally requested two-action FPKG flow;
+  hardware testing resumes only afterward in a new bounded experiment
+
+### EXP-20260822-016-A1 — stage simplified v0.28 FPKG over GoldHEN FTP
+
+- state: complete — pass
+- question: can anonymous GoldHEN FTP stage the exact locally validated v0.28
+  package without installing or launching the title, changing internal boot
+  files, contacting PayLoader or altering the external USB?
+- changed variable: upload the 20,905,984-byte v0.28 FPKG once under the unique
+  partial name
+  `/data/pkg/omarchy-v0.28-OMCH42069-beta.pkg.partial-d2061df4`, stream it back
+  for exact verification, then rename it to
+  `/data/pkg/omarchy-v0.28-OMCH42069-beta.pkg`
+- expected evidence: remote read-back size 20,905,984 bytes and SHA-256
+  `d2061df4b96e978a075c2cd088f904320c165500b96764e31276b4c6d17ea574`,
+  final FTP size 20,905,984 bytes, and completed UART continuity
+- timeout: 5 minutes; stop after verified rename or the first FTP, hash,
+  storage or UART failure
+- rollback: on verification failure remove only the unique v0.28 partial; if
+  a mismatched v0.28 final already exists, preserve it and stop. Preserve the
+  installed title, all earlier packages, both internal boot sets, external USB
+  and PayLoader state
+- operator action: none; leave the console in its current Orbis/GoldHEN state
+- result: pass. The local artifact passed the declared size/hash gate, FTP
+  uploaded the unique partial once, and a complete remote read-back matched
+  exactly at 20,905,984 bytes with SHA-256
+  `d2061df4b96e978a075c2cd088f904320c165500b96764e31276b4c6d17ea574`.
+  FTP then renamed it to `/data/pkg/omarchy-v0.28-OMCH42069-beta.pkg` and
+  reported the same final size. No install, app launch, boot-file update or
+  PayLoader contact occurred
+- bounded UART context:
+  [`20260822_225535_187482-exp-20260822-016-a1-stage-simplified-v0-28-fpkg-over-goldhen-ftp-360d4df8.md`](../../ps4-uart/sessions/20260822_225535_187482-exp-20260822-016-a1-stage-simplified-v0-28-fpkg-over-goldhen-ftp-360d4df8.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: completed continuity with routine background mini-app and
+  ShellCore heap telemetry only; no storage, package, logger or fatal fault
+- rollback: none required; the exact v0.28 package is staged and the currently
+  installed title remains untouched
+- next action: install only the staged v0.28 update in a separate bounded
+  session; do not launch it or update boot files during the installation action
+
+### EXP-20260822-018-A1 — inspect live owner and LightDM state before autologin
+
+- state: complete — inconclusive; SSH unavailable
+- question: can the previously accepted key-only SSH path identify the active
+  USB root, owner/provisioning state, installed provisioning package and
+  LightDM autologin configuration without changing the running system?
+- changed variable: none; make one batch-mode SSH connection to the recorded
+  Linux account at the recorded private LAN address and read only identity,
+  mount, package,
+  marker, service and LightDM configuration state
+- expected evidence: one coherent state report within 60 seconds while UART
+  remains continuous; no file, package, service, network or display mutation
+- timeout: 60 seconds; stop at the first connection or authentication failure
+- rollback: none because the inspection is read-only
+- operator action: none
+- result: inconclusive. TCP port 22 at the recorded private LAN address refused
+  the single SSH
+  connection, so no remote command ran and no live state was read. The existing
+  Mac neighbor table still maps that address to the recorded Linux Wi-Fi MAC
+  `00:0c:43:26:60:48`; repeated connection was not attempted
+- bounded UART context:
+  [`20260822_232835_667580-exp-20260822-018-a1-inspect-live-owner-and-lightdm-state-before--83ffbd3a.md`](../../ps4-uart/sessions/20260822_232835_667580-exp-20260822-018-a1-inspect-live-owner-and-lightdm-state-before--83ffbd3a.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: the valid bounded slice is empty; it contains no logger
+  discontinuity or hardware fault but cannot establish live service state
+- rollback: none required; no connection or mutation occurred
+- next action: return Linux to Orbis cleanly in a separate bounded action,
+  then move the unmounted USB to the Mac for an offline v4.0.0-13 update
+
+### EXP-20260822-018-A2 — cleanly return Linux USB to Orbis for offline owner update
+
+- state: complete — degraded pass; the later USB move exceeded the declared
+  restart-only operator action but occurred after Orbis owned the device
+- question: can one `Ctrl+Alt+Delete` request leave the running external root
+  and return the console to Orbis before the USB is removed for an offline
+  owner/autologin update?
+- changed variable: request one normal restart from Linux; do not repeat the
+  key sequence or remove the USB before Orbis is visible
+- expected evidence: Linux reaches firmware S5/restart and Orbis without a
+  panic; timeout 3 minutes. If the request has no effect, leave the running
+  system and USB untouched for review
+- operator action: pressed the requested restart, later removed the Kingston
+  from Orbis and attached it to the Mac without separately reporting the
+  intermediate `Orbis visible` state
+- bounded UART context:
+  [`20260822_233021_273682-exp-20260822-018-a2-cleanly-return-linux-usb-to-orbis-for-offlin-6f1062c7.md`](../../ps4-uart/sessions/20260822_233021_273682-exp-20260822-018-a2-cleanly-return-linux-usb-to-orbis-for-offlin-6f1062c7.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- result: Linux reached ACPI S5 and emitted `reboot: Restarting system` and
+  `reboot: machine restart`. A complete Orbis boot followed, and Orbis
+  enumerated the exact Kingston serial as a 118240 MB USB mass-storage disk.
+  The later disconnect reported zero outstanding I/O and explicitly said no
+  filesystem was mounted on `/dev/da1`. No Linux panic, Orbis storage fault or
+  logger discontinuity occurred
+- degradation: the retained UART slice does not contain an explicit Linux ext4
+  unmount/remount-read-only line, and USB removal was not a separately declared
+  action. Therefore run an offline no-write `e2fsck` before any USB write
+- rollback: none required. macOS now resolves the exact unmounted, writable
+  Kingston as `/dev/disk10`, 123,983,626,240 bytes; OrbStack USB ID is
+  `03240000`, vendor/product `0951:1666`, serial
+  `E0D55EA573F0194049CD0236`, and it is not attached to a VM
+- next action: in one separately bounded offline mutation, attach only USB ID
+  `03240000` to OrbStack, require a clean ext4 check, back up the existing
+  provisioning package state, install v4.0.0-13, verify the pending owner flow
+  and persistent autologin contract, run a final clean check, then detach it
+
+### EXP-20260822-018-A3 — preflight offline owner/autologin package installation
+
+- state: complete — fail safe before write
+- question: is the exact Kingston Omarchy USB clean enough to accept the
+  offline provisioning package update without risking an already inconsistent
+  filesystem?
+- changed variable: attach only OrbStack USB ID `03240000` to the existing
+  Arch rehearsal VM and run one no-write ext4 check; do not mount or install if
+  the check is nonzero
+- expected evidence: exact vendor/product, serial, byte size, whole-device ext4
+  label `OMARCHY-PS4`, unmounted state and `e2fsck -f -n` status 0 before any
+  write
+- timeout: 3 minutes; stop at the first identity, attachment, filesystem or
+  UART-continuity failure
+- rollback: no write was permitted before a clean check; detach the exact USB
+  from OrbStack on failure
+- operator action: none; the USB was already physically connected to the Mac
+- result: fail safe before write. Exact identity resolved uniquely as
+  `/dev/sda` in the VM (Kingston DataTraveler 3.0, serial
+  `E0D55EA573F0194049CD0236`, 123,983,626,240 bytes, USB, whole-device ext4,
+  label `OMARCHY-PS4`, unmounted), but `e2fsck -f -n` returned status 4. It
+  reported deleted inode `273568` with zero deletion time, block-bitmap
+  difference `-(33952--33981)`, free-block count mismatch, inode-bitmap
+  difference `-273568`, and free-inode count mismatch. The stop condition
+  prevented mounting and package installation
+- bounded UART context:
+  [`20260822_234923_428338-exp-20260822-018-a3-install-offline-centered-owner-persistent-au-d55db0f6.md`](../../ps4-uart/sessions/20260822_234923_428338-exp-20260822-018-a3-install-offline-centered-owner-persistent-au-d55db0f6.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: routine Orbis background mini-app/ShellCore telemetry only;
+  no storage, logger or fatal fault, with completed continuity
+- rollback: the exact USB was detached from OrbStack; `orb usb info 03240000`
+  confirms `Machine: Not attached`. No filesystem or package write occurred
+- next action: repair only the reported ext4 metadata with `e2fsck -f -y` in a
+  separate bounded session, require a subsequent no-write status 0, then detach
+
+### EXP-20260822-018-A4 — repair Kingston ext4 metadata before owner update
+
+- state: complete — pass
+- question: can the exact Kingston Omarchy USB metadata be repaired and then
+  pass a no-write full ext4 check before any package is installed?
+- changed variable: run repair-mode `e2fsck -f -y` once against only the exact
+  unmounted Kingston whole-device filesystem
+- expected evidence: exact stable USB serial symlink, byte size, ext4 type and
+  `OMARCHY-PS4` label gates pass; repair exits 0 or 1; immediate
+  `e2fsck -f -n` exits 0; device is detached afterward
+- timeout: 3 minutes; stop at the first identity, mount, repair, verification,
+  detachment or UART-continuity failure
+- rollback: do not mount or install packages; the source image and recovery
+  artifacts remain the recovery path if metadata repair cannot produce a clean
+  no-write check
+- operator action: none; the USB remained physically attached to the Mac
+- result: pass. The first command made no mutation because a whitespace-based
+  identity parser rejected the model `DataTraveler 3.0`; read-only evidence
+  identified that parser defect. The replacement gate resolved stable symlink
+  `/dev/disk/by-id/usb-Kingston_DataTraveler_3.0_E0D55EA573F0194049CD0236-0:0`
+  to `/dev/sda` and proved exact serial, 123,983,626,240-byte size, ext4 type,
+  label `OMARCHY-PS4`, and unmounted state. `e2fsck -f -y` recovered the
+  journal and corrected free block/inode counts, exiting 1 as expected for a
+  modified filesystem. The immediate no-write full check exited 0
+- bounded UART context:
+  [`20260822_235210_840534-exp-20260822-018-a4-repair-exact-kingston-ext4-metadata-before-o-b23a1d91.md`](../../ps4-uart/sessions/20260822_235210_840534-exp-20260822-018-a4-repair-exact-kingston-ext4-metadata-before-o-b23a1d91.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: routine Orbis background telemetry only; no storage,
+  logger or fatal fault, with completed continuity
+- rollback: no package or owner state changed; the exact USB was synced and
+  detached, and `orb usb info 03240000` confirms `Machine: Not attached`
+- next action: install only the exact verified provisioning v4.0.0-13 package
+  offline in a separate bounded session, preserve the pending-owner state,
+  verify its files and package database, require a final clean check, and detach
+
+### EXP-20260822-018-A5 — install centered owner UI and autologin package offline
+
+- state: complete — degraded pass; package accepted, final filesystem gate
+  requires repair before boot
+- question: can exact package
+  `omarchy-ps4-provisioning-4.0.0-13-any.pkg.tar.zst` be installed offline on
+  the clean Kingston root while preserving its existing account and owner state?
+- changed variable: upgrade only `omarchy-ps4-provisioning` from 4.0.0-11 to
+  4.0.0-13 using the exact local package with SHA-256
+  `7878c0774fc164eda9d94e15400fe5f478f88bc721b8f954bb9288c5c47aacc7`
+- expected evidence: rollback archive hashes verify; package database reports
+  4.0.0-13; human account and pending/completed markers are unchanged; owner UI
+  contains no GitHub-key question, writes persistent-autologin configuration,
+  sends stderr to journal; final no-write ext4 check exits 0; USB is detached
+- timeout: 6 minutes; stop at first identity, backup, package, content,
+  filesystem, detachment or UART-continuity failure
+- rollback: preserve package-owned files, old pacman local database and
+  LightDM/provisioning runtime state under
+  `/var/lib/omarchy-ps4/backups/EXP-20260822-018-A5-before-owner-ui`; do not
+  change accounts or provisioning markers
+- operator action: none; the USB remained physically attached to the Mac
+- result: degraded pass. Two pre-install compatibility gates failed safely:
+  offline pacman returned mount-prefixed query paths, then pacman 7.1 rejected
+  obsolete option `--nohooks`; neither attempt installed the package. The
+  corrected flow created and hash-verified relative rollback archives and used
+  an explicit empty `--hookdir` plus `--noscriptlet`. Pacman upgraded exactly
+  4.0.0-11 to 4.0.0-13. Verification proved account
+  `meerzulee:1000:/home/meerzulee:/bin/bash` unchanged, both owner markers still
+  absent, GitHub-key UI absent, persistent-autologin output present, and
+  `StandardError=journal` present. Pacman emitted only the pre-existing
+  `/etc/sudoers.d` mode mismatch warning and skipped chroot service actions
+- degradation: the final `e2fsck -f -n` returned status 4 after the offline
+  upgrade and reported ten inodes in a corrupted orphan list. No boot is
+  permitted until a repair-only session returns a clean status 0
+- bounded UART context:
+  [`20260822_235445_070632-exp-20260822-018-a5-install-verified-centered-owner-ui-and-persi-d930affe.md`](../../ps4-uart/sessions/20260822_235445_070632-exp-20260822-018-a5-install-verified-centered-owner-ui-and-persi-d930affe.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: routine Orbis background/network-event telemetry only; no
+  storage, logger or fatal fault, with completed continuity
+- rollback: package rollback archive is intact on USB; the exact device was
+  detached from OrbStack. No account, owner marker or PS4-internal state changed
+- next action: repair only the post-upgrade orphan-list metadata and require an
+  immediate no-write full check status 0 in a separate bounded session
+
+### EXP-20260822-018-A6 — repair post-upgrade ext4 orphan metadata
+
+- state: complete — pass
+- question: can the post-upgrade orphan-list metadata be repaired so the exact
+  Kingston root passes a full no-write check before any boot or further change?
+- changed variable: run repair-mode `e2fsck -f -y` once against only the exact
+  unmounted Kingston whole-device filesystem
+- expected evidence: stable USB serial, byte size, ext4 type and label gates
+  pass; the ten orphan-list entries are repaired; immediate `e2fsck -f -n`
+  exits 0; USB is detached
+- timeout: 3 minutes; stop at the first identity, repair, verification,
+  detachment or UART-continuity failure
+- rollback: do not mount or change package/account state; retain the verified
+  A5 rollback archive and re-image only if repair cannot produce a clean check
+- operator action: none; USB remained physically connected to the Mac
+- result: pass. The first exact-gate command exited before repair because it
+  raced USB enumeration and the stable symlink had not appeared; a read-only
+  check then proved the expected symlink and `/dev/sda`. The single repair fixed
+  all ten declared orphan-list inodes and exited 1 for a modified filesystem.
+  The immediate full no-write check exited 0
+- bounded UART context:
+  [`20260822_235932_454137-exp-20260822-018-a6-repair-post-upgrade-ext4-orphan-metadata-00ae1a55.md`](../../ps4-uart/sessions/20260822_235932_454137-exp-20260822-018-a6-repair-post-upgrade-ext4-orphan-metadata-00ae1a55.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: routine Orbis background telemetry only; no storage,
+  logger or fatal fault, with completed continuity
+- rollback: package v4.0.0-13 remains installed; exact USB was detached and is
+  clean. No account, autologin runtime configuration or PS4-internal state changed
+- next action: configure persistent LightDM autologin for the existing owner
+  `meerzulee` in a separate bounded session, verify the `omarchy` desktop
+  session exists, clean any metadata produced by that offline write, and detach
+
+### EXP-20260823-018-A7 — enable persistent Omarchy autologin for existing owner
+
+- state: complete — fail safe before write; missing PAM group exposed
+- question: can persistent LightDM autologin be enabled for existing owner
+  `meerzulee` using a real installed `omarchy` session and the package v4.0.0-13
+  contract?
+- changed variable: create only the persistent owner-autologin configuration
+  after proving the owner, session and PAM prerequisites; do not write if any
+  prerequisite is absent
+- expected evidence: account `meerzulee` uid 1000 exists, session `omarchy`
+  resolves through LightDM's declared session directories, PAM permits
+  passwordless autologin for the account, exact configuration is written and
+  verified, final filesystem check is clean, USB is detached
+- timeout: 4 minutes; stop at the first identity, session, PAM, configuration,
+  filesystem, detachment or UART-continuity failure
+- rollback: no write before all gates; A5 contains a verified copy of the
+  previous LightDM runtime state
+- operator action: none; USB remained physically connected to the Mac
+- result: fail safe before write. Read-only inspection proved the owner and the
+  real session descriptor at `/usr/local/share/wayland-sessions/omarchy.desktop`
+  (LightDM already includes that directory). It also proved the existing
+  one-time config selects `meerzulee` and `omarchy`. However,
+  `/etc/pam.d/lightdm-autologin` explicitly requires membership in group
+  `autologin`, while the group does not exist and the owner belongs only to
+  `audio,input,video,wheel`. Therefore the v4.0.0-13 implementation could not
+  authenticate automatic login, and no configuration or account write ran
+- bounded UART context:
+  [`20260823_000123_779588-exp-20260823-018-a7-enable-persistent-omarchy-autologin-for-exis-d2d35b5c.md`](../../ps4-uart/sessions/20260823_000123_779588-exp-20260823-018-a7-enable-persistent-omarchy-autologin-for-exis-d2d35b5c.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: routine Orbis background/network telemetry only; no storage,
+  logger or fatal fault, with completed continuity
+- rollback: no write occurred; exact USB was detached clean. Source was then
+  corrected so first-owner setup creates system group `autologin` and includes
+  the owner in it before LightDM configuration. Provisioning v4.0.0-14 built
+  under OrbStack and package-content/prepare-for-owner tests passed; exact
+  package SHA-256 is
+  `8f423fb5ffeabfc8278c725f49318348ceb600ac979b530d35d020f8b4ecf71d`
+- next action: install only verified provisioning v4.0.0-14 offline in a
+  separate bounded session and require final repaired/clean ext4 evidence
+
+### EXP-20260823-018-A8 — install provisioning v4.0.0-14 autologin-group fix
+
+- state: complete — pass
+- question: can exact provisioning v4.0.0-14 replace v4.0.0-13 offline while
+  retaining a verified rollback and leaving the external root clean?
+- changed variable: upgrade only `omarchy-ps4-provisioning` from 4.0.0-13 to
+  4.0.0-14 using SHA-256
+  `8f423fb5ffeabfc8278c725f49318348ceb600ac979b530d35d020f8b4ecf71d`
+- expected evidence: rollback archives verify; target database reports
+  4.0.0-14; installed owner program creates group `autologin`, includes the
+  owner in that group and retains persistent config/no-GitHub contract; repair
+  and no-write checks exit 0 or expected 1 then 0; USB detaches
+- timeout: 5 minutes; stop at the first identity, backup, package, content,
+  filesystem, detachment or UART-continuity failure
+- rollback: preserve v4.0.0-13 package files/database under
+  `/var/lib/omarchy-ps4/backups/EXP-20260823-018-A8-before-autologin-group-fix`;
+  do not change accounts or LightDM runtime state in this action
+- operator action: none; USB remained physically connected to the Mac
+- result: pass. Hash-verified rollback archives were created, pacman upgraded
+  exactly 4.0.0-13 to 4.0.0-14, and installed-content checks proved
+  `groupadd --system autologin`, `groups=(wheel autologin)`, persistent owner
+  autologin configuration, and no GitHub-key prompt. The existing sudoers
+  directory mode warning remained non-mutating; chroot service hooks were
+  skipped. Post-write repair and immediate no-write full check both exited 0
+- bounded UART context:
+  [`20260823_000613_185269-exp-20260823-018-a8-install-verified-autologin-group-provisionin-53cb7bbc.md`](../../ps4-uart/sessions/20260823_000613_185269-exp-20260823-018-a8-install-verified-autologin-group-provisionin-53cb7bbc.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: routine Orbis background/HID/workaround telemetry only; no
+  storage, logger or fatal fault, with completed continuity
+- rollback: no rollback needed; USB was clean and exact device detached
+- next action: create the missing system `autologin` group, add existing owner
+  `meerzulee`, and write the package-defined persistent LightDM configuration
+  in a separate bounded migration, then require clean filesystem evidence
+
+### EXP-20260823-018-A9 — migrate existing owner to persistent Omarchy autologin
+
+- state: complete — pass
+- question: can existing owner `meerzulee` be migrated to the corrected
+  persistent LightDM autologin contract without changing credentials or other
+  group membership?
+- changed variable: create system group `autologin`, append only that group to
+  owner `meerzulee`, and create the package-defined persistent LightDM config
+  selecting session `omarchy`
+- expected evidence: exact device/package/account/session/PAM gates pass;
+  previous login state is hash-backed; final group set is exactly
+  `audio,autologin,input,video,wheel`; config contains the four exact declared
+  lines; post-write repair and no-write checks pass; USB detaches
+- timeout: 4 minutes; stop at the first identity, backup, account, session,
+  PAM, configuration, filesystem, detachment or UART-continuity failure
+- rollback: preserve `/etc/group`, `/etc/gshadow` and the full LightDM config
+  directory under
+  `/var/lib/omarchy-ps4/backups/EXP-20260823-018-A9-before-persistent-autologin`;
+  do not remove the existing one-time config in this action
+- operator action: none; USB remained physically connected to the Mac
+- result: pass. The exact v4.0.0-14 root, owner, local Omarchy session and PAM
+  group requirement passed. A system `autologin` group was created and owner
+  `meerzulee` was appended without changing its other groups. Exact persistent
+  config `/etc/lightdm/lightdm.conf.d/25-omarchy-ps4-owner-autologin.conf`
+  selects `meerzulee`, zero timeout and `omarchy`. The rollback tar hash
+  verified; repair-mode and immediate no-write full ext4 checks both exited 0
+- bounded UART context:
+  [`20260823_000800_092062-exp-20260823-018-a9-migrate-existing-owner-to-persistent-omarchy-b9fa3cfe.md`](../../ps4-uart/sessions/20260823_000800_092062-exp-20260823-018-a9-migrate-existing-owner-to-persistent-omarchy-b9fa3cfe.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: routine Orbis background telemetry only; no storage,
+  logger or fatal fault, with completed continuity
+- rollback: none required; exact USB is clean, detached from OrbStack, and safe
+  to move. Password and owner identity remain unchanged
+- next action: reconnect the exact Kingston USB to Orbis in a separate bounded
+  session and prove enumeration before any Linux launch
+
+### EXP-20260823-018-A10 — reconnect prepared Kingston USB to Orbis
+
+- state: complete — pass
+- question: does Orbis enumerate the exact prepared Kingston USB cleanly before
+  any Linux launch?
+- changed variable: physically move the safely detached Kingston from the Mac
+  to one PS4 USB port; do not launch the FPKG or Linux
+- expected evidence: Orbis identifies vendor/product `0951:1666`, serial
+  `E0D55EA573F0194049CD0236`, expected 118240 MB capacity and SuperSpeed mass
+  storage without disconnect, transport or fatal fault
+- timeout: 2 minutes; if it fails to enumerate, leave it connected and stop for
+  review; do not reseat or launch Linux
+- rollback: unplug only after review if enumeration produces a transport fault;
+  no filesystem is expected to mount because Orbis does not support ext4
+- operator action: connected the Kingston to the PS4 and reported GoldHEN active
+- result: pass. Orbis enumerated the exact Kingston as SuperSpeed SCSI mass
+  storage `/dev/da1`, 118240 MB, 242155520 sectors at 400 MB/s. The REPORT LUNS
+  illegal-request response is the device's normal single-LUN fallback. Orbis
+  reported unknown filesystem and did not mount or claim it as encrypted,
+  which is expected for the whole-device ext4 Linux root
+- bounded UART context:
+  [`20260823_000948_071455-exp-20260823-018-a10-reconnect-prepared-kingston-usb-to-orbis-an-582787e4.md`](../../ps4-uart/sessions/20260823_000948_071455-exp-20260823-018-a10-reconnect-prepared-kingston-usb-to-orbis-an-582787e4.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: exact USB enumeration is complete and stable; no disconnect,
+  I/O, logger or fatal fault occurred
+- rollback: none required; USB remains connected and Linux was not launched
+- next action: launch Omarchy once in a separately bounded session and observe
+  kernel/root/session/autologin evidence without changing boot files
+
+### EXP-20260823-018-A11 — launch prepared USB and verify desktop autologin
+
+- state: complete — degraded pass; boot/splash passed, persistent autologin
+  acceptance failed
+- question: does one unchanged v0.28 FPKG launch reach the prepared USB root,
+  retain the quiet branded splash and automatically enter the Omarchy desktop?
+- changed variable: launch Omarchy once through the already-installed v0.28
+  FPKG; do not update boot files, reseat USB or retry the launch
+- expected evidence: verified internal boot-set no-op, one loader handoff,
+  expected kernel/initramfs, USB root label/ancestry validation, successful
+  systemd/graphics transition, branded splash and desktop without a greeter
+- timeout: 3 minutes; if loader/root/display stalls or a login screen appears,
+  leave the system in that state and stop for review
+- rollback: return through one separately bounded normal restart only after
+  collecting live state; do not power-cycle or repeat the launch
+- operator action: launched Omarchy once and reported the nice loading splash,
+  followed by a visible login screen instead of the desktop
+- result: degraded pass. FPKG v0.28 verified all four internal artifacts,
+  recognized the current set as already verified, sent the 320936-byte loader
+  in one complete write and kexec'd once. Linux 6.18.44 Baikal resolved label
+  `OMARCHY-PS4` to `/dev/sda`, mounted ext4 read/write, validated the external
+  root and started systemd. Graphics reached the fixed 1920x1080 output and the
+  operator saw the accepted quiet splash. Wi-Fi rejoined the recorded network.
+  However, LightDM displayed its greeter, so persistent autologin did not meet
+  acceptance despite the offline group/config verification
+- bounded UART context:
+  [`20260823_001150_471334-exp-20260823-018-a11-launch-prepared-omarchy-usb-and-verify-pers-deb3dd30.md`](../../ps4-uart/sessions/20260823_001150_471334-exp-20260823-018-a11-launch-prepared-omarchy-usb-and-verify-pers-deb3dd30.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: no loader, root, ext4, display, logger or fatal fault. UART
+  intentionally has no LightDM journal detail because the product boot uses
+  `console=null` and journald-to-kmsg does not expose the greeter's PAM reason
+- rollback: none yet; Linux remains running at the greeter with the USB root
+  mounted. Do not remove the USB
+- next action: inspect LightDM/PAM/account/session state and current-boot journal
+  read-only over the previously configured network path in a separate bounded
+  session; do not log in or change configuration first
+
+### EXP-20260823-018-A12 — inspect live LightDM autologin failure read-only
+
+- state: complete — inconclusive; network reachable, SSH disabled
+- question: can current-boot LightDM/PAM/configuration evidence be collected
+  read-only over the previously configured network path without first logging
+  into the greeter?
+- changed variable: none; make one batch-mode SSH connection to existing owner
+  `meerzulee` at the recorded private LAN address and run one read-only state
+  report only if authentication succeeds
+- expected evidence: package/group/config/session identity, LightDM unit state
+  and current-boot LightDM/PAM journal within 60 seconds
+- timeout: 60 seconds; stop after the first connection or authentication error
+- rollback: none because no mutation is allowed
+- operator action: none; Linux remained at the LightDM greeter
+- result: inconclusive. The Mac neighbor table resolves the recorded private
+  LAN address to the recorded Linux Wi-Fi MAC, but TCP port 22 refused the one
+  batch SSH connection. No remote command ran and no live LightDM state was read
+- bounded UART context:
+  [`20260823_001436_329261-exp-20260823-018-a12-inspect-live-lightdm-pam-autologin-failure--52dad33a.md`](../../ps4-uart/sessions/20260823_001436_329261-exp-20260823-018-a12-inspect-live-lightdm-pam-autologin-failure--52dad33a.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: empty completed slice; no discontinuity or hardware fault,
+  but no evidence about LightDM's failure reason
+- rollback: none required; no connection or change occurred
+- next action: sign in once through the visible LightDM greeter in a separate
+  bounded operator action, then start SSH separately for live diagnostics
+
+### EXP-20260823-019-A1 — sign in once through LightDM for diagnostics
+
+- state: complete — pass by operator/network outcome
+- question: do the existing `meerzulee` credentials enter the running Omarchy
+  session normally after automatic login failed?
+- changed variable: submit the existing owner credentials once through the
+  visible LightDM greeter; do not change settings or retry authentication
+- expected evidence: desktop/session becomes usable within 2 minutes and the
+  operator reports the result; leave the system running for read-only diagnosis
+- timeout: 2 minutes; stop after the first authentication error or desktop
+- rollback: leave the greeter or desktop running; do not restart or remove USB
+- operator action: signed in and subsequently reported SSH working for
+  `meerzulee` at the recorded private LAN address; also reported that the
+  system clock is wrong
+- result: pass for manual-session access. Current credentials and desktop path
+  are usable; SSH became reachable after the interactive login. Persistent
+  autologin remains failed and clock synchronization is a second diagnosed issue
+- bounded UART context:
+  [`20260823_001615_772534-exp-20260823-019-a1-sign-in-once-through-lightdm-greeter-for-dia-04f09c9e.md`](../../ps4-uart/sessions/20260823_001615_772534-exp-20260823-019-a1-sign-in-once-through-lightdm-greeter-for-dia-04f09c9e.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: Wi-Fi remained associated with routine roaming attempts; no
+  disconnect, storage, display, logger or fatal fault. UART does not carry the
+  user-space greeter/session authentication result
+- rollback: none required; Linux remains running from USB
+- next action: collect one read-only SSH report covering LightDM/PAM and system
+  time/NTP state before changing either subsystem
+
+### EXP-20260823-019-A2 — inspect LightDM and clock state read-only over SSH
+
+- state: complete — pass; both failure boundaries identified without mutation
+- question: what exact live LightDM/PAM and system-time state explains the
+  greeter and wrong clock?
+- changed variable: none; run a bounded read-only SSH report as owner
+  `meerzulee` against identity, time services, effective LightDM configuration,
+  unit/session state and owner-readable current-boot logs
+- expected evidence: one coherent report within 60 seconds; no sudo, service,
+  file, clock or session mutation
+- timeout: 60 seconds; stop at first SSH/authentication failure or completed report
+- rollback: none because inspection is read-only
+- operator action: none; desktop and SSH remained running
+- result: pass. The clock is exactly `1970-01-01 06:07 +06`: PS4 exposes no
+  usable RTC, timezone is correctly `Asia/Bishkek`, `CanNTP=yes`, but
+  `systemd-timesyncd` is installed, disabled and inactive; no other NTP daemon
+  is installed. For autologin, live NSS proves `meerzulee` belongs to system
+  group `autologin` (gid 961), package v4.0.0-14 is installed, and
+  `lightdm --show-config` resolves the exact owner/session/timeout fields from
+  the intended files. The local `omarchy.desktop` exists. LightDM started the
+  greeter and later opened a normal password-authenticated owner session, but
+  the unprivileged journal contains no autologin PAM attempt; privileged logs
+  remain unreadable and noninteractive sudo correctly requires the password
+- bounded UART context:
+  [`20260823_001925_309943-exp-20260823-019-a2-inspect-lightdm-and-clock-synchronization-st-48f13625.md`](../../ps4-uart/sessions/20260823_001925_309943-exp-20260823-019-a2-inspect-lightdm-and-clock-synchronization-st-48f13625.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: Wi-Fi remained associated; no storage, display, logger or
+  fatal fault during the read-only SSH report
+- rollback: none required; no state changed
+- next action: enable systemd network time once with `timedatectl set-ntp true`
+  in a separate bounded privileged operator action, then verify real date,
+  synchronization and persistent enabled state before changing LightDM
+
+### EXP-20260823-019-A3 — enable persistent systemd network time synchronization
+
+- state: complete — inconclusive; bounded session aborted before operator action
+- question: does enabling systemd network time once correct the clock on the
+  connected PS4 and persist the service for later network connections?
+- changed variable: one intended privileged `timedatectl set-ntp true` action;
+  do not change the timezone, network profile, package set, display session or
+  LightDM configuration
+- expected evidence: `NTP=yes`, `NTPSynchronized=yes`, an enabled and active
+  `systemd-timesyncd.service`, and a real 2026 date within 2 minutes while UART
+  continuity remains valid
+- timeout: 2 minutes after the operator command; stop on authorization failure,
+  loss of SSH/network, logger discontinuity or failure to synchronize
+- rollback: `timedatectl set-ntp false` only if enabling the service causes a
+  regression; otherwise retain it because the PS4 exposes no usable RTC
+- operator action: the exact command was presented twice, but completion was
+  not reported before the bounded-session timeout
+- result: inconclusive with no mutation. Read-only SSH polling continued to
+  report a 1970 date, `NTP=no`, `NTPSynchronized=no`, and the timesync service
+  disabled/inactive. The session was aborted rather than claiming an unobserved
+  result. Routine Wi-Fi roaming diagnostics were the only UART traffic
+- bounded UART context:
+  [`20260823_002059_976888-exp-20260823-019-a3-enable-persistent-systemd-network-time-synch-65dad27d.md`](../../ps4-uart/sessions/20260823_002059_976888-exp-20260823-019-a3-enable-persistent-systemd-network-time-synch-65dad27d.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `aborted`, generation `80973222038e43548cda68da099cb054`, epoch `1`
+- UART conclusion: capture continuity remained valid and showed no storage,
+  display, logger or fatal fault, but UART cannot substitute for the missing
+  privileged time-service action
+- source conclusion: release-image construction now enables
+  `systemd-timesyncd.service`, with local builder, validator and artifact
+  contracts passing. This source change is not yet live-hardware acceptance
+- rollback: none required because no console state changed
+- next action: when the operator is present, open a fresh A4 session, run the
+  one privileged command and verify synchronization before any LightDM work
 
 ## Session-close checklist
 

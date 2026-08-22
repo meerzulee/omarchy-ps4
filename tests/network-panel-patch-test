@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+upstream=$project_dir/cache/omarchy-quattro
+panel_patch=$project_dir/packages/omarchy-ps4/ps4-network-panel.patch
+temporary=$(mktemp -d)
+trap 'rm -rf -- "$temporary"' EXIT
+
+git -C "$upstream" apply --check "$panel_patch"
+
+mkdir -p "$temporary/shell/plugins/panels/network"
+cp "$upstream/shell/plugins/panels/network/Model.js" \
+  "$temporary/shell/plugins/panels/network/Model.js"
+cp "$upstream/shell/plugins/panels/network/Panel.qml" \
+  "$temporary/shell/plugins/panels/network/Panel.qml"
+patch -s -d "$temporary" -p1 <"$panel_patch"
+
+node - "$temporary" <<'JS'
+const fs = require('fs')
+const path = require('path')
+const root = process.argv[2]
+const model = require(path.join(root, 'shell/plugins/panels/network/Model.js'))
+const panel = fs.readFileSync(path.join(root, 'shell/plugins/panels/network/Panel.qml'), 'utf8')
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message)
+}
+
+const wifi = 2
+const station = 1
+const accessPoint = 2
+const ap0 = { name: 'ap0', type: wifi, mode: accessPoint, connected: true }
+const ap1 = { name: 'ap1', type: wifi, mode: accessPoint, connected: false }
+const wlan0 = { name: 'wlan0', type: wifi, mode: station, connected: false }
+const usbWifi = { name: 'wlan1', type: wifi, mode: station, connected: true }
+
+assert(
+  model.findWifiStationDevice([ap0, ap1, wlan0], wifi, station) === wlan0,
+  'access-point devices must never replace the disconnected PS4 station'
+)
+assert(
+  model.findWifiStationDevice([wlan0, usbWifi], wifi, station) === usbWifi,
+  'a connected station should win over a disconnected station'
+)
+assert(
+  model.findWifiStationDevice([ap0, ap1], wifi, station) === null,
+  'an AP-only device list must not claim station Wi-Fi is available'
+)
+assert(panel.includes('WifiDeviceMode.Station'), 'Panel.qml must pass the Quickshell station enum')
+assert(!panel.includes('wifiDevice: findDevice(DeviceType.Wifi)'), 'Panel.qml must not use the generic first-device fallback')
+JS
+
+printf '%s\n' 'Network panel station selection passed.'

@@ -1,0 +1,22 @@
+# These packages must not occur anywhere in the resolved PS4 transaction,
+# including transitive dependencies and providers.
+asdcontrol
+bolt
+ddcutil
+gnome-disk-utility
+gvfs
+gvfs-mtp
+kernel-modules-hook
+limine
+limine-mkinitcpio-hook
+limine-snapper-sync
+linux
+linux-headers
+nautilus
+nautilus-python
+plymouth
+power-profiles-daemon
+sddm
+snapper
+udiskie
+udisks2

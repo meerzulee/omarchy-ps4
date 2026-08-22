@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+builder=$repo_dir/scripts/build-gift-rootfs
+configure=$repo_dir/scripts/configure-gift-rootfs-container
+validate=$repo_dir/scripts/validate-gift-rootfs-container
+
+for script in "$builder" "$configure" "$validate"; do
+  bash -n "$script"
+done
+
+grep -Fq -- '--network none' "$builder"
+grep -Fq 'modules-$kernel_release.tar.zst' "$builder"
+grep -Fq 'owner-ready-offline-rootfs' "$builder"
+grep -Fq 'update_policy=fpkg-release-only' "$configure"
+grep -Fq 'AMD_DEBUG=notiling' "$configure"
+grep -Fq 'OMARCHY_PATH=/usr/share/omarchy' "$configure"
+grep -Fq "'PasswordAuthentication no'" "$configure"
+grep -Fq 'omarchy-ps4-provision-owner.service' "$configure"
+grep -Fq 'systemctl enable systemd-timesyncd.service' "$configure"
+grep -Fq 'user-session=omarchy' "$configure"
+grep -Fq 'release image contains a human account' "$validate"
+grep -Fq 'release image contains an unmanaged package server' "$validate"
+grep -Fq 'generic kernel entered the USB root' "$validate"
+grep -Fq 'Mesa PS4 compatibility environment is missing' "$validate"
+grep -Fq 'network time synchronization is not enabled' "$validate"
+
+printf '%s\n' 'Gift rootfs contract passed.'

@@ -88,6 +88,8 @@ for required in \
   etc/group \
   etc/gshadow \
   usr/bin/omarchy-ps4-provision-owner \
+  usr/bin/omarchy-ps4-grow-root \
+  usr/lib/systemd/system/omarchy-ps4-grow-root.service \
   usr/lib/systemd/system/omarchy-ps4-provision-owner.service \
   usr/share/omarchy/install/provisioning/setup-form.sh; do
   [[ -e $target_root/$required ]] || fail "target is missing $required"
@@ -263,14 +265,16 @@ rm -f "$state_dir/setup-user"
 
 wants_dir=$target_root/etc/systemd/system/multi-user.target.wants
 install -d -m 0755 "$wants_dir"
+ln -sfn /usr/lib/systemd/system/omarchy-ps4-grow-root.service \
+  "$wants_dir/omarchy-ps4-grow-root.service"
 ln -sfn /usr/lib/systemd/system/omarchy-ps4-provision-owner.service \
   "$wants_dir/omarchy-ps4-provision-owner.service"
 
 install -d -m 0755 "$target_root/var/lib/omarchy-ps4"
 cat >"$target_root/var/lib/omarchy-ps4/release-state" <<EOF
 mode=deferred-owner
-release=4.0.0rc3
-upstream_commit=144f4d1e31d6ddc2cba5dfd69278cabf02bafd05
+release=4.0.0
+upstream_commit=f0020448ca87329199de7cb12f2015ebc4a3e5e7
 EOF
 
 sync -f "$target_root" 2>/dev/null || sync

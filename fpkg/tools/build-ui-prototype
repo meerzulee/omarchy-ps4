@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+profile=ui-only
+case ${1:-} in
+  --private-boot)
+    profile=private-boot
+    shift
+    ;;
+  --private-kernel-manager)
+    profile=private-kernel-manager
+    shift
+    ;;
+esac
+if (( $# > 0 )); then
+  printf 'Usage: %s [--private-boot|--private-kernel-manager]\n' "$0" >&2
+  exit 2
+fi
+
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd -- "$script_dir/../.." && pwd)"
 toolchain_version="v0.5.4"
@@ -42,12 +58,30 @@ else
   linker="$(command -v ld.lld)"
 fi
 
+if [[ $profile != ui-only ]]; then
+  "$repo_dir/fpkg/tools/vendor-loader"
+fi
+if [[ $profile == private-kernel-manager ]]; then
+  "$repo_dir/fpkg/tools/stage-internal-boot-set"
+fi
+
 make -C "$repo_dir/fpkg/ui-prototype" \
+  PROFILE="$profile" \
   OO_PS4_TOOLCHAIN="$toolchain_dir" \
   CXX="$compiler" \
   LD="$linker" \
   clean fpkg audit
 
-package="$repo_dir/output/fpkg-ui-prototype/IV0000-BREW09004_00-OMARCHYPS4UI0000.pkg"
+case $profile in
+  private-boot)
+    package="$repo_dir/output/fpkg-private-boot/IV0000-OMCH42069_00-OMARCHYPS4UI0000.pkg"
+    ;;
+  private-kernel-manager)
+    package="$repo_dir/output/fpkg-private-kernel-manager/IV0000-OMCH42069_00-OMARCHYPS4UI0000.pkg"
+    ;;
+  *)
+    package="$repo_dir/output/fpkg-ui-prototype/IV0000-OMCH42069_00-OMARCHYPS4UI0000.pkg"
+    ;;
+esac
 shasum -a 256 "$package"
 echo "$package"

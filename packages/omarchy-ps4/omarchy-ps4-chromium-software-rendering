@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'omarchy-ps4-chromium-software-rendering: %s\n' "$1" >&2
+  exit 1
+}
+
+usage() {
+  printf '%s\n' \
+    'Usage: omarchy-ps4-chromium-software-rendering [--enable|--disable|--check]' \
+    '' \
+    'Configure the accepted PS4 Chromium software-rendering workaround.' \
+    'Restart Chromium after changing the setting.'
+}
+
+mode=enable
+case ${1:-} in
+  '') ;;
+  --enable) mode=enable ;;
+  --disable) mode=disable ;;
+  --check) mode=check ;;
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
+(( $# <= 1 )) || fail 'too many arguments'
+(( EUID != 0 )) || fail 'run this command as the desktop owner, not root'
+
+config_dir=${XDG_CONFIG_HOME:-$HOME/.config}
+config_file=$config_dir/chromium-flags.conf
+flag=--disable-gpu
+comment='# Omarchy PS4: software rendering avoids Liverpool/DCE8 tiled-buffer artifacts.'
+
+is_enabled() {
+  [[ -f $config_file ]] && grep -qxF -- "$flag" "$config_file"
+}
+
+case $mode in
+  check)
+    if is_enabled; then
+      printf '%s\n' "enabled: $config_file contains $flag"
+      exit 0
+    fi
+    printf '%s\n' "disabled: $config_file does not contain $flag"
+    exit 1
+    ;;
+  enable)
+    install -d -m 0755 "$config_dir"
+    if [[ ! -e $config_file ]]; then
+      default_file=${OMARCHY_PATH:-/usr/share/omarchy}/config/chromium-flags.conf
+      if [[ -r $default_file ]]; then
+        install -m 0644 "$default_file" "$config_file"
+      else
+        : >"$config_file"
+        chmod 0644 "$config_file"
+      fi
+    fi
+    if ! is_enabled; then
+      [[ ! -s $config_file ]] || printf '\n' >>"$config_file"
+      printf '%s\n%s\n' "$comment" "$flag" >>"$config_file"
+    fi
+    printf '%s\n' "enabled Chromium software rendering in $config_file"
+    ;;
+  disable)
+    if [[ -f $config_file ]]; then
+      temporary=$(mktemp "$config_file.XXXXXX")
+      awk -v comment="$comment" -v flag="$flag" \
+        '$0 != comment && $0 != flag' "$config_file" >"$temporary"
+      chmod 0644 "$temporary"
+      mv -f "$temporary" "$config_file"
+    fi
+    printf '%s\n' "disabled the PS4 Chromium software-rendering override in $config_file"
+    ;;
+esac

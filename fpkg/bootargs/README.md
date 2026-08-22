@@ -6,9 +6,16 @@
 - `6.18-baikal-install-usb-lab.txt` permits the current locked-account XFCE
   artifact for private testing. It must never be selected by a release build.
 - `6.18-baikal-product-splash.txt` is the intended normal profile. It keeps
-  verbose earlycon evidence on Baikal UART, omits `console=tty0`, starts the
-  initramfs splash, and disables only internal ATA device `1.00` with
+  verbose earlycon evidence on Baikal UART, selects `console=null` so normal
+  kernel/systemd chatter is not painted over HDMI, starts the initramfs splash,
+  and disables only internal ATA device `1.00` with
   `libata.force=1.00:disable`.
+- `6.18-baikal-internal-root.txt` is the schema-2 kernel-manager profile. Boot
+  files come from internal Orbis storage; Linux requires one whole-device ext4
+  USB labelled `OMARCHY-PS4` and never looks for `PS4BOOT`. It retains the
+  Baikal boot console after the null console registers so initramfs, systemd
+  and first-owner lifecycle events remain visible over UART. The first-owner
+  form still writes directly to `/dev/tty1`; only diagnostic chatter is hidden.
 - `6.18-baikal-debug-uart.txt` restores visible HDMI/fbcon messages plus
   `initcall_debug`; it does not disable SATA and is the rollback profile.
 

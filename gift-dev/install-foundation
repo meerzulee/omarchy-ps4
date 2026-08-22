@@ -6,7 +6,7 @@ usage() {
   printf '%s\n' \
     'Usage: install-foundation (--check|--apply) EXPERIMENT_ID' \
     '' \
-    'Resolve or install the three checksum-verified native RC3 packages on' \
+    'Resolve or install the three checksum-verified native 4.0.0 packages on' \
     'the running external OMARCHY-PS4 development root.'
 }
 
@@ -73,8 +73,11 @@ cp "$bundle_dir/packages/"*.pkg.tar.zst "$repository/"
 cp "$bundle_dir/packages/omarchy-ps4-dev.db" "$repository/"
 chmod 0644 "$repository/"*
 pacman_config=$temporary/pacman.conf
-cp /etc/pacman.conf "$pacman_config"
-cat >>"$pacman_config" <<EOF
+cat >"$pacman_config" <<EOF
+[options]
+Architecture = auto
+SigLevel = Never
+LocalFileSigLevel = Never
 
 [omarchy-ps4-dev]
 SigLevel = Never
@@ -152,8 +155,8 @@ cp -a /var/log/pacman.log "$backup_dir/pacman.log.after"
 
 for package_name in "${packages[@]}"; do
   installed_version=$(pacman -Q "$package_name" | awk '{ print $2 }')
-  [[ $installed_version == 4.0.0rc3-1 ]] || \
-    fail "$package_name is $installed_version, expected 4.0.0rc3-1"
+  [[ $installed_version == 4.0.0-1 ]] || \
+    fail "$package_name is $installed_version, expected 4.0.0-1"
 done
 systemctl is-active --quiet display-manager.service || \
   fail 'display manager stopped during the package transaction'
@@ -170,5 +173,5 @@ runuser -u "$recovery_user" -- sudo -n "$recovery_control" status \
   printf '%s\n' 'sudo /usr/local/sbin/omarchy-ps4-dev-recovery rollback-foundation'
 } >"$backup_dir/ROLLBACK.txt"
 
-printf 'Installed native RC3 foundation. Evidence: %s\n' "$backup_dir"
+printf 'Installed native 4.0.0 foundation. Evidence: %s\n' "$backup_dir"
 printf '%s\n' 'No package configuration, service, boot asset, or gift finalization was activated.'

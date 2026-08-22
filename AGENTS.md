@@ -14,17 +14,19 @@
 
 ## Test discipline
 
-- Follow [`docs/DEVELOPMENT-MODE.md`](docs/DEVELOPMENT-MODE.md) for every
-  PS4-side action. Continuous UART plus a bounded `EXP-YYYYMMDD-NNN` session is
-  mandatory before the operator acts.
-- Change one variable per hardware experiment.
+- Follow [`docs/DEVELOPMENT-MODE.md`](docs/DEVELOPMENT-MODE.md) for consequential
+  PS4 hardware experiments. Keep continuous UART, but use one bounded session
+  for a coherent objective rather than one session per operator action.
+- Change one diagnostic variable per hardware experiment; group its necessary
+  setup, observation, and cleanup steps.
 - Record the console model, southbridge, firmware, kernel, package versions,
-  commands, result, and attached logs for every experiment.
+  commands, result, and relevant logs for acceptance or failure investigations,
+  not for routine navigation with no diagnostic value.
 - A failed experiment must have a documented rollback path.
 - Do not promote a component to the root filesystem until its individual gate
   passes.
 - Close the active entry in [`experiments/SESSIONS.md`](experiments/SESSIONS.md)
-  before starting another hardware experiment.
+  before starting a different diagnostic branch.
 
 ## Agent collaboration
 

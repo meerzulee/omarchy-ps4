@@ -21,12 +21,16 @@ appledouble=$(find . -type f -name '._*' -print -quit)
 [[ -z $appledouble ]] || fail "AppleDouble metadata is present: $appledouble"
 
 mapfile -t packages < <(find packages -maxdepth 1 -type f -name '*.pkg.tar.zst' -print | LC_ALL=C sort)
-[[ ${#packages[@]} -eq 3 ]] || fail "expected three native packages, found ${#packages[@]}"
+[[ ${#packages[@]} -eq 6 ]] || \
+  fail "expected three native and three migration-support packages, found ${#packages[@]}"
 
 declare -A expected_versions=(
-  [omarchy-ps4]=4.0.0rc3-1
-  [omarchy-ps4-settings]=4.0.0rc3-1
-  [omarchy-ps4-provisioning]=4.0.0rc3-1
+  [omarchy-ps4]=4.0.0-1
+  [omarchy-ps4-settings]=4.0.0-1
+  [omarchy-ps4-provisioning]=4.0.0-1
+  [desktop-file-utils]=0.28-1
+  [xdg-user-dirs]=0.20-1
+  [xdg-utils]=1.2.1-2
 )
 
 for package in "${packages[@]}"; do
@@ -40,8 +44,8 @@ done
 [[ ${#expected_versions[@]} -eq 0 ]] || fail 'one or more native packages are missing'
 
 [[ -f packages/omarchy-ps4-dev.db ]] || fail 'local Pacman database is missing'
-[[ -f fpkg/IV0000-BREW09004_00-OMARCHYPS4UI0000.pkg ]] || fail 'UI-only FPKG is missing'
-[[ -f portable/omarchy-ps4-portable-4.0.0rc3-144f4d1.tar.zst ]] || \
+[[ -f fpkg/IV0000-OMCH42069_00-OMARCHYPS4UI0000.pkg ]] || fail 'UI-only FPKG is missing'
+[[ -f portable/omarchy-ps4-portable-4.0.0-f002044.tar.zst ]] || \
   fail 'portable recovery archive is missing'
 for recovery_command in arm-recovery dev-recovery install-foundation owner-rehearsal; do
   [[ -x $recovery_command ]] || fail "required command is missing or not executable: $recovery_command"

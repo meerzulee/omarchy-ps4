@@ -16,7 +16,11 @@ package=$(find "$package_dir" -maxdepth 1 -type f \
 temporary=$(mktemp -d)
 trap 'rm -rf -- "$temporary"' EXIT
 mkdir -p "$temporary/package" "$temporary/root" "$temporary/tools"
-bsdtar -xf "$package" -C "$temporary/package"
+if command -v bsdtar >/dev/null 2>&1; then
+  bsdtar -xf "$package" -C "$temporary/package"
+else
+  tar --zstd -xf "$package" -C "$temporary/package"
+fi
 prepare=$temporary/package/usr/bin/omarchy-ps4-prepare-for-owner
 [[ -x $prepare ]] || fail 'preparation command is missing from package'
 
@@ -69,9 +73,11 @@ printf 'cloned-machine\n' >"$target/var/lib/dbus/machine-id"
 printf 'private\n' >"$target/etc/ssh/ssh_host_ed25519_key"
 printf 'debug data\n' >"$target/home/ps4/file"
 printf '#!/bin/sh\n' >"$target/usr/bin/omarchy-ps4-provision-owner"
+printf '#!/bin/sh\n' >"$target/usr/bin/omarchy-ps4-grow-root"
 printf '[Service]\n' >"$target/usr/lib/systemd/system/omarchy-ps4-provision-owner.service"
+printf '[Service]\n' >"$target/usr/lib/systemd/system/omarchy-ps4-grow-root.service"
 printf '# setup form\n' >"$target/usr/share/omarchy/install/provisioning/setup-form.sh"
-chmod 0755 "$target/usr/bin/omarchy-ps4-provision-owner"
+chmod 0755 "$target/usr/bin/omarchy-ps4-provision-owner" "$target/usr/bin/omarchy-ps4-grow-root"
 
 real_readlink=$(command -v readlink)
 cat >"$temporary/tools/findmnt" <<EOF
@@ -124,6 +130,8 @@ grep -q '^user-session=omarchy$' "$target/etc/lightdm/lightdm.conf.d/20-omarchy-
 [[ -f $target/var/lib/omarchy-ps4/provisioning/pending ]] || fail 'pending marker is missing'
 [[ -L $target/etc/systemd/system/multi-user.target.wants/omarchy-ps4-provision-owner.service ]] || \
   fail 'owner provisioning service is not armed'
+[[ -L $target/etc/systemd/system/multi-user.target.wants/omarchy-ps4-grow-root.service ]] || \
+  fail 'root expansion service is not armed'
 
 printf 'omarchy-recovery:x:1001:1001:Temporary recovery:/home/omarchy-recovery:/bin/bash\n' \
   >>"$target/etc/passwd"

@@ -1,14 +1,14 @@
 # Omarchy PS4 package repository
 
-Research date: 2026-08-13
+Research date: 2026-08-14
 
 ## Upstream deployment
 
 Omarchy publishes its Arch packages with the MIT-licensed
 [`omacom-io/omarchy-pkgs`](https://github.com/omacom-io/omarchy-pkgs)
 tooling. This review is pinned to release commit
-`84b86195cdeb0ddc71b58810b208df18f6907ffb`, which released Omarchy
-`4.0.0rc3`.
+`bb66b9dafc2eaa10cde9280e0094aed9382b9b0b`, which released Omarchy
+`4.0.0`.
 
 The public implementation has five parts:
 
@@ -31,10 +31,10 @@ The public code does not identify the object-storage provider or expose its
 `rclone` configuration. `pkgs.omarchy.org` is served through Cloudflare, but
 that only proves the public proxy/CDN layer, not where the origin bucket lives.
 
-The official package recipes contain `omarchy-4.0.0rc3-1` and
-`omarchy-settings-4.0.0rc3-1`. Packages have detached signatures.
-The database had no detached signature and upstream's RC Pacman configuration
-used `Optional TrustAll` for the Omarchy repository.
+The official package recipes contain `omarchy-4.0.0-1` and
+`omarchy-settings-4.0.0-1`. Packages have detached signatures. The pinned
+stable Pacman configuration still uses `Optional TrustAll` for the Omarchy
+repository, so the PS4 repository must retain its stricter policy below.
 
 ## PS4 adaptation
 

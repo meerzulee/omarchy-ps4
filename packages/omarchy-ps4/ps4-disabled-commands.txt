@@ -14,6 +14,7 @@ omarchy-hibernation-remove
 omarchy-hibernation-setup
 omarchy-install-gaming-gpu-lib32
 omarchy-install-gaming-xbox-controllers
+omarchy-install-preinstalls
 omarchy-migrate
 omarchy-migrate-notify
 omarchy-plymouth-current
@@ -39,6 +40,7 @@ omarchy-system-factory-reset
 omarchy-system-factory-reset-finish
 omarchy-system-reboot
 omarchy-toggle-nightlight
+omarchy-toggle-crash-capture
 omarchy-update
 omarchy-update-firmware
 omarchy-update-system-pkgs

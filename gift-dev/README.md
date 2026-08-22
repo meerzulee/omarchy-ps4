@@ -1,4 +1,4 @@
-# Omarchy PS4 Quattro RC3 developer gift bundle
+# Omarchy PS4 Quattro 4.0.0 developer gift bundle
 
 This is a private acceptance bundle for turning the current external-USB
 development system into a reviewable gift candidate. It is not a public
@@ -8,18 +8,22 @@ release and it is not a standalone installer image.
 
 - the three pinned native Arch packages:
   `omarchy-ps4`, `omarchy-ps4-settings`, and
-  `omarchy-ps4-provisioning` at `4.0.0rc3-1`;
-- a local Pacman database for those packages;
-- the accepted RC3 portable archive as recovery/provenance material;
+  `omarchy-ps4-provisioning` at `4.0.0-1`;
+- the pinned `desktop-file-utils`, `xdg-user-dirs`, and `xdg-utils` packages
+  required by the stable owner finalizer;
+- a local Pacman database for all six migration packages;
+- the pinned 4.0.0 portable archive as recovery/provenance material;
 - the UI-only FPKG prototype;
 - temporary, key-only developer recovery tooling;
 - checksums, build metadata, credits, licenses, and operator documentation.
 
 The bundle does not contain a PS4 Linux loader, PayLoader client, kernel,
 initramfs, root filesystem, firmware, signing key, or private console data.
-Missing Arch dependencies are resolved from the target's existing signed Arch
-repositories during the guarded preflight. This makes the bundle suitable for
-the current connected development system, not for an offline public handoff.
+The guarded foundation migration resolves only against the bundled local
+repository and never synchronizes a live Arch mirror. Dependencies outside
+this reviewed six-package set must already exist on the accepted development
+root; otherwise the preflight stops before installation. This narrow offline
+migration bundle is still not the complete clean-image package snapshot.
 
 ## Two separate modes
 
@@ -36,7 +40,7 @@ sudo ./arm-recovery --apply EXP-YYYYMMDD-NNN-A1
 `omarchy-recovery` reuses only the already-pinned operator public key. It has
 no known password, cannot use password SSH, and cannot obtain a general root
 shell. Its sudo policy permits only recovery status and removal of the exact
-RC3 project package foundation. Port forwarding, agent forwarding, X11
+4.0.0 project package foundation. Port forwarding, agent forwarding, X11
 forwarding, and tunnels are disabled for that account. `sshd.service` must be
 enabled and active, and a real remote key login must pass before package work.
 
@@ -46,9 +50,9 @@ remains. Never weaken or bypass that refusal.
 
 ### 2. Development foundation
 
-`install-foundation` installs the three native RC3 packages without activating
-them, changing the running desktop, enabling owner provisioning, or touching
-boot files:
+`install-foundation` installs the three native 4.0.0 packages and only the
+missing reviewed support packages without activating them, changing the
+running desktop, enabling owner provisioning, or touching boot files:
 
 ```bash
 sudo ./install-foundation --check EXP-YYYYMMDD-NNN-A1
@@ -74,7 +78,7 @@ sudo /usr/local/sbin/omarchy-ps4-dev-recovery status
 sudo /usr/local/sbin/omarchy-ps4-dev-recovery rollback-foundation
 ```
 
-Rollback uses one Pacman removal transaction for only the installed RC3
+Rollback uses one Pacman removal transaction for only the installed 4.0.0
 project packages. It leaves dependencies, the portable desktop, accounts,
 SSH, and boot assets in place and records before/after evidence.
 
@@ -105,7 +109,7 @@ password, identity, hostname and timezone wizard without irreversibly erasing
 the accepted `ps4` environment. This path is a test harness, not release
 finalization.
 
-The rehearsal first verifies the external USB root, exact RC3 packages,
+The rehearsal first verifies the external USB root, exact 4.0.0 packages,
 running desktop and independent recovery SSH. Arming it creates a root-only
 snapshot and grants only two narrow capabilities: `ps4` may enter the armed
 rehearsal once, while `omarchy-recovery` may inspect or roll it back.
@@ -120,7 +124,7 @@ Entry closes the development desktop, atomically parks `/home/ps4` under the
 root-only evidence directory, removes the account from the live account
 databases, disables development autologin, and runs the installed owner wizard
 on tty1. It retains the recovery account, SSH service, host identity and boot
-files. After setup, LightDM presents the new owner login using the native RC3
+files. After setup, LightDM presents the new owner login using the native 4.0.0
 profile.
 
 From recovery SSH, rollback stops the rehearsal owner session, parks that test

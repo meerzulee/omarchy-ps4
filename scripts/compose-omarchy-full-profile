@@ -41,6 +41,22 @@ def package_lines(path: Path) -> list[str]:
     return packages
 
 
+def replacement_lines(path: Path) -> dict[str, str]:
+    replacements: dict[str, str] = {}
+    for raw in path.read_text().splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        fields = line.split()
+        if len(fields) != 2:
+            fail(f"invalid package replacement: {raw}")
+        source, target = fields
+        if source in replacements:
+            fail(f"duplicate package replacement: {source}")
+        replacements[source] = target
+    return replacements
+
+
 def render() -> str:
     lock = read_lock()
     commit = lock.get("OMARCHY_COMMIT", "")
@@ -59,6 +75,7 @@ def render() -> str:
     upstream_packages = package_lines(UPSTREAM / "install/omarchy-base.packages")
     blocked_packages = package_lines(PROFILE / "blocked-packages.txt")
     additional_packages = package_lines(PROFILE / "additional-packages.txt")
+    replacements = replacement_lines(PROFILE / "package-replacements.txt")
 
     duplicates = sorted(
         package for package in set(upstream_packages) if upstream_packages.count(package) > 1
@@ -70,8 +87,30 @@ def render() -> str:
     if unknown_blocked:
         fail(f"blocked packages are absent upstream: {', '.join(unknown_blocked)}")
 
+    unknown_replacements = sorted(set(replacements) - set(upstream_packages))
+    if unknown_replacements:
+        fail(
+            "replacement sources are absent upstream: "
+            + ", ".join(unknown_replacements)
+        )
+    blocked_replacements = sorted(set(replacements) & set(blocked_packages))
+    if blocked_replacements:
+        fail(
+            "packages cannot be both blocked and replaced: "
+            + ", ".join(blocked_replacements)
+        )
+    duplicate_targets = sorted(
+        target
+        for target in set(replacements.values())
+        if list(replacements.values()).count(target) > 1
+    )
+    if duplicate_targets:
+        fail(f"duplicate replacement targets: {', '.join(duplicate_targets)}")
+
     included_upstream = [
-        package for package in upstream_packages if package not in set(blocked_packages)
+        replacements.get(package, package)
+        for package in upstream_packages
+        if package not in set(blocked_packages)
     ]
     overlap = sorted(set(included_upstream) & set(additional_packages))
     if overlap:
@@ -86,6 +125,7 @@ def render() -> str:
         f"# Upstream Quattro commit: {commit}",
         f"# Upstream packages: {len(upstream_packages)}",
         f"# PS4-blocked upstream packages: {len(blocked_packages)}",
+        f"# Canonical package replacements: {len(replacements)}",
         f"# PS4/additional packages: {len(additional_packages)}",
         f"# Final package count: {len(packages)}",
         "",
