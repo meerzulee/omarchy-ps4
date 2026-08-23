@@ -28,6 +28,9 @@ Baikal B1 kernel shown here is available as the hardware-tested
 > design is in [`docs/PACKAGE-REPOSITORY.md`](docs/PACKAGE-REPOSITORY.md) and
 > the controlled gift-dev package build is in
 > [`docs/PACKAGE-SNAPSHOT.md`](docs/PACKAGE-SNAPSHOT.md).
+> The reproducible kernel, initramfs, package snapshot, gift root, USB image
+> and OpenOrbis FPKG build sequence—and a ledger of the PS4-specific changes—is
+> in [`docs/BUILDING.md`](docs/BUILDING.md).
 > The current implementation, evidence boundary and ordered resume plan are in
 > [`docs/CHECKPOINT-2026-08-22.md`](docs/CHECKPOINT-2026-08-22.md).
 > The single-app Install/Boot/Repair protocol and offline UX draft are in
@@ -46,12 +49,16 @@ Status: Linux 6.18/XFCE, native Wayland, Hyprland, UWSM, and stable Omarchy
 4.0.0 render on the Baikal B1 console. On 2026-08-23, FPKG v0.28 verified its
 internal boot set, handed off its bundled loader in one complete write, booted
 the whole-device gift USB, showed the quiet branded splash, mounted the exact
-external root and reached the Omarchy desktop after a manual login. Automatic
-login is not accepted yet: the effective LightDM configuration and PAM group
-are correct, but the greeter still appeared. The PS4 also exposes no usable
-RTC; release-image construction now enables `systemd-timesyncd` so the clock
-corrects itself as soon as networking is available. Repeated cold-boot
-acceptance remains open. The legacy DCE8 display path requires
+external root and reached the Omarchy desktop after a manual login. The
+autologin failure was traced to LightDM's custom session directory being
+placed under `[Seat:*]` instead of `[LightDM]`, which left the `omarchy`
+session unresolvable. With the live system corrected, one reboot entered the
+desktop through `lightdm-autologin` with no greeter. The PS4 also exposes no
+usable RTC; the same reboot re-synced the clock from the network unaided, once
+the Docker build marker that had been disabling `systemd-timesyncd` on hardware
+was removed. Both fixes are carried in the image builder. That is one boot pass
+on the live system, not an image rebuild or repeated cold-boot acceptance,
+which remain open. The legacy DCE8 display path requires
 `AMD_DEBUG=notiling`; XFCE stays the recovery desktop.
 
 ## Beta artifacts

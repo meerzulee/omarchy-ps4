@@ -14,10 +14,12 @@ initramfs/systemd and removes duplicate install/boot review screens. On
 2026-08-23, one bounded hardware launch verified the current internal set,
 performed one complete loader write, reached the exact whole-device USB root,
 showed the quiet splash and reached the desktop after manual login. That is a
-private-beta boot-path pass, not full product acceptance: persistent autologin
-still stopped at the greeter and repeated cold boots remain open. The FPKG must
-not be published publicly while signing, loader licensing, and private
-wallpaper rights remain unresolved.
+private-beta boot-path pass, not full product acceptance. The greeter fallback
+was later traced to a mis-scoped LightDM session-directory setting and is fixed
+in the current rootfs source; one reboot of the corrected live system entered
+the desktop without a greeter. Validation against a rebuilt image and repeated
+cold boots remain open. The FPKG must not be published publicly while signing,
+loader licensing, and private wallpaper rights remain unresolved.
 
 The manager is the Orbis-side kernel manager and boot entry point for Omarchy
 PS4:
@@ -92,6 +94,10 @@ never contacts a server or touches a console. Browser appearance preferences
 use only local storage. Build its native UI-only companion with
 `./fpkg/tools/build-ui-prototype`. Build the non-publishable boot profile with
 `./fpkg/tools/build-ui-prototype --private-kernel-manager`.
+
+The complete build order—including the matching kernel/modules, initramfs,
+offline package snapshot, owner-ready USB image and current `--baikal-beta`
+FPKG—is documented in [`docs/BUILDING.md`](../docs/BUILDING.md).
 
 ## Superseded full offline lab package
 
