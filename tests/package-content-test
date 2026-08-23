@@ -65,6 +65,7 @@ for required in \
   usr/lib/systemd/system/omarchy-ps4-grow-root.service \
   usr/lib/systemd/system/omarchy-ps4-provision-owner.service \
   usr/lib/systemd/system/lightdm.service.d/20-omarchy-ps4-owner-gate.conf \
+  etc/pam.d/omarchy-ps4-autologin \
   etc/ssh/sshd_config.d/20-omarchy-ps4.conf \
   etc/sudoers.d/10-omarchy-ps4-wheel; do
   [[ -e $temporary/provisioning/$required ]] || \
@@ -148,6 +149,30 @@ grep -Fq 'setup_left=$(((screen_columns - setup_width) / 2))' \
 grep -Fq 'StandardError=journal' \
   "$temporary/provisioning/usr/lib/systemd/system/omarchy-ps4-provision-owner.service" || \
   fail 'owner setup can still paint raw service errors through the form'
+grep -Fq 'Environment=OMARCHY_PS4_OWNER_TTY=/dev/tty1' \
+  "$temporary/provisioning/usr/lib/systemd/system/omarchy-ps4-provision-owner.service" || \
+  fail 'owner setup does not declare its interactive console terminal'
+grep -Fq 'command gum "$@" 2>"$owner_tty"' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup does not route the Gum renderer to its console terminal'
+grep -Fq -- "--selected.background '#9ece6a'" \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup keyboard selection lacks a visible focused background'
+grep -Fq -- "--cursor-text.background '#9ece6a'" \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup timezone filter lacks a visible focused background'
+grep -Fq "render_setup_step 'TIMEZONE' 'Choose your world region.'" \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup does not replace the unstable live timezone filter'
+grep -Fq 'render_centered_review "$summary"' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner setup review is not explicitly centered'
+grep -Fq '48;2;158;206;106m  YES' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner confirmation does not keep Yes green'
+grep -Fq '48;2;65;72;104m  NO' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner confirmation does not keep No gray'
 grep -Fq "render_setup_step 'FINISHING'" \
   "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
   fail 'owner setup does not preserve a clean screen during desktop finalization'
@@ -181,6 +206,24 @@ grep -Fq 'groupadd --system autologin' \
 grep -Fq 'groups=(wheel autologin)' \
   "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
   fail 'owner provisioner does not add the owner to the autologin group'
+grep -Fq 'pam-autologin-service=omarchy-ps4-autologin' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner provisioner does not select its constrained PAM autologin service'
+grep -Fq 'Session=omarchy' \
+  "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
+  fail 'owner provisioner does not persist the owner session choice'
+grep -Fxq 'auth        required    pam_succeed_if.so user ingroup autologin' \
+  "$temporary/provisioning/etc/pam.d/omarchy-ps4-autologin" || \
+  fail 'owner PAM autologin service is not restricted to the autologin group'
+! grep -Eq 'pam_(unix|faillock)\.so' \
+  "$temporary/provisioning/etc/pam.d/omarchy-ps4-autologin" || \
+  fail 'owner PAM autologin service still enters the password or lockout stack'
+grep -Fxq 'account     include     system-local-login' \
+  "$temporary/provisioning/etc/pam.d/omarchy-ps4-autologin" || \
+  fail 'owner PAM autologin service skips normal account policy'
+grep -Fxq 'session     include     system-local-login' \
+  "$temporary/provisioning/etc/pam.d/omarchy-ps4-autologin" || \
+  fail 'owner PAM autologin service skips normal session policy'
 ! grep -Eq 'autologin-once|clear-autologin-once' \
   "$temporary/provisioning/usr/bin/omarchy-ps4-provision-owner" || \
   fail 'owner provisioner still removes autologin after the first desktop'
@@ -256,16 +299,23 @@ grep -Eq '^[[:space:]]*base-size[[:space:]]*=[[:space:]]*14[[:space:]]*$' \
 grep -Eq '^[[:space:]]*scale-with-font[[:space:]]*=[[:space:]]*false[[:space:]]*$' \
   "$temporary/settings/etc/skel/.config/omarchy/shell.toml" || \
   fail 'packaged PS4 bar icon scale guard is missing'
-grep -Fq 'mode = "1920x1080@60"' \
+grep -Fq 'os.getenv("OMARCHY_PS4_DISPLAY_MODE") or "1920x1080@60"' \
   "$temporary/settings/etc/skel/.config/hypr/monitors.lua" || \
-  fail 'packaged PS4 Hyprland mode is not fixed at 1080p60'
+  fail 'packaged PS4 Hyprland mode does not retain the 1080p60 fallback'
+grep -Fq 'display_mode ~= "3440x1440@50"' \
+  "$temporary/settings/etc/skel/.config/hypr/monitors.lua" || \
+  fail 'packaged PS4 Hyprland mode does not guard the ultrawide override'
 grep -Fq 'scale = 1' \
   "$temporary/settings/etc/skel/.config/hypr/monitors.lua" || \
   fail 'packaged PS4 Hyprland scale is not fixed at one'
 grep -A3 'animations = {' \
   "$temporary/settings/etc/skel/.config/hypr/looknfeel.lua" | grep -Fq 'enabled = false' || \
   fail 'packaged PS4 Hyprland animations are not disabled'
-jq -e 'any(.modules[]; type == "object" and .format == "Omarchy PS4 Quattro 4.0")' \
+jq -e 'any(.modules[];
+  type == "object" and
+  .type == "command" and
+  (.text | contains("Omarchy PS4 Quattro")) and
+  (.text | contains("omarchy-version")))' \
   "$temporary/settings/etc/skel/.config/fastfetch/config.jsonc" >/dev/null || \
   fail 'packaged PS4 Fastfetch config is missing branding'
 cmp -s \

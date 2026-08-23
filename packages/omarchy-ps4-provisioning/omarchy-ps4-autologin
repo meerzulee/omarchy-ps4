@@ -1,0 +1,13 @@
+#%PAM-1.0
+
+# Automatic desktop entry is allowed only for the owner that provisioning adds
+# to the dedicated autologin group. Keep password and lockout policy on normal
+# interactive login; this service never asks for or bypasses another account's
+# password.
+auth        required    pam_env.so
+auth        required    pam_shells.so
+auth        required    pam_nologin.so
+auth        required    pam_succeed_if.so user ingroup autologin
+auth        required    pam_permit.so
+account     include     system-local-login
+session     include     system-local-login

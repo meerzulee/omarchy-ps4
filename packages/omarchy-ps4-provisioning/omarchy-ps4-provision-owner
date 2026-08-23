@@ -32,6 +32,7 @@ screen_lines=40
 setup_width=72
 setup_left=24
 setup_padding='0 24'
+owner_tty=${OMARCHY_PS4_OWNER_TTY:-/dev/tty1}
 
 read_terminal_geometry() {
   local columns='' lines=''
@@ -53,6 +54,20 @@ read_terminal_geometry() {
   setup_padding="0 $setup_left"
 }
 
+# Gum deliberately writes its interactive renderer to stderr so stdout can
+# return the selected value. The service keeps ordinary stderr in the journal,
+# therefore console mode must route only the interactive renderer back to the
+# owned setup VT. Without this bridge the headings are visible but fields and
+# selection lists disappear.
+run_gum_interactive() {
+  if [[ ${OMARCHY_PS4_OWNER_CONSOLE:-0} == 1 ]]; then
+    [[ -w $owner_tty ]] || fail "owner setup terminal is unavailable: $owner_tty"
+    command gum "$@" 2>"$owner_tty"
+  else
+    command gum "$@"
+  fi
+}
+
 # Preserve the pinned Quattro form and validation while giving every Gum
 # widget one centered, PS4-console-safe visual treatment. Options appended here
 # intentionally override the upstream installer's desktop-oriented purple.
@@ -62,33 +77,39 @@ gum() {
 
   case $widget in
     input)
-      command gum input "$@" \
+      run_gum_interactive input "$@" \
         --width "$setup_width" \
         --padding "$setup_padding" \
         --prompt.foreground '#9ece6a' \
         --cursor.foreground '#9ece6a' \
-        --placeholder.foreground '#737aa2'
+        --placeholder.foreground '#a9b1d6'
       ;;
     choose)
-      command gum choose "$@" \
+      run_gum_interactive choose "$@" \
         --padding "$setup_padding" \
         --cursor '› ' \
         --cursor.foreground '#9ece6a' \
         --header.foreground '#7aa2f7' \
-        --item.foreground '#c0caf5'
+        --item.foreground '#c0caf5' \
+        --selected.foreground '#1a1b26' \
+        --selected.background '#9ece6a'
       ;;
     filter)
-      command gum filter "$@" \
+      run_gum_interactive filter "$@" \
         --width "$setup_width" \
         --padding "$setup_padding" \
         --indicator.foreground '#9ece6a' \
+        --selected-indicator.foreground '#1a1b26' \
         --match.foreground '#9ece6a' \
         --prompt.foreground '#9ece6a' \
+        --placeholder.foreground '#a9b1d6' \
         --header.foreground '#7aa2f7' \
-        --text.foreground '#c0caf5'
+        --text.foreground '#c0caf5' \
+        --cursor-text.foreground '#1a1b26' \
+        --cursor-text.background '#9ece6a'
       ;;
     confirm)
-      command gum confirm "$@" \
+      run_gum_interactive confirm "$@" \
         --padding "$setup_padding" \
         --prompt.foreground '#c0caf5' \
         --selected.foreground '#1a1b26' \
@@ -295,9 +316,93 @@ timezone=''
 # shellcheck disable=SC1090,SC1091
 source "$omarchy_path/install/provisioning/setup-form.sh"
 
+# Gum's searchable filter uses a continuously repainting Bubble Tea viewport.
+# That is useful in a graphical terminal, but the PS4 Linux VT can leave old
+# frames visible while the search cursor blinks. Keep upstream's timezone data
+# and return contract, while using two bounded, static choose lists: first the
+# world region, then the location within it. Each list begins on a clean frame.
+omarchy_prompt_timezone() {
+  local guess='' guessed_region='' guessed_location=''
+  local region='' location='' status=0
+  local timezones='' regions=''
+  local -a choose_args=()
+
+  timezones=$(timedatectl list-timezones)
+  [[ -n $timezones ]] || timezones='UTC'
+  guess=$(tzupdate -p 2>/dev/null) || guess=''
+  if grep -Fxq -- "$guess" <<<"$timezones"; then
+    guessed_region=${guess%%/*}
+    [[ $guess == */* ]] && guessed_location=${guess#*/}
+  fi
+
+  regions=$(awk -F/ 'NF { print $1 }' <<<"$timezones" | sort -u)
+  choose_args=(--height 10 --header 'World region')
+  [[ -z $guessed_region ]] || choose_args+=(--selected "$guessed_region")
+  render_setup_step 'TIMEZONE' 'Choose your world region.'
+  region=$(gum choose "${choose_args[@]}" <<<"$regions") && status=0 || status=$?
+  (( status == 0 )) || return "$status"
+
+  if grep -Fxq -- "$region" <<<"$timezones"; then
+    timezone=$region
+    return 0
+  fi
+
+  choose_args=(--height 10 --header "$region")
+  [[ -z $guessed_location ]] || choose_args+=(--selected "$guessed_location")
+  render_setup_step 'TIMEZONE' "Choose a timezone in $region."
+  location=$(awk -v prefix="$region/" 'index($0, prefix) == 1 { print substr($0, length(prefix) + 1) }' \
+    <<<"$timezones" | gum choose "${choose_args[@]}") && status=0 || status=$?
+  (( status == 0 )) || return "$status"
+
+  timezone="$region/$location"
+}
+
 notice() {
   centered_style '#f7768e' "$1"
   sleep "${2:-1}"
+}
+
+render_centered_review() {
+  local summary=$1 rendered='' line='' left=0
+
+  rendered=$(command gum style \
+    --foreground '#c0caf5' \
+    --border normal \
+    --border-foreground '#414868' \
+    --padding '1 2' \
+    --width "$setup_width" \
+    "$summary")
+  left=$(((screen_columns - setup_width - 2) / 2))
+  (( left >= 0 )) || left=0
+  while IFS= read -r line; do
+    printf '%*s%s\n' "$left" '' "$line"
+  done <<<"$rendered"
+  echo
+}
+
+confirm_owner_creation() {
+  local key='' button_width=16 left=0
+
+  if [[ ${OMARCHY_PS4_OWNER_CONSOLE:-0} != 1 ]]; then
+    gum confirm 'Create this owner?'
+    return $?
+  fi
+
+  centered_style '#c0caf5' --bold 'Create this owner?'
+  left=$(((screen_columns - button_width) / 2))
+  (( left >= 0 )) || left=0
+  printf '%*s\033[38;2;26;27;38m\033[48;2;158;206;106m  YES  \033[0m   ' \
+    "$left" ''
+  printf '\033[38;2;192;202;245m\033[48;2;65;72;104m  NO  \033[0m\n'
+  centered_style '#a9b1d6' 'Enter / Y to create  ·  N to edit'
+
+  while true; do
+    IFS= read -r -s -n 1 key <"$owner_tty" || return 1
+    case $key in
+      ''|y|Y) return 0 ;;
+      n|N|$'\e') return 1 ;;
+    esac
+  done
 }
 
 omarchy_username_taken() {
@@ -333,31 +438,36 @@ prompt_form() {
     render_setup_step 'READY' 'Review the owner details, then create the account.'
     summary=$(printf 'Keyboard   %s\nUser       %s\nHostname   %s\nTimezone   %s' \
       "$keyboard_label" "$username" "$hostname" "$timezone")
-    command gum style \
-      --foreground '#c0caf5' \
-      --border normal \
-      --border-foreground '#414868' \
-      --padding '1 2' \
-      --margin "0 $setup_left 1" \
-      --width "$setup_width" \
-      "$summary"
-    gum confirm 'Create this owner?' && status=0 || status=$?
+    render_centered_review "$summary"
+    confirm_owner_creation && status=0 || status=$?
     (( status == 0 )) && return 0
   done
 }
 
 configure_desktop_autologin() {
+  local owner_name=$1 owner_home=$2
   local config_dir=/etc/lightdm/lightdm.conf.d
   local autologin_config=$config_dir/25-omarchy-ps4-owner-autologin.conf
+  local dmrc=$owner_home/.dmrc
 
   install -d -m 0755 "$config_dir"
   cat >"$autologin_config" <<EOF
 [Seat:*]
-autologin-user=$username
+pam-autologin-service=omarchy-ps4-autologin
+user-session=omarchy
+autologin-user=$owner_name
 autologin-user-timeout=0
 autologin-session=omarchy
+autologin-in-background=false
 EOF
   chmod 0644 "$autologin_config"
+
+  cat >"$dmrc" <<EOF
+[Desktop]
+Session=omarchy
+EOF
+  chown "$owner_name:$owner_name" "$dmrc"
+  chmod 0600 "$dmrc"
 }
 
 existing_setup_user=''
@@ -430,7 +540,7 @@ runuser -u "$username" -- env \
   /usr/bin/omarchy-ps4-finalize-owner >>"$log_file" 2>&1 || \
   fail 'could not prepare the Omarchy desktop'
 
-configure_desktop_autologin
+configure_desktop_autologin "$username" "$home_dir"
 
 install -d -o "$username" -g "$username" "$home_dir/.local/state/omarchy-ps4"
 printf 'release=4.0.0\nupstream_commit=f0020448ca87329199de7cb12f2015ebc4a3e5e7\n' \

@@ -54,14 +54,19 @@ LightDM requires this owner unit and is ordered after it. The owner unit keeps
 control of tty1 even when storage expansion or setup fails. Its clean terminal
 surface centers the pinned green Omarchy ASCII logo and every interactive
 prompt; raw service errors go to the journal instead of being painted through
-the form. A branded `OWNER-SETUP` support screen replaces an empty login
-prompt on failure. UART receives only lifecycle stages and storage evidence;
-usernames, passwords and prompt input are never mirrored to it.
+the form. Timezone selection uses separate region and location lists instead
+of a live filter that repaints unreliably on the Linux virtual console. The
+final review and confirmation are centered; Yes remains Omarchy green and No
+remains neutral gray. A branded `OWNER-SETUP` support screen replaces an empty
+login prompt on failure. UART receives only lifecycle stages and storage
+evidence; usernames, passwords and prompt input are never mirrored to it.
 
 After successful setup, the provisioner creates the PAM-required system
-`autologin` group when absent, adds the owner to it, and LightDM persistently
-auto-signs that owner into the Omarchy session. The password remains required
-for `sudo` and screen locking,
+`autologin` group when absent and adds the owner to it. LightDM uses a
+PS4-owned PAM service that admits only that group, plus an explicit per-owner
+Omarchy session record, to persistently enter the desktop. The normal LightDM
+password stack, `sudo`, and screen locking remain unchanged and still require
+the password,
 but the current unencrypted gift has no boot-time authentication boundary.
 Anyone with physical access to the console or removable USB can reach the
 desktop. A future accepted LUKS unlock flow may provide that boundary before

@@ -10,6 +10,7 @@ Conflicts=getty@tty1.service console-getty.service
 Type=oneshot
 RemainAfterExit=yes
 Environment=OMARCHY_PS4_OWNER_CONSOLE=1
+Environment=OMARCHY_PS4_OWNER_TTY=/dev/tty1
 ExecStart=/usr/bin/omarchy-ps4-provision-owner
 TimeoutStartSec=infinity
 StandardInput=tty

@@ -2,7 +2,7 @@
 
 pkgname=omarchy-ps4-provisioning
 pkgver=4.0.0
-pkgrel=15
+pkgrel=18
 pkgdesc='External-root first-boot owner setup for Omarchy PS4'
 arch=('any')
 url='https://github.com/meerzulee/omarchy-ps4'
@@ -13,7 +13,7 @@ depends=(
   'e2fsprogs'
   'git'
   'gum'
-  'omarchy-ps4=4.0.0-6'
+  'omarchy-ps4=4.0.0-7'
   'openssh'
   'shadow'
   'sudo'
@@ -33,21 +33,23 @@ source=(
   'omarchy-ps4-provision-owner.service'
   'omarchy-ps4-grow-root.service'
   '20-omarchy-ps4-owner-gate.conf'
+  'omarchy-ps4-autologin'
   '20-omarchy-ps4-sshd.conf'
   '10-omarchy-ps4-wheel'
   'README.md'
 )
 sha256sums=(
   '7b498b28492229bd0afe3b149db032572073ca335202601d2713a16d1fc7bcba'
-  '5e70cac069d05090ed79b4fa11b00c045817744967c1547f28c1d83aea4b271f'
+  '6516099f1baa13317970707525b05322a1dfc4afe1dbb614197ff2869fec54e3'
   '6897efd828b217193d4a6c577b6f328ba4a6bb4b6dd2b927f7d1bc23ea5cbbf9'
   '16ccccdbbebdfaa74504e4b43a232ee320f6213e46c453e0bafb5158f14904d1'
-  'e33a4d1552252a06015898d406c0692f58a50d13d4563a35755c5fccc5d5f672'
+  'b22f4c56b00417c9230c48288fa0563fa9023444e130b9390b3cc57c03cd17ad'
   'ef93c9e865c1a8b3ff06c04a08d382480dd65ca2abc6fa01a79ec22ca619168e'
   '488e8eb05273a9fbeaec36b09fb85ea1f77a3dbf3f2a29a2807caeef44eeaba2'
+  'a9a961dc37981b6727c881a822f78ad9d256f247d03d4d27ec088a2b91687dd0'
   '707ade3a8e8c3543a603248afb58da57552ff51891c752b9b502516f62205511'
   '65ae53cdc6fd4d323e8bab7796c0f743744d181897a349bccdc2e4259cf60cfc'
-  '922844faf6d570dce31c73ae32049d1b7a68526fdc476f0e7e072cbec0eea35f'
+  '4d5968a735d1d1838fa43a5ad1dbd2dd8661727b9e4462283dc381d10221cd67'
 )
 
 package() {
@@ -65,6 +67,8 @@ package() {
     "$pkgdir/usr/lib/systemd/system/omarchy-ps4-grow-root.service"
   install -Dm644 20-omarchy-ps4-owner-gate.conf \
     "$pkgdir/usr/lib/systemd/system/lightdm.service.d/20-omarchy-ps4-owner-gate.conf"
+  install -Dm644 omarchy-ps4-autologin \
+    "$pkgdir/etc/pam.d/omarchy-ps4-autologin"
   install -Dm644 20-omarchy-ps4-sshd.conf \
     "$pkgdir/etc/ssh/sshd_config.d/20-omarchy-ps4.conf"
   install -Dm440 10-omarchy-ps4-wheel \
