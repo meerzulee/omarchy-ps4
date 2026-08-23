@@ -77,10 +77,20 @@ sed -i \
   -e '/^[[:space:]]*autologin-session[[:space:]]*=/d' \
   -e 's/^[[:space:]]*user-session[[:space:]]*=.*/user-session=omarchy/' \
   "$lightdm_config"
-grep -q '^sessions-directory=' "$lightdm_config" || \
+# LightDM reads sessions-directory from [LightDM] only. Appending it to this
+# file, whose last section is [Seat:*], made LightDM log "contains unknown option
+# sessions-directory" and ignore it, so it never searched
+# /usr/local/share/wayland-sessions, could not resolve the omarchy session, and
+# dropped to the greeter instead of honouring autologin.
+if ! grep -q '^sessions-directory=' "$lightdm_config"; then
+  lightdm_config_body=$(cat "$lightdm_config")
   printf '%s\n' \
-    'sessions-directory=/usr/local/share/wayland-sessions:/usr/share/wayland-sessions:/usr/share/xsessions' \
-    >>"$lightdm_config"
+    '[LightDM]' \
+    'sessions-directory=/usr/local/share/wayland-sessions:/usr/share/lightdm/sessions:/usr/share/xsessions:/usr/share/wayland-sessions' \
+    '' \
+    "$lightdm_config_body" \
+    >"$lightdm_config"
+fi
 
 install -d -m 0755 /etc/ssh/sshd_config.d
 printf '%s\n' \
