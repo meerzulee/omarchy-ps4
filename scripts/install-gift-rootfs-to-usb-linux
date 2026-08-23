@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    'usage: sudo ./scripts/install-gift-rootfs-to-usb-linux --device /dev/sdX --rootfs ROOTFS.tar.zst --apply' \
+    '' \
+    'Install a validated Omarchy PS4 gift rootfs onto an empty, whole-device' \
+    'ext4 USB already labelled OMARCHY-PS4.'
+}
+
+fail() {
+  printf 'install-gift-rootfs-to-usb-linux: %s\n' "$1" >&2
+  exit 2
+}
+
+target_device=''
+rootfs_archive=''
+apply=false
+
+while (( $# > 0 )); do
+  case "$1" in
+    --device)
+      (( $# >= 2 )) || fail '--device requires a value'
+      target_device=$2
+      shift 2
+      ;;
+    --rootfs)
+      (( $# >= 2 )) || fail '--rootfs requires a value'
+      rootfs_archive=$2
+      shift 2
+      ;;
+    --apply)
+      apply=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+[[ $EUID -eq 0 ]] || fail 'run as root'
+[[ -n $target_device && -b $target_device ]] || fail 'an explicit block --device is required'
+[[ -n $rootfs_archive && -f $rootfs_archive ]] || fail 'a readable --rootfs archive is required'
+
+for command_name in \
+  awk blkid blockdev chmod e2fsck find findmnt grep head install lsblk \
+  mktemp mount readlink rmdir sed sha256sum stat sync tar umount zstd; do
+  command -v "$command_name" >/dev/null 2>&1 || fail "missing command: $command_name"
+done
+
+[[ $(lsblk -dnro TYPE "$target_device") == disk ]] || fail 'target is not a whole disk'
+[[ $(lsblk -dnro TRAN "$target_device") == usb ]] || fail 'target transport is not USB'
+[[ $(blkid -s TYPE -o value "$target_device") == ext4 ]] || fail 'target is not ext4'
+[[ $(blkid -s LABEL -o value "$target_device") == OMARCHY-PS4 ]] || \
+  fail 'target label is not OMARCHY-PS4'
+
+root_source=$(findmnt -nro SOURCE /)
+root_source=${root_source%%\[*}
+root_device=$(readlink -f -- "$root_source" 2>/dev/null || true)
+[[ $target_device != "$root_device" ]] || fail 'refusing to install over the running root disk'
+root_parent=''
+if [[ -b $root_device ]]; then
+  root_parent_name=$(lsblk -dnro PKNAME "$root_device" | head -n1)
+  [[ -z $root_parent_name ]] || root_parent=/dev/$root_parent_name
+fi
+[[ -z $root_parent || $target_device != "$root_parent" ]] || \
+  fail 'refusing to install over the running root disk'
+
+if lsblk -nr -o MOUNTPOINTS "$target_device" | grep -q '[^[:space:]]'; then
+  fail 'target is already mounted'
+fi
+
+device_bytes=$(blockdev --getsize64 "$target_device")
+(( device_bytes >= 32 * 1000 * 1000 * 1000 )) || fail 'target is smaller than 32 GB'
+
+manifest=$rootfs_archive.manifest
+expected_sha256=''
+if [[ -r $manifest ]]; then
+  expected_sha256=$(sed -n 's/^archive_sha256=//p' "$manifest")
+  [[ $expected_sha256 =~ ^[0-9a-f]{64}$ ]] || fail 'rootfs manifest has no valid archive checksum'
+fi
+
+printf 'Target inventory:\n'
+lsblk -o NAME,PATH,TRAN,SIZE,MODEL,SERIAL,FSTYPE,LABEL,MOUNTPOINTS "$target_device"
+printf '\nRootfs: %s\n' "$rootfs_archive"
+[[ -z $expected_sha256 ]] || printf 'Expected SHA-256: %s\n' "$expected_sha256"
+printf 'Install mode: direct whole-device test; no boot files are written\n'
+
+[[ $apply == true ]] || {
+  printf '\nPreview only; add --apply to continue.\n'
+  exit 0
+}
+
+read -r -p "Type INSTALL $target_device to continue: " confirmation
+[[ $confirmation == "INSTALL $target_device" ]] || fail 'aborted'
+
+if [[ -n $expected_sha256 ]]; then
+  actual_sha256=$(sha256sum "$rootfs_archive" | awk '{ print $1 }')
+  [[ $actual_sha256 == "$expected_sha256" ]] || fail 'rootfs checksum mismatch'
+fi
+
+mount_dir=$(mktemp -d /mnt/omarchy-ps4-direct.XXXXXX)
+mounted=false
+cleanup() {
+  if [[ $mounted == true ]]; then
+    umount "$mount_dir" 2>/dev/null || true
+  fi
+  rmdir "$mount_dir" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+mount "$target_device" "$mount_dir"
+mounted=true
+if find "$mount_dir" -mindepth 1 -maxdepth 1 ! -name lost+found -print -quit | grep -q .; then
+  fail 'target filesystem is not empty'
+fi
+
+zstd -dc "$rootfs_archive" | tar \
+  --extract \
+  --preserve-permissions \
+  --numeric-owner \
+  --acls \
+  --xattrs \
+  --xattrs-include='*' \
+  --file=- \
+  --directory="$mount_dir"
+
+install -d -m 0755 "$mount_dir/dev" "$mount_dir/run"
+install -d -m 0555 "$mount_dir/proc" "$mount_dir/sys"
+
+for required_path in \
+  etc/os-release \
+  sbin/init \
+  var/lib/omarchy-ps4/provisioning/pending \
+  var/lib/omarchy-ps4/release-state \
+  usr/bin/omarchy-ps4-grow-root \
+  usr/lib/systemd/system/omarchy-ps4-grow-root.service \
+  etc/systemd/system/multi-user.target.wants/omarchy-ps4-grow-root.service; do
+  [[ -e $mount_dir/$required_path || -L $mount_dir/$required_path ]] || \
+    fail "installed rootfs is missing $required_path"
+done
+[[ -x $mount_dir/sbin/init ]] || fail 'installed /sbin/init is not executable'
+
+install -d -m 0700 "$mount_dir/var/lib/omarchy-ps4"
+printf '%s\n' \
+  'schema=1' \
+  'layout=whole-device-filesystem' \
+  'filesystem=ext4' \
+  'label=OMARCHY-PS4' \
+  "base_image_bytes=$device_bytes" \
+  'auto_grow=1' \
+  >"$mount_dir/var/lib/omarchy-ps4/image-layout"
+chmod 0600 "$mount_dir/var/lib/omarchy-ps4/image-layout"
+rm -f "$mount_dir/var/lib/omarchy-ps4/storage-expanded"
+
+sync -f "$mount_dir" 2>/dev/null || sync
+umount "$mount_dir"
+mounted=false
+e2fsck -f -y "$target_device" >/dev/null
+
+[[ $(blkid -s TYPE -o value "$target_device") == ext4 ]] || fail 'post-install filesystem check failed'
+[[ $(blkid -s LABEL -o value "$target_device") == OMARCHY-PS4 ]] || fail 'post-install label check failed'
+
+printf 'Direct Omarchy PS4 rootfs install complete.\n'
+printf 'Device bytes: %s\n' "$device_bytes"
+printf 'Rootfs SHA-256: %s\n' "${actual_sha256:-not-recorded}"

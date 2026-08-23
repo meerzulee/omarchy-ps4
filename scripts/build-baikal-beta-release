@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+repo_dir=$(cd -- "$script_dir/.." && pwd)
+
+release_id=omarchy-ps4-4.0.0-baikal-b1-beta1
+manager_version=0.31
+fpkg_name=omarchy-ps4-v${manager_version}-baikal-beta.pkg
+rootfs_name=${release_id}-rootfs.tar.zst
+fpkg_source=$repo_dir/output/fpkg-baikal-beta/IV0000-OMCH42069_00-OMARCHYPS4UI0000.pkg
+rootfs_source=$repo_dir/output/gift-rootfs/$rootfs_name
+package_source=$repo_dir/output/omarchy-packages-4.0.0-baikal-b1-beta1
+snapshot=$repo_dir/output/package-snapshot/$release_id
+snapshot_cache=$repo_dir/output/package-snapshot-cache/$release_id
+cache_seed=$repo_dir/output/package-snapshot/omarchy-ps4-4.0.0-usb-dev/repo
+release_dir=$repo_dir/output/releases/$release_id
+staging_dir=$repo_dir/output/releases/.${release_id}.staging.$$
+
+fail() {
+  printf 'build-baikal-beta-release: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ ! -e $release_dir ]] || fail "refusing to overwrite: $release_dir"
+[[ ! -e $rootfs_source && ! -e $rootfs_source.manifest ]] || \
+  fail "refusing to overwrite existing rootfs: $rootfs_source"
+[[ ! -e $package_source ]] || fail "refusing to overwrite: $package_source"
+[[ ! -e $snapshot ]] || fail "refusing to overwrite: $snapshot"
+[[ ! -e $snapshot_cache ]] || fail "refusing to overwrite: $snapshot_cache"
+
+cleanup() {
+  rm -rf -- "$staging_dir"
+}
+trap cleanup EXIT
+
+[[ $(orb status) == Running ]] || fail 'OrbStack is not running'
+[[ $(docker context show) == orbstack ]] || fail 'Docker context must be orbstack'
+
+"$repo_dir/tests/gift-rootfs-contract-test"
+"$repo_dir/tests/private-boot-transaction-test"
+
+"$repo_dir/scripts/build-omarchy-packages" --output "$package_source"
+"$repo_dir/tests/package-content-test" "$package_source"
+
+if [[ -d $cache_seed ]]; then
+  mkdir -p -- "$(dirname -- "$snapshot_cache")"
+  cp -al "$cache_seed" "$snapshot_cache"
+fi
+"$repo_dir/scripts/build-package-snapshot" \
+  --output "$snapshot" \
+  --package-source "$package_source" \
+  --cache "$snapshot_cache"
+
+"$repo_dir/fpkg/tools/build-ui-prototype" --baikal-beta
+"$repo_dir/scripts/build-gift-rootfs" \
+  --snapshot "$snapshot" \
+  --display-mode 1920x1080@60 \
+  --output "$rootfs_source"
+
+mkdir -p -- "$staging_dir"
+ln "$fpkg_source" "$staging_dir/$fpkg_name"
+ln "$rootfs_source" "$staging_dir/$rootfs_name"
+install -m 0644 "$rootfs_source.manifest" \
+  "$staging_dir/$rootfs_name.manifest"
+
+fpkg_size=$(stat -f %z "$fpkg_source" 2>/dev/null || stat -c %s "$fpkg_source")
+fpkg_sha256=$(shasum -a 256 "$fpkg_source" | awk '{ print $1 }')
+rootfs_size=$(stat -f %z "$rootfs_source" 2>/dev/null || stat -c %s "$rootfs_source")
+rootfs_sha256=$(shasum -a 256 "$rootfs_source" | awk '{ print $1 }')
+
+(
+  cd "$staging_dir"
+  shasum -a 256 "$fpkg_name" "$rootfs_name" >SHA256SUMS
+)
+
+printf '%s\n' \
+  'schema=1' \
+  "release_id=$release_id" \
+  'status=private-development-beta' \
+  'release_eligible=false' \
+  'release_blocker=embedded-loader-and-wallpaper-redistribution-rights-unresolved' \
+  'target=ps4-slim-baikal-b1' \
+  'root_layout=whole-device-filesystem' \
+  'root_filesystem=ext4' \
+  'root_label=OMARCHY-PS4' \
+  'display_mode=1920x1080@60' \
+  'kernel_release=6.18.44-ps4-baikal' \
+  "manager_version=$manager_version" \
+  "fpkg=$fpkg_name" \
+  "fpkg_size=$fpkg_size" \
+  "fpkg_sha256=$fpkg_sha256" \
+  "rootfs=$rootfs_name" \
+  "rootfs_size=$rootfs_size" \
+  "rootfs_sha256=$rootfs_sha256" \
+  'first_boot=deferred-owner' \
+  'default_account=false' \
+  'update_policy=fpkg-release-only' \
+  >"$staging_dir/RELEASE.env"
+
+mv "$staging_dir" "$release_dir"
+trap - EXIT
+
+printf 'Release bundle: %s\nFPKG SHA-256: %s\nRootfs SHA-256: %s\n' \
+  "$release_dir" "$fpkg_sha256" "$rootfs_sha256"

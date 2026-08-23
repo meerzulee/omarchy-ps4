@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'apply-usb-boot-profile: %s\n' "$*" >&2
+  exit 1
+}
+
+device=
+profile=
+apply=false
+while (( $# > 0 )); do
+  case $1 in
+    --device)
+      device=${2:?--device requires a value}
+      shift 2
+      ;;
+    --profile)
+      profile=${2:?--profile requires a value}
+      shift 2
+      ;;
+    --apply)
+      apply=true
+      shift
+      ;;
+    *)
+      fail "unknown argument: $1"
+      ;;
+  esac
+done
+
+[[ $EUID == 0 ]] || fail 'run as root inside the OrbStack Linux machine'
+[[ -n $device ]] || fail '--device is required'
+[[ $profile == baikal-b1-beta1 ]] || fail 'only --profile baikal-b1-beta1 is supported'
+[[ $apply == true ]] || fail 'refusing to modify the USB without --apply'
+[[ -b $device ]] || fail "not a block device: $device"
+[[ $(lsblk -dn -o TYPE "$device") == disk ]] || fail 'profile target must be a whole disk'
+[[ $(blkid -s TYPE -o value "$device") == ext4 ]] || fail 'target is not ext4'
+[[ $(blkid -s LABEL -o value "$device") == OMARCHY-PS4 ]] || fail 'target label is not OMARCHY-PS4'
+[[ -z $(findmnt -rn -S "$device") ]] || fail 'target is already mounted'
+
+root_source=$(findmnt -n -o SOURCE /)
+root_parent=$(lsblk -no PKNAME "$root_source" 2>/dev/null | head -n1 || true)
+[[ $device != "$root_source" ]] || fail 'refusing to modify the running root device'
+[[ -z $root_parent || $device != "/dev/$root_parent" ]] || \
+  fail 'refusing to modify the disk backing the running root filesystem'
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+repo_dir=$(cd -- "$script_dir/.." && pwd)
+workspace_dir=$(cd -- "$repo_dir/.." && pwd)
+profile_source=$repo_dir/fpkg/boot-profiles/baikal-b1-beta1.env
+modules_archive=$workspace_dir/linux-ps4-kernel/output/6.18-baikal/modules-6.18.44-ps4-baikal.tar.zst
+kernel_release=6.18.44-ps4-baikal
+expected_modules_sha=1c03bb14635ce6099dc81b43d75cb63050a44909944101ffc319dcf32943fcd7
+
+[[ -f $profile_source ]] || fail "missing profile metadata: $profile_source"
+[[ -f $modules_archive ]] || fail "missing module archive: $modules_archive"
+actual_modules_sha=$(sha256sum "$modules_archive" | awk '{print $1}')
+[[ $actual_modules_sha == "$expected_modules_sha" ]] || fail 'module archive digest mismatch'
+tar --zstd -tf "$modules_archive" | \
+  awk -v prefix="lib/modules/$kernel_release/" '
+    $0 == "lib/" || $0 == "lib/modules/" || index($0, prefix) == 1 { next }
+    { exit 1 }
+  ' || fail 'module archive contains a path outside the expected release tree'
+
+mount_dir=$(mktemp -d /run/omarchy-ps4-profile.XXXXXX)
+mounted=false
+cleanup() {
+  if [[ $mounted == true ]]; then
+    umount "$mount_dir" || true
+  fi
+  rmdir "$mount_dir" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+mount -o rw "$device" "$mount_dir"
+mounted=true
+[[ -f $mount_dir/etc/os-release ]] || fail 'target does not contain a Linux root filesystem'
+[[ -f $mount_dir/var/lib/omarchy-ps4/release-state ]] || fail 'target lacks Omarchy release state'
+[[ -e $mount_dir/var/lib/omarchy-ps4/provisioning/pending ]] || \
+  fail 'target is not the deferred-owner gift root'
+
+release_state=$mount_dir/var/lib/omarchy-ps4/release-state
+saved_state=$mount_dir/var/lib/omarchy-ps4/release-state.ultrawide-dev1
+if [[ ! -e $saved_state ]]; then
+  install -m 0644 "$release_state" "$saved_state"
+fi
+
+install -d -m 0755 "$mount_dir/usr/lib/modules"
+tar --zstd --extract --file "$modules_archive" --directory "$mount_dir/usr"
+[[ -d $mount_dir/usr/lib/modules/$kernel_release ]] || fail 'module extraction did not create the expected release'
+depmod -a -b "$mount_dir" "$kernel_release"
+
+grep -q '^OMARCHY_PS4_DISPLAY_MODE=' "$mount_dir/etc/environment" || \
+  fail 'target environment lacks the PS4 display policy'
+sed -i 's/^OMARCHY_PS4_DISPLAY_MODE=.*/OMARCHY_PS4_DISPLAY_MODE=1920x1080@60/' \
+  "$mount_dir/etc/environment"
+grep -q '^kernel_release=' "$release_state" || fail 'release state lacks kernel_release'
+grep -q '^display_mode=' "$release_state" || fail 'release state lacks display_mode'
+sed -i \
+  -e 's/^kernel_release=.*/kernel_release=6.18.44-ps4-baikal/' \
+  -e 's/^display_mode=.*/display_mode=1920x1080@60/' \
+  "$release_state"
+install -Dm0644 "$profile_source" \
+  "$mount_dir/var/lib/omarchy-ps4/boot-profile"
+
+test "$(grep -Fxc 'OMARCHY_PS4_DISPLAY_MODE=1920x1080@60' "$mount_dir/etc/environment")" = 1
+test "$(grep -Fxc 'kernel_release=6.18.44-ps4-baikal' "$release_state")" = 1
+test "$(grep -Fxc 'display_mode=1920x1080@60' "$release_state")" = 1
+test -s "$mount_dir/usr/lib/modules/$kernel_release/modules.dep"
+sync
+umount "$mount_dir"
+mounted=false
+rmdir "$mount_dir"
+trap - EXIT
+e2fsck -fn "$device"
+
+printf 'apply-usb-boot-profile: applied %s to %s\n' "$profile" "$device"
+printf 'apply-usb-boot-profile: kernel=%s display=1920x1080@60\n' "$kernel_release"
