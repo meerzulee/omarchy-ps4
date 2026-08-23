@@ -1,0 +1,90 @@
+{
+  "schema": 2,
+  "release": {
+    "id": "omarchy-ps4-4.0.0-baikal-b1-ultrawide-dev1",
+    "version": "4.0.0",
+    "channel": "edge",
+    "sequence": 2,
+    "published_at": "2026-08-23T00:00:00Z"
+  },
+  "target": {
+    "architecture": "x86_64",
+    "models": ["ps4-slim"],
+    "southbridges": ["baikal-b1"],
+    "root_transport": "usb",
+    "root_layout": "whole-device-filesystem",
+    "root_filesystem": "ext4",
+    "root_label": "OMARCHY-PS4"
+  },
+  "first_boot": {
+    "mode": "deferred-owner",
+    "pending_marker": "/var/lib/omarchy-ps4/provisioning/pending",
+    "service": "omarchy-ps4-provision-owner.service",
+    "default_password": false
+  },
+  "loader": {
+    "delivery": "embedded",
+    "app_path": "/app0/assets/misc/ps4-linux-loader.elf",
+    "source_url": "https://github.com/ps4-linux/ps4-linux-loader",
+    "source_commit": "9acef9fbf79097a2bb39d6c9c17228198bc445cc",
+    "version": "v25",
+    "sha256": "c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef0846d67fa9d1e5ce65",
+    "license": "NOASSERTION"
+  },
+  "boot_set": {
+    "storage": "orbis-internal",
+    "active_path": "/data/linux/boot",
+    "previous_suffix": ".omarchy-prev",
+    "transaction_marker": "/data/linux/.omarchy-ps4-staging",
+    "vram_mb": 1024,
+    "artifacts": [
+      {
+        "name": "bzImage",
+        "role": "kernel",
+        "app_path": "/app0/assets/misc/bzImage",
+        "active_name": "bzImage",
+        "size": 11244544,
+        "sha256": "9d0fe91771eea8e2e6969ce46417bc8e3497dc8ccec383826edb1160f2f0b270"
+      },
+      {
+        "name": "initramfs.cpio.gz",
+        "role": "initramfs",
+        "app_path": "/app0/assets/misc/initramfs.cpio.gz",
+        "active_name": "initramfs.cpio.gz",
+        "size": 1686552,
+        "sha256": "841b7a1b59ad0c53d97be49fb4369ba7918158df0fc557f9620fd3bddddb15ef"
+      },
+      {
+        "name": "bootargs.txt",
+        "role": "bootargs",
+        "app_path": "/app0/assets/misc/bootargs.txt",
+        "active_name": "bootargs.txt",
+        "size": 465,
+        "sha256": "445b9584db9815c793576193d1f7afc33e99e02115938396ee19c5ea23c5292f"
+      },
+      {
+        "name": "vram.txt",
+        "role": "vram",
+        "app_path": "/app0/assets/misc/vram.txt",
+        "active_name": "vram.txt",
+        "size": 5,
+        "sha256": "4f71bb761ace37c88826cd8cc1c948e1cf5b5d0cd153dc651a6efdb3dfb9f2b1"
+      }
+    ]
+  },
+  "usb_image": {
+    "name": "omarchy-ps4-usb-4.0.0.img.xz",
+    "url": "https://downloads.example.invalid/omarchy-ps4/beta/omarchy-ps4-usb-4.0.0.img.xz",
+    "compression": "xz",
+    "compressed_size": 2267558812,
+    "sha256": "914ef917db4682a148cc0a0b92b2b414763b0a7d0b6875a46f68822232e2e2b8",
+    "uncompressed_size": 17179869184,
+    "uncompressed_sha256": "46ea6ca2c20b15cba9b40cb75bd07dbfa4c8a04d5d553eb27d0513b5c5f053df",
+    "layout": "whole-device-filesystem",
+    "filesystem": "ext4",
+    "label": "OMARCHY-PS4",
+    "minimum_device_bytes": 32000000000,
+    "auto_grow": true,
+    "contains_boot_files": false
+  }
+}

@@ -18,6 +18,10 @@
   form still writes directly to `/dev/tty1`; only diagnostic chatter is hidden.
 - `6.18-baikal-debug-uart.txt` restores visible HDMI/fbcon messages plus
   `initcall_debug`; it does not disable SATA and is the rollback profile.
+- `6.18-baikal-ultrawide-3440x1440.txt` belongs only to the uniquely named
+  `6.18.44-ps4-baikal-ultrawide` test kernel. It requests the coherent
+  3440x1440@50 raster and deliberately omits the forced 1080p EDID. The normal
+  6.18 Baikal kernel plus `6.18-baikal-internal-root.txt` remains the rollback.
 
 The SATA-disabled and splash profiles are candidates until separate bounded
 UART cold-boot experiments accept them. Do not delete the debug profile.

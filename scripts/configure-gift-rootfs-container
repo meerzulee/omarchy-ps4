@@ -5,7 +5,8 @@ set -euo pipefail
 snapshot=${1:?snapshot path is required}
 modules_archive=${2:?kernel module archive is required}
 kernel_release=${3:?kernel release is required}
-archive_output=${4:?archive output path is required}
+display_mode=${4:?display mode is required}
+archive_output=${5:?archive output path is required}
 release=4.0.0
 upstream_commit=f0020448ca87329199de7cb12f2015ebc4a3e5e7
 
@@ -18,6 +19,10 @@ fail() {
 [[ -r $snapshot/manifest/packages.lock ]] || fail 'package lock is missing'
 [[ -r $modules_archive ]] || fail 'kernel module archive is missing'
 [[ $kernel_release =~ ^[0-9] ]] || fail 'kernel release is invalid'
+case $display_mode in
+  1920x1080@60|3440x1440@50) ;;
+  *) fail 'display mode is not an approved PS4 profile' ;;
+esac
 
 pacman --config "$snapshot/pacman.conf" -Syy --noconfirm
 mapfile -t locked_packages < <(cut -f1 "$snapshot/manifest/packages.lock")
@@ -56,10 +61,12 @@ rm -f /var/lib/dbus/machine-id
 # distribution data-dir file before Mesa initializes.
 sed -i \
   -e '/^[[:space:]]*AMD_DEBUG[[:space:]]*=/d' \
+  -e '/^[[:space:]]*OMARCHY_PS4_DISPLAY_MODE[[:space:]]*=/d' \
   -e '/^[[:space:]]*OMARCHY_PATH[[:space:]]*=/d' \
   /etc/environment
 printf '%s\n' \
   'AMD_DEBUG=notiling' \
+  "OMARCHY_PS4_DISPLAY_MODE=$display_mode" \
   'OMARCHY_PATH=/usr/share/omarchy' \
   >>/etc/environment
 
@@ -110,6 +117,7 @@ printf '%s\n' \
   "release=$release" \
   "upstream_commit=$upstream_commit" \
   "kernel_release=$kernel_release" \
+  "display_mode=$display_mode" \
   'root_layout=whole-device-filesystem' \
   'filesystem=ext4' \
   'label=OMARCHY-PS4' \

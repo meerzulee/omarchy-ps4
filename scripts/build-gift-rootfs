@@ -8,10 +8,11 @@ workspace_dir=$(cd -- "$repo_dir/.." && pwd)
 snapshot="$repo_dir/output/package-snapshot/omarchy-ps4-4.0.0-usb-dev"
 kernel_output="$workspace_dir/linux-ps4-kernel/output/6.18-baikal"
 output="$repo_dir/output/gift-rootfs/omarchy-ps4-gift-4.0.0.tar.zst"
+display_mode=1920x1080@60
 
 usage() {
   printf '%s\n' \
-    'Usage: build-gift-rootfs [--snapshot DIRECTORY] [--kernel-output DIRECTORY] [--output FILE]' \
+    'Usage: build-gift-rootfs [--snapshot DIRECTORY] [--kernel-output DIRECTORY] [--display-mode MODE] [--output FILE]' \
     '' \
     'Build the complete owner-ready Omarchy PS4 root filesystem with OrbStack.'
 }
@@ -38,6 +39,11 @@ while (( $# > 0 )); do
       output=$2
       shift 2
       ;;
+    --display-mode)
+      (( $# >= 2 )) || fail '--display-mode requires a value'
+      display_mode=$2
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -45,6 +51,11 @@ while (( $# > 0 )); do
     *) fail "unknown argument: $1" ;;
   esac
 done
+
+case $display_mode in
+  1920x1080@60|3440x1440@50) ;;
+  *) fail 'display mode must be 1920x1080@60 or 3440x1440@50' ;;
+esac
 
 command -v docker >/dev/null 2>&1 || fail 'Docker CLI is not installed'
 command -v zstd >/dev/null 2>&1 || fail 'zstd is not installed'
@@ -94,6 +105,7 @@ container_id=$(docker create \
     /run/omarchy-ps4-snapshot \
     /run/kernel-modules.tar.zst \
     "$kernel_release" \
+    "$display_mode" \
     "/output/$staging_name")
 docker start --attach "$container_id"
 
@@ -113,6 +125,7 @@ printf '%s\n' \
   "package_count=$package_count" \
   "package_snapshot_sha256=$snapshot_sha256" \
   "kernel_release=$kernel_release" \
+  "display_mode=$display_mode" \
   "modules_sha256=$modules_sha256" \
   "archive_size=$archive_size" \
   "archive_sha256=$archive_sha256" \
