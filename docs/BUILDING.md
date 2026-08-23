@@ -14,10 +14,11 @@ The result is **two matching artifacts**, not one installer:
 Flashing the USB image is the Linux installation. The FPKG never formats the
 USB or carries the multi-gigabyte Linux root filesystem.
 
-Status: private development beta. The build is reproducible enough for the
-current lab workflow, but the FPKG must not be published while loader and
-wallpaper redistribution rights, release signing and repeated hardware
-acceptance remain unresolved.
+Status: public development beta. The build is reproducible enough for the
+current lab workflow. Loader and wallpaper redistribution rights were confirmed
+by the project owner on 2026-08-24, so v0.31 is published publicly. Release
+signing and repeated hardware acceptance remain unresolved, so published
+packages are unsigned development betas rather than production releases.
 
 ## Build graph
 

@@ -18,8 +18,11 @@ private-beta boot-path pass, not full product acceptance. The greeter fallback
 was later traced to a mis-scoped LightDM session-directory setting and is fixed
 in the current rootfs source; one reboot of the corrected live system entered
 the desktop without a greeter. Validation against a rebuilt image and repeated
-cold boots remain open. The FPKG must not be published publicly while signing,
-loader licensing, and private wallpaper rights remain unresolved.
+cold boots remain open. As of 2026-08-24 the project owner has confirmed
+redistribution rights for the embedded loader and wallpaper, and v0.31 is
+published publicly as an unsigned development beta. Release signing and
+repeated hardware acceptance are still open; the published package is not a
+production or support claim.
 
 The manager is the Orbis-side kernel manager and boot entry point for Omarchy
 PS4:

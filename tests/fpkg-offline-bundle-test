@@ -9,6 +9,11 @@ check_hash() {
   local relative_file="$1"
   local expected_sha256="$2"
   local actual_sha256
+  if [[ ! -f "$bundle_dir/$relative_file" ]]; then
+    printf 'fpkg-offline-bundle: missing pinned file: %s\n' "$relative_file" >&2
+    printf 'fpkg-offline-bundle: see fpkg/vendor/quarantine/ for why it was withdrawn\n' >&2
+    exit 1
+  fi
   actual_sha256="$(shasum -a 256 "$bundle_dir/$relative_file" | awk '{print $1}')"
   if [[ "$actual_sha256" != "$expected_sha256" ]]; then
     printf 'fpkg-offline-bundle: digest mismatch: %s\n' "$relative_file" >&2
