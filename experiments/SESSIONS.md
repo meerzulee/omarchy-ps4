@@ -9235,6 +9235,1756 @@ but they are not evidence of a Linux 6.18 boot.
 - next action: after the operator explicitly reports that Wi-Fi is connected,
   open a fresh A3 session and stage the exact two package artifacts once
 
+### EXP-20260823-021-A1 — read active Orbis video-output geometry
+
+- state: complete — pass
+- question: what active HDMI resolution, compositor pane and raw refresh value
+  does Orbis report on the connected 34-inch ultrawide monitor?
+- changed variable: send exactly one 7,796-byte read-only
+  `orbis-video-probe.bin`, SHA-256
+  `f5fa63302f4780b81463c4d6cf230d0ba5680f7c2e77178db4a8d33e9e43b9d4`,
+  to the already operator-reported active GoldHEN BinLoader; the payload
+  resolves only `sceVideoOutOpen`, `sceVideoOutGetResolutionStatus` and
+  `sceVideoOutClose`, and contains no display setter, kernel patch or MMIO path
+- expected evidence: one complete sender write; matching GoldHEN receive/launch
+  evidence; `[orbis-video-probe]` UART output with exact output, pane, refresh
+  and flags; a matching on-screen notification; HDMI remains stable and Orbis
+  returns to the responsive home screen
+- timeout: 60 seconds; stop on the first complete result, connection failure,
+  payload error, HDMI loss, hang, reboot or logger discontinuity
+- rollback: the probe has no persistent write and closes its VideoOut handle;
+  do not retry or reboot inside A1. If it fails to return, close and review A1
+  before a separately bounded recovery action
+- operator action: remain on the Orbis home screen, do not press a button, and
+  report the exact notification plus any HDMI blanking or loss after the single
+  host-initiated payload send
+- operator report: saw the on-screen notification; no display failure or loss
+  of Orbis responsiveness was reported
+- result: pass. The host made one complete 7,796-byte write. GoldHEN received
+  exactly 7,796 bytes, selected `ScePartyDaemon`, identified the artifact as
+  BIN and launched it successfully. The typed query returned output
+  `1920x1080`, pane `1920x1080`, raw refresh value `3`, screen-size bits
+  `0x42080000` (IEEE-754 `34.0`) and flags `0x0000`. The payload emitted the
+  matching visible notification, closed its VideoOut handle with result zero
+  and returned
+- bounded UART context:
+  [`20260823_131827_753107-exp-20260823-021-a1-read-active-orbis-video-output-geometry-5f435b95.md`](../../ps4-uart/sessions/20260823_131827_753107-exp-20260823-021-a1-read-active-orbis-video-output-geometry-5f435b95.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- conclusion: the 34-inch monitor is detected, but current Orbis output and
+  Shell pane are both fixed at 16:9 1920x1080. A custom framebuffer size alone
+  cannot create native 2560x1080 HDMI output. Do not call the untyped
+  `ConfigureOutputMode`, AvSetting or mode-set exports until their exact ABI,
+  mode descriptor and restore path are recovered
+- rollback: none required; the read-only probe closed cleanly and made no
+  persistent change
+- next action: recover the read-only raw-EDID/current-mode ABI from source or
+  binary analysis, then build a second diagnostic that proves the monitor's
+  advertised 2560x1080 timing before designing any memory-only mode request
+
+### EXP-20260823-021-A2 — re-arm GoldHEN BinLoader for EDID ABI capture
+
+- state: complete — pass
+- question: does one deliberate BinLoader OFF-to-ON transition create a fresh
+  listener for the already-built read-only EDID ABI payload?
+- changed variable: set only GoldHEN Servers Settings → BinLoader Server OFF
+  and then ON exactly once; do not connect to port 9090, send a payload, change
+  video settings, launch Omarchy or touch USB
+- expected evidence: exactly one fresh
+  `[GoldHEN] <payloader> Server started at 9090 port` UART marker without a
+  payload error, crash, display loss or logger discontinuity
+- timeout: 45 seconds after the ON transition; stop on the start marker or exact
+  error
+- rollback: if the marker does not appear, leave the displayed state as
+  observed and do not repeat the transition inside A2
+- operator action: set BinLoader Server OFF, then ON once, return to the Orbis
+  home screen and report `done`; do not test the port
+- operator report: reloaded PayLoader Server and performed no network test
+- result: pass. UART recorded one server socket abort followed by exactly one
+  fresh `[GoldHEN] <payloader> Server started at 9090 port` marker. No payload
+  connection, handling error, display loss, crash or logger event occurred
+- bounded UART context:
+  [`20260823_132515_619987-exp-20260823-021-a2-re-arm-goldhen-binloader-for-edid-abi-captur-30c3a45e.md`](../../ps4-uart/sessions/20260823_132515_619987-exp-20260823-021-a2-re-arm-goldhen-binloader-for-edid-abi-captur-30c3a45e.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; preserve the untouched one-shot listener for A3
+- next action: send only the already-built 7,828-byte read-only ABI probe in a
+  separately bounded A3 session; do not probe or reconnect first
+
+### EXP-20260823-021-A3 — capture raw-EDID export ABI without calling it
+
+- state: complete — fail at module discovery; no unsafe call
+- question: can the executable bytes of the untyped
+  `sceVideoOutGetHdmiRawEdid_` export be safely captured so its real argument
+  handling can be disassembled before any EDID call?
+- changed variable: send exactly one 7,828-byte
+  `orbis-video-abi-probe.bin`, SHA-256
+  `419e4602d3c610eb65006424fdbe9078dd090dddc58da6ac489e2e41335c13d2`,
+  to the UART-proven fresh listener. The payload loads the raw-EDID module,
+  resolves but never calls its single getter export, verifies that its address
+  lies inside the module executable mapping and logs at most 512 bytes; it has
+  no setter, function invocation, kernel patch, MMIO or persistent write path
+- expected evidence: one complete 7,828-byte sender write; matching GoldHEN
+  receive/launch; module name/base/size/symbol range; a bounded code hexdump;
+  `export_called=0`; visible capture notification; unchanged HDMI and responsive
+  Orbis
+- timeout: 60 seconds; stop on complete capture, module/symbol/range error,
+  HDMI loss, crash, reboot or logger discontinuity
+- rollback: no persistent state is changed. Do not retry or reboot inside A3;
+  close and review the slice before another action
+- operator action: remain on the Orbis home screen without pressing a button;
+  report the exact notification and any HDMI instability after the one host send
+- result: fail for the intended ABI capture, with the safety boundary intact.
+  The host made one complete 7,828-byte write; GoldHEN received exactly 7,828
+  bytes, selected `ScePartyDaemon`, identified BIN and launched it. Loading
+  `/system/common/lib/libSceVideoOutRawEdid.sprx` returned `0x80020002`
+  (`ENOENT`), so the payload stopped before symbol resolution, code-range read
+  or export invocation and emitted the failure notification. There was no crash,
+  reboot, HDMI fault or logger discontinuity
+- bounded UART context:
+  [`20260823_132756_798069-exp-20260823-021-a3-capture-raw-edid-export-abi-without-calling--5a3cda9d.md`](../../ps4-uart/sessions/20260823_132756_798069-exp-20260823-021-a3-capture-raw-edid-export-abi-without-calling--5a3cda9d.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- conclusion: an OpenOrbis stub-library name is not proof of a same-named 12.02
+  runtime SPRX. Do not retry another guessed module path
+- rollback: none required; module loading failed read-only and the one-shot
+  BinLoader listener is now consumed
+- next action: list only the actual `/system/common/lib` VideoOut and AvSetting
+  filenames through GoldHEN FTP in a separately bounded read-only A4 session
+
+### EXP-20260823-021-A4 — inventory actual VideoOut modules through FTP
+
+- state: complete — pass
+- question: which VideoOut and AvSetting module filenames actually exist under
+  firmware 12.02 `/system/common/lib`?
+- changed variable: make one anonymous read-only FTP directory listing of
+  `/system/common/lib` and filter the host copy for `VideoOut`, `AvSetting`,
+  `Edid` and `Hdmi`; do not download a module, write a console file, connect to
+  BinLoader or change display settings
+- expected evidence: an exact directory inventory or a precise FTP permission/
+  path error within 30 seconds, while UART remains continuous and Orbis stable
+- timeout: 30 seconds; stop on completed listing or first FTP error
+- rollback: none because no write or payload is allowed
+- operator action: none; remain on the Orbis home screen
+- result: pass. One anonymous FTP `LIST` of `/system/common/lib` completed and
+  the host-side filter found exactly `libSceAvSetting.sprx`,
+  `libSceVideoOut.sprx` and `libSceVideoOutSecondary.sprx`; there is no
+  same-named `libSceVideoOutRawEdid.sprx` runtime file. No module was downloaded
+  and no console write, BinLoader connection or display change occurred
+- bounded UART context:
+  [`20260823_132938_433338-exp-20260823-021-a4-inventory-actual-videoout-modules-through-ft-68d5ac86.md`](../../ps4-uart/sessions/20260823_132938_433338-exp-20260823-021-a4-inventory-actual-videoout-modules-through-ft-68d5ac86.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- UART conclusion: the valid zero-byte slice is expected for an FTP directory
+  read and contains no logger or hardware fault; the exact filenames are host
+  FTP evidence
+- rollback: none required
+- next action: rebuild the no-call ABI probe to resolve the raw-EDID getter from
+  the actual VideoOut or AvSetting runtime module before another BinLoader send
+
+### EXP-20260823-021-A5 — re-arm BinLoader for corrected no-call ABI probe
+
+- state: complete — pass
+- question: does one deliberate BinLoader OFF-to-ON transition create a fresh
+  listener for the corrected actual-module ABI probe?
+- changed variable: set only BinLoader Server OFF and then ON exactly once; do
+  not connect to port 9090, send a payload, change video settings or touch USB
+- expected evidence: one fresh `Server started at 9090 port` UART marker with
+  no payload error, display loss, crash or logger discontinuity
+- timeout: 45 seconds after ON; stop on the marker or exact error
+- rollback: if the marker does not appear, do not repeat the transition in A5
+- operator action: reload BinLoader Server once and report `done`; do not test
+  the port
+- operator report: requested the corrected probe be tried again after reloading
+  the server
+- result: pass. UART recorded one server socket abort followed by exactly one
+  fresh `Server started at 9090 port` marker. No port connection, payload error,
+  display loss, crash or logger event occurred before the session closed
+- bounded UART context:
+  [`20260823_133241_802618-exp-20260823-021-a5-re-arm-binloader-for-corrected-no-call-abi-p-a4f1e111.md`](../../ps4-uart/sessions/20260823_133241_802618-exp-20260823-021-a5-re-arm-binloader-for-corrected-no-call-abi-p-a4f1e111.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; preserve the untouched listener for A6
+- next action: send only the corrected 8,076-byte probe in A6 without a port
+  readiness connection or retry
+
+### EXP-20260823-021-A6 — inspect actual raw-EDID export without calling it
+
+- state: complete — pass
+- question: does firmware 12.02 export a raw-EDID getter from its actual
+  VideoOut or AvSetting module, and what executable bytes establish its ABI?
+- changed variable: send exactly one 8,076-byte corrected
+  `orbis-video-abi-probe.bin`, SHA-256
+  `371852919dc234af08f236fab80b91c7da8b1fbe3719df0f629006ce25a94e03`,
+  to the fresh listener. It resolves but never invokes the candidate raw-EDID
+  getter and reads at most 512 verified executable bytes; it contains no setter,
+  kernel patch, MMIO or persistent write path
+- expected evidence: complete sender write and GoldHEN launch; either a safely
+  bounded hexdump ending `export_called=0` or an exact no-export error; visible
+  notification; unchanged HDMI and responsive Orbis
+- timeout: 60 seconds; stop on result, error, HDMI loss, crash, reboot or logger
+  discontinuity
+- rollback: no persistent state is changed; do not retry or reboot inside A6
+- operator action: remain on the home screen and report the notification and
+  any HDMI instability after the host send
+- result: pass. The host made one complete 8,076-byte write; GoldHEN received
+  exactly 8,076 bytes and launched BIN in `ScePartyDaemon`. The VideoOut module
+  did not export the candidate name, while `libSceAvSetting.sprx` exported
+  `sceAvSettingGetHdmiRawEdid` at module offset `0x2bb0`. The payload verified
+  the address inside the `0xc000` executable mapping, captured 512 bytes, ended
+  with `export_called=0` and emitted the success notification. No setter or
+  getter was invoked, and no display, crash, reboot or logger fault occurred
+- bounded UART context:
+  [`20260823_135234_291112-exp-20260823-021-a6-inspect-actual-raw-edid-export-without-calli-17a5a659.md`](../../ps4-uart/sessions/20260823_135234_291112-exp-20260823-021-a6-inspect-actual-raw-edid-export-without-calli-17a5a659.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- offline disassembly: the export begins `mov rsi,rdi; mov
+  rdi,[0x83dba4060]; jmp 0x83db9b7d0`. This proves the public ABI accepts one
+  output pointer and forwards it as the internal getter's second argument after
+  the AvSetting global context; it neither reads a second public argument nor
+  performs a mode-set in its wrapper
+- rollback: none required; the function was never called and the one-shot
+  listener is consumed
+- next action: build a getter probe with a 1 MiB zeroed output region, 64 KiB
+  canaries on both sides and standard EDID header/checksum validation before one
+  separately bounded invocation
+
+### EXP-20260823-021-A7 — re-arm BinLoader for bounded EDID getter
+
+- state: complete
+- question: does one BinLoader OFF-to-ON transition create the fresh listener
+  required for the bounded EDID getter probe?
+- changed variable: reload only BinLoader Server once; do not connect to 9090,
+  send a payload, change display settings or touch USB
+- expected evidence: one fresh `Server started at 9090 port` marker without a
+  payload error, display loss, crash or logger discontinuity
+- timeout: 45 seconds after ON; stop on the marker or exact error
+- rollback: do not repeat the transition inside A7 if the marker is absent
+- operator action: reload BinLoader Server once and report `done`; do not test
+  the port
+- operator report: requested `try again` after performing the single reload;
+  Orbis remained visible with no reported HDMI instability
+- result: pass. UART recorded one `Server socket aborted` followed by one fresh
+  `Server started at 9090 port` marker. No payload connected, and the capture
+  stayed continuous with no crash, reboot or serial reconnect
+- bounded UART context:
+  [`20260823_135947_052781-exp-20260823-021-a7-re-arm-binloader-for-bounded-edid-getter-a8da2b71.md`](../../ps4-uart/sessions/20260823_135947_052781-exp-20260823-021-a7-re-arm-binloader-for-bounded-edid-getter-a8da2b71.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; the fresh one-shot listener is the A8 precondition
+- next action: send the already-built read-only EDID getter exactly once in A8
+
+### EXP-20260823-021-A8 — capture and validate monitor EDID read-only
+
+- state: complete
+- question: does the monitor EDID advertised to Orbis contain a valid
+  2560x1080 timing?
+- changed variable: send exactly one 8,108-byte `orbis-edid-probe.bin`, SHA-256
+  `af3035907f5b5cd8bcfd9106abfdab26e144ada4036e986da4dbcb01f9070d34`,
+  and invoke the A6-proven one-pointer `sceAvSettingGetHdmiRawEdid` getter once.
+  The output pointer addresses a 1 MiB zeroed region with 64 KiB `0x5a`
+  canaries on both sides; the payload scans for standard EDID magic, validates
+  up to eight 128-byte checksums, logs at most 1,024 EDID bytes and has no setter,
+  kernel patch, MMIO or persistent write path
+- expected evidence: one complete sender write and GoldHEN launch; clean prefix
+  and suffix guards; exact getter result; EDID header and checksummed blocks or
+  a precise no-header error; unchanged HDMI and responsive Orbis
+- timeout: 60 seconds; stop on result, changed guard, error, HDMI loss, crash,
+  reboot or logger discontinuity
+- rollback: no persistent state is changed; do not retry or reboot inside A8
+- operator action: remain on the home screen and report the notification plus
+  any HDMI instability after the one host send
+- host action: `send-loader-once` made one complete 8,108-byte write to the
+  fresh listener (`requested=8108`, `written=8108`, `errno=0`)
+- result: fail. GoldHEN received exactly 8,108 bytes and launched the BIN once,
+  but the getter faulted before returning or writing EDID. The exact fault was
+  SIGSEGV at `libSceAvSetting.sprx+0x780b`, reached from the exported wrapper at
+  `+0x2bba`; registers showed `rdi=0`, fault address zero. This matches the
+  wrapper forwarding its module-global AvSetting context as the internal
+  getter's first argument: the newly loaded module instance in PartyDaemon has
+  no initialized AvSetting context. Therefore A6 proved the wrapper shape, but
+  not that this export is callable in GoldHEN's PartyDaemon target
+- bounded UART context:
+  [`20260823_140354_241572-exp-20260823-021-a8-capture-and-validate-monitor-edid-read-only-5e38313a.md`](../../ps4-uart/sessions/20260823_140354_241572-exp-20260823-021-a8-capture-and-validate-monitor-edid-read-only-5e38313a.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- impact and rollback: no setter, display mode, file or persistent state was
+  changed. Orbis killed and automatically relaunched the crashed PartyDaemon.
+  The one-shot listener is consumed. Do not repeat this getter from
+  PartyDaemon
+- next action: inspect the AvSetting initialization path and internal getter
+  offline, then predeclare a new no-call probe or stop this route; do not send
+  another getter until a non-null initialized context is proven
+
+### EXP-20260823-021-A9 — re-arm BinLoader for no-call AvSetting inspection
+
+- state: complete
+- question: does one BinLoader OFF-to-ON transition create a fresh listener for
+  the no-call AvSetting context probe after PartyDaemon's automatic restart?
+- changed variable: reload only BinLoader Server once; do not connect to 9090,
+  send a payload, change display settings or touch USB
+- expected evidence: one fresh `Server started at 9090 port` marker without a
+  payload error, display loss, crash or logger discontinuity
+- timeout: 45 seconds after ON; stop on the marker or exact error
+- rollback: do not repeat the transition inside A9 if the marker is absent
+- operator action: reload BinLoader Server once and report `done`; do not test
+  the port
+- operator report: `done`; no HDMI instability reported
+- result: pass. The bounded slice contains exactly one `Server socket aborted`
+  followed by one `Server started at 9090 port` marker. No payload connected,
+  and there was no crash, reboot or logger discontinuity
+- bounded UART context:
+  [`20260823_141446_319463-exp-20260823-021-a9-re-arm-binloader-for-no-call-avsetting-inspe-c6e9e484.md`](../../ps4-uart/sessions/20260823_141446_319463-exp-20260823-021-a9-re-arm-binloader-for-no-call-avsetting-inspe-c6e9e484.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; the fresh one-shot listener is the A10 precondition
+- next action: send the no-call AvSetting context probe exactly once in A10
+
+### EXP-20260823-021-A10 — inspect existing AvSetting context without a call
+
+- state: complete
+- question: does PartyDaemon's already-loaded AvSetting module have a non-null
+  context, and what bounded code bytes describe the internal getter that A8
+  faulted in?
+- changed variable: send exactly one 8,596-byte
+  `orbis-av-context-probe.bin`, SHA-256
+  `6031e18cb346cd00a63701a16e5918f84c0db64745dfba932f21c861aba9fcb6`.
+  It enumerates existing modules, resolves the existing AvSetting export,
+  validates executable/data bounds and the A6 wrapper pattern, reads only the
+  module-global pointer value, and logs 32 wrapper plus 256 internal code
+  bytes. It loads no AvSetting module and calls no AvSetting export, getter,
+  setter, kernel patch, MMIO or persistent write path
+- expected evidence: one complete sender write and GoldHEN launch; exactly one
+  existing AvSetting candidate; bounded addresses and code bytes; explicit
+  null/non-null context; clean return, notification, unchanged HDMI and
+  responsive Orbis
+- timeout: 60 seconds; stop on result, error, HDMI loss, crash, reboot or logger
+  discontinuity
+- rollback: no persistent state is changed; do not retry or reboot inside A10
+- operator action: remain on the home screen and report the notification plus
+  any HDMI instability after the one host send
+- host action: `send-loader-once` made one complete 8,596-byte write to the
+  fresh listener (`requested=8596`, `written=8596`, `errno=0`)
+- result: pass. GoldHEN received and launched exactly 8,596 bytes. PartyDaemon
+  had one already-loaded `libSceAvSetting.sprx` candidate. The wrapper pattern
+  and offsets matched A6 (`wrapper +0x2bb0`, context slot `data +0x60`, internal
+  getter `code +0x77d0`), but the existing module's context value was also
+  null. The internal bytes prove the getter dereferences the first internal
+  argument as an object and calls its virtual method at `+0x58`; this is the
+  exact null dereference observed in A8. The probe returned normally and emitted
+  `AV context inspected safely: null`; no AvSetting function was called
+- bounded UART context:
+  [`20260823_142257_365510-exp-20260823-021-a10-inspect-existing-avsetting-context-without--89566aed.md`](../../ps4-uart/sessions/20260823_142257_365510-exp-20260823-021-a10-inspect-existing-avsetting-context-without--89566aed.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; there was no module load, AvSetting call, display
+  change, crash, reboot or persistent write. The listener is consumed
+- conclusion: both a freshly loaded and PartyDaemon's preloaded AvSetting
+  instance have null client contexts. The raw-EDID getter is blocked in the
+  BinLoader target unless the exact `sceAvSettingInit` ABI and reversible client
+  lifecycle are first proven without calling it
+- next action: inspect `sceAvSettingInit` executable bytes without calling it;
+  do not repeat the getter and do not attempt a mode setter
+
+### EXP-20260823-021-A11 — re-arm BinLoader for AvSetting init ABI capture
+
+- state: complete
+- question: does one BinLoader OFF-to-ON transition create a fresh listener for
+  the no-call AvSetting init/term ABI probe?
+- changed variable: reload only BinLoader Server once; do not connect to 9090,
+  send a payload, change display settings or touch USB
+- expected evidence: one fresh `Server started at 9090 port` marker without a
+  payload error, display loss, crash or logger discontinuity
+- timeout: 45 seconds after ON; stop on the marker or exact error
+- rollback: do not repeat the transition inside A11 if the marker is absent
+- operator action: reload BinLoader Server once and report `done`; do not test
+  the port
+- operator report: `done`; no HDMI instability reported
+- result: pass. The bounded slice contains exactly one `Server socket aborted`
+  followed by one `Server started at 9090 port` marker. No payload connected,
+  and there was no crash, reboot or logger discontinuity
+- bounded UART context:
+  [`20260823_142853_913939-exp-20260823-021-a11-re-arm-binloader-for-avsetting-init-abi-cap-b374c88e.md`](../../ps4-uart/sessions/20260823_142853_913939-exp-20260823-021-a11-re-arm-binloader-for-avsetting-init-abi-cap-b374c88e.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; the fresh one-shot listener is the A12 precondition
+- next action: send the no-call init/term ABI probe exactly once in A12
+
+### EXP-20260823-021-A12 — inspect AvSetting init/term ABI without calling it
+
+- state: complete
+- question: what executable bytes establish the exact AvSetting client init and
+  termination ABI and whether a separately bounded reversible lifecycle test is
+  defensible?
+- changed variable: send exactly one 7,404-byte
+  `orbis-av-init-abi-probe.bin`, SHA-256
+  `f07326474dc90ddb820b296326166e6b2aa6b3e3efd40f71fc5868c0d6ac39b2`.
+  It enumerates the existing AvSetting module, resolves but never calls
+  `sceAvSettingInit` and `sceAvSettingTerm`, checks both executable ranges, and
+  logs at most 1,024 init plus 256 term code bytes. It loads no AvSetting module
+  and contains no getter, setter, kernel patch, MMIO or persistent write path
+- expected evidence: one complete sender write and GoldHEN launch; exact init
+  and term offsets; bounded code bytes; clean return and notification;
+  unchanged HDMI and responsive Orbis
+- timeout: 60 seconds; stop on result, error, HDMI loss, crash, reboot or logger
+  discontinuity
+- rollback: no persistent state is changed; do not retry or reboot inside A12
+- operator action: remain on the home screen and report the notification plus
+  any HDMI instability after the one host send
+- host action: `send-loader-once` made one complete 7,404-byte write to the
+  fresh listener (`requested=7404`, `written=7404`, `errno=0`)
+- result: pass for the declared no-call capture. GoldHEN received and launched
+  exactly 7,404 bytes. The existing AvSetting module exported Init at
+  `code +0x3c0` and Term at `code +0xb50`; 1,024 and 256 bytes respectively were
+  copied within the validated executable mapping. The probe returned normally
+  and emitted `AV init ABI captured safely`. It neither called a lifecycle
+  function nor changed the null context
+- bounded UART context:
+  [`20260823_143103_635147-exp-20260823-021-a12-inspect-avsetting-init-and-term-abi-without-b4b82245.md`](../../ps4-uart/sessions/20260823_143103_635147-exp-20260823-021-a12-inspect-avsetting-init-and-term-abi-without-b4b82245.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- offline ABI finding: the captured Init prologue does not consume any incoming
+  SysV argument register before overwriting the registers it uses; Term likewise
+  begins with global atomic state and pointer operations rather than caller
+  arguments. This strongly supports zero-argument public wrappers. Init is at
+  least `0x400` bytes and continues beyond the captured range; Term clears
+  multiple module globals, including pointer-sized state, but its captured
+  `0x100` bytes also stop before the full epilogue
+- rollback: none required; there was no module load, Init, Term, getter, setter,
+  crash, reboot, display change or persistent write. The listener is consumed
+- conclusion: zero-argument Init/Term is a supported inference, but A12 did not
+  capture either complete lifecycle function. Do not yet combine Init, getter
+  and Term in one payload
+- next action: obtain an independent safety review and capture the complete
+  bounded Init/Term bodies or choose a safer EDID source before any lifecycle
+  call
+
+#### Independent Opus 5 safety review after A12
+
+- review mode: read-only Claude Opus 5, xhigh effort, in an isolated Herdr tab;
+  no console contact, payload send, FTP action or file edit was authorized
+- accepted findings: A8's null-context diagnosis is byte-exact. The A12
+  prologues prove Init and Term ignore all incoming SysV integer arguments
+  because none is preserved before the first call and the argument registers
+  are overwritten. Term is a real teardown and its captured body clears the
+  getter context slot at `data +0x60`
+- P0 verdict: no-go on a combined Init/getter/Term payload. A8 proves a getter
+  fault terminates PartyDaemon, so Term cannot be guaranteed. The uncaptured
+  Init error path may leave its init-once state at `1`, whose captured path
+  waits without a proven bound. A wedged or poisoned daemon-global lifecycle
+  has no proven in-process rollback; reboot or daemon restart would be the
+  rollback
+- corrected blast radius: A8 killed PartyDaemon and its webrtc child, reported
+  unregistered AJM codecs, and the replacement logged `clientNum 9 over 8`.
+  UART also named a coredump path under `/user/data/sce_coredumps`; whether any
+  persistent coredump was written remains unverified
+- build safety: the retired A8 getter target now fails explicitly in the lab
+  Makefile instead of remaining manually buildable
+- recommended next experiment: read the monitor EDID off-console using the same
+  HDMI cable. This answers monitor capability with zero payload risk. Even a
+  positive 2560x1080 timing does not prove Orbis support; the console-side mode
+  table still requires offline analysis
+
+### EXP-20260823-021-A13 — capture monitor EDID from macOS using the PS4 cable
+
+- state: aborted before action
+- question: does the exact monitor/HDMI path used by the PS4 advertise a valid
+  2560x1080 timing?
+- changed variable: disconnect the exact HDMI cable from the PS4 output and
+  connect that same cable to the Mac HDMI output once; do not change the monitor
+  input path, adapter, cable, PS4 setting, payload or USB state
+- preconditions: no bounded UART session is active; continuous UART is `READY`;
+  Orbis is stable; macOS currently enumerates only its built-in display
+- expected evidence: bounded UART records only the HDMI disconnect with no
+  crash, reboot or logger discontinuity; macOS enumerates the external display;
+  `IODisplayEDID` yields checksummed EDID bytes whose detailed timings can be
+  decoded for 2560x1080
+- timeout: 60 seconds after connecting to the Mac; stop on enumeration, exact
+  error, PS4 crash/reboot, or logger discontinuity
+- rollback: do not reconnect inside A13. Close and review A13 first; reconnect
+  the exact cable to the PS4 only in a separately predeclared bounded action
+- operator action: after the bounded session starts, unplug the HDMI cable at
+  the PS4 end and plug that same end into the Mac HDMI port; leave the monitor
+  end and monitor input unchanged, then report `connected`
+- operator report: `what ?`; the requested cable move was not performed
+- result: aborted. The off-console EDID route answers monitor capability but
+  does not itself test or enable an Orbis ultrawide mode, so it did not match
+  the operator's immediate goal. No HDMI, payload, FTP, USB or console action
+  occurred
+- bounded UART context:
+  [`20260823_145542_573127-exp-20260823-021-a13-capture-monitor-edid-from-macos-using-the-p-29446908.md`](../../ps4-uart/sessions/20260823_145542_573127-exp-20260823-021-a13-capture-monitor-edid-from-macos-using-the-p-29446908.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `aborted`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required because the declared action never began
+- next action: keep HDMI on the PS4 and inspect the actual Orbis VideoOut mode
+  configuration exports without calling them before any reversible mode test
+
+### EXP-20260823-021 ultrawide acceptance and safety gate
+
+- goal: produce a reusable Orbis-side ultrawide payload for this PS4 and
+  monitor, preferring a native 2560x1080 HDMI mode when both the firmware mode
+  path and display support it; use 1920x810 only as a correctly proportioned
+  21:9 fallback rather than claiming it is a native 2560x1080 signal
+- scope: the research payload and first acceptance candidate are memory-only.
+  They may not patch firmware files, write a display configuration, touch
+  HDMI/MMIO registers directly, or persist across reboot
+- first setter gate: recover the exact 12.02 VideoOut ABI and mode descriptor
+  before calling any configuration export. The first call experiment must
+  capture the current mode, apply one candidate for at most 15 seconds, and
+  automatically restore the captured mode. A normal reboot remains the
+  independent rollback
+- immediate abort: HDMI loss beyond the declared timeout, UART restart or
+  serial reconnect, Orbis/PartyDaemon crash, unresponsive controller/UI,
+  unstable audio, or a failed automatic restore
+- visual pass: the monitor reports/presents a 21:9 image, geometry is not
+  stretched, the Orbis UI is not cropped, and the home screen remains visibly
+  and interactively stable for the full timed interval
+- evidence pass: bounded UART remains `completed`, contains the selected and
+  restored mode evidence, and contains no crash or reboot signature
+- promotion: one successful timed test is only evidence. A reusable payload
+  requires three clean hardware cycles, including one post-reboot recovery
+  cycle that begins from the stock display state
+
+### EXP-20260823-021-A14 — re-arm BinLoader for VideoOut mode ABI capture
+
+- state: complete
+- question: does one BinLoader OFF-to-ON transition create the fresh one-shot
+  listener required for the no-call VideoOut mode ABI probe?
+- changed variable: reload only BinLoader Server once; do not connect to 9090,
+  send a payload, change display settings, move HDMI, or touch USB
+- expected evidence: exactly one fresh `Server started at 9090 port` marker
+  without a payload error, display loss, crash, reboot or logger discontinuity
+- timeout: 45 seconds after ON; stop on the marker or exact error
+- rollback: do not repeat the transition inside A14 if the marker is absent
+- operator action: after the bounded session starts, toggle BinLoader Server
+  OFF and then ON exactly once and report `done`; do not test the port
+- operator report: `done`; no HDMI, audio, controller or UI issue reported
+- result: pass. UART contains exactly one `Server socket aborted` followed by
+  exactly one fresh `Server started at 9090 port`. No payload connected during
+  A14, and there was no crash, reboot, HDMI loss or logger discontinuity
+- bounded UART context:
+  [`20260823_150701_314528-exp-20260823-021-a14-re-arm-binloader-for-videoout-mode-abi-capt-53abbed7.md`](../../ps4-uart/sessions/20260823_150701_314528-exp-20260823-021-a14-re-arm-binloader-for-videoout-mode-abi-capt-53abbed7.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; the fresh one-shot listener is the A15 precondition
+- next action: send the prebuilt no-call probe exactly once in separately
+  bounded A15
+
+### EXP-20260823-021-A15 — capture VideoOut mode ABI without calling it
+
+- state: complete — fail before symbol capture
+- question: what executable code on Orbis 12.02 establishes the exact ABI,
+  descriptor layout and internal mode-table boundary for the VideoOut query and
+  configuration exports?
+- changed variable: send exactly one 9,348-byte
+  `orbis-video-mode-abi-probe.bin`, SHA-256
+  `17a224206557b3318aa73821b2f43276dd31763b1811c60817f68f552444f4e4`.
+  It loads the already-proven VideoOut module, resolves six public exports,
+  reports optional missing exports without discarding the exports that resolve,
+  validates their executable ranges, and copies bounded code bytes to UART. It
+  calls none of the resolved exports and contains no setter invocation, kernel
+  patch, AvSetting call, MMIO or persistent write path
+- expected evidence: one complete 9,348-byte sender write and GoldHEN launch;
+  every available symbol offset and bounded dump; explicit
+  `resolved_calls=0 setters=0 mmio=0 persistent_writes=0` at begin and end;
+  clean notification, unchanged HDMI and responsive Orbis
+- timeout: 90 seconds; stop on result, missing export, range error, HDMI loss,
+  crash, reboot or logger discontinuity
+- rollback: no display or persistent state is changed; do not retry or reboot
+  inside A15. A missing export or truncated body returns this path to offline
+  analysis before any new hardware action
+- operator action: leave the current Orbis screen visible without pressing any
+  controls and report the notification plus any visible/audio/controller
+  change after the single host send
+- host action: `send-loader-once` made one complete 9,348-byte write
+  (`requested=9348`, `written=9348`, `errno=0`)
+- operator report: `yes visible but nothing changed`; Orbis output remained
+  visible and no display change was observed after PartyDaemon restarted
+- result: fail. GoldHEN received and launched exactly 9,348 bytes. The probe
+  logged its no-call boundary and the validated VideoOut mapping, then the
+  GoldHENLoader thread faulted at address `0x1a40` before logging or dumping a
+  single export. No VideoOut export, setter, kernel patch or MMIO path ran, and
+  no display setting changed
+- bounded UART context:
+  [`20260823_151830_163130-exp-20260823-021-a15-capture-videoout-mode-abi-without-calling-i-02bfd8a1.md`](../../ps4-uart/sessions/20260823_151830_163130-exp-20260823-021-a15-capture-videoout-mode-abi-without-calling-i-02bfd8a1.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- exact cause: offline disassembly maps backtrace `0x10c4eb` to the return from
+  the missing-export `snprintf_s` call. The invalid `%s` value was `0x1a44`,
+  exactly the absolute string offset copied from a compiler-generated aggregate
+  template. GoldHEN's raw BIN path does not apply the corresponding ELF pointer
+  relocation. The fault was therefore in the probe's diagnostic template, not
+  a VideoOut function or mode table
+- recovery: Orbis killed PartyDaemon PID 81 and its webrtc child, then started
+  replacements as PIDs 83/84. UART remained continuous and later recorded
+  normal ShellCore activity. The operator confirmed the visible Orbis output
+  was unchanged. The coredump path was named but coredump creation was disabled
+- changed evidence for retry: the corrected source initializes all capture
+  pointers through runtime RIP-relative `lea` instructions. The rebuilt ELF has
+  no relocation sections, and the Makefile now refuses to create this BIN if
+  `readelf` detects one
+- rollback: no display or persistent setting changed; UART and operator evidence
+  both confirm the automatic recovery
+- next action: after visible recovery is confirmed, re-arm BinLoader exactly
+  once as A16; do not send the corrected payload in the same session
+
+### EXP-20260823-021-A16 — re-arm BinLoader after corrected relocation gate
+
+- state: complete
+- question: does one BinLoader OFF-to-ON transition create a fresh listener
+  after PartyDaemon's automatic A15 restart?
+- changed variable: reload only BinLoader Server once; do not connect to 9090,
+  send a payload, change display settings, move HDMI, or touch USB
+- expected evidence: exactly one fresh `Server started at 9090 port` marker
+  without a payload error, HDMI loss, crash, reboot or logger discontinuity
+- timeout: 45 seconds after ON; stop on the marker or exact error
+- rollback: do not repeat the transition inside A16 if the marker is absent
+- operator action: after the bounded session starts, toggle BinLoader Server
+  OFF and then ON exactly once and report `done`; do not test the port
+- pre-session note: the operator reported `binloader ready` before A16's UART
+  marker opened. That unbounded toggle was not accepted as evidence and no
+  payload used its listener
+- operator report: `done` after the bounded A16 marker opened; no visible,
+  audio or controller issue reported
+- result: pass. The exact bounded slice contains one `Server socket aborted`
+  and one fresh `Server started at 9090 port`, with no payload connection,
+  crash, reboot, HDMI loss or logger discontinuity
+- bounded UART context:
+  [`20260823_152934_519451-exp-20260823-021-a16-re-arm-binloader-after-corrected-relocation-2def3bda.md`](../../ps4-uart/sessions/20260823_152934_519451-exp-20260823-021-a16-re-arm-binloader-after-corrected-relocation-2def3bda.md),
+  exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
+  `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; the bounded fresh listener is the A17 precondition
+- next action: send only the relocation-free probe in separately bounded A17
+
+### EXP-20260823-021-A17 — capture relocation-free VideoOut mode ABI
+
+- state: complete
+- question: with all raw-BIN pointer relocations eliminated, what executable
+  code establishes the exact VideoOut query/configuration ABI and mode table on
+  Orbis 12.02?
+- changed variable: send exactly one 9,124-byte
+  `orbis-video-mode-abi-probe.bin`, SHA-256
+  `730d53c179d6a69f137489ffcd3681679ac9ab90bbab1b020063c5fbdca1a5e3`.
+  Its six symbol and label pointers are initialized at runtime through proven
+  RIP-relative instructions; `readelf -rW` reports no relocations. It resolves
+  and copies only available export code, calls no resolved export, and contains
+  no setter invocation, kernel patch, AvSetting call, MMIO or persistent write
+  path
+- expected evidence: one complete 9,124-byte sender write and GoldHEN launch;
+  clean missing-export diagnostics where applicable; every available symbol
+  offset and bounded dump; explicit `resolved_calls=0 setters=0 mmio=0
+  persistent_writes=0` at begin and end; unchanged HDMI and responsive Orbis
+- timeout: 90 seconds; stop on end marker, range error, HDMI loss, crash, reboot
+  or logger discontinuity
+- rollback: no display or persistent state is changed; do not retry or reboot
+  inside A17. Any new fault returns to offline analysis before another hardware
+  action
+- operator action: leave the current Orbis screen visible without pressing any
+  controls and report the notification plus any visible/audio/controller
+  change after the single host send
+- host action: `send-loader-once` made one complete 9,124-byte write; GoldHEN
+  received and launched that exact BIN in PartyDaemon PID 83
+- operator report: `nothing i saw`; the operator did not see the notification
+  and reported no visible display change. UART nevertheless contains the
+  notification event; no audio or controller problem was reported
+- result: pass. UART contains exactly one begin marker, all six resolved export
+  declarations and complete bounded byte dumps, the end marker
+  `exports=6 resolved_calls=0 setters=0 mmio=0 persistent_writes=0`, and
+  `[NOTIFICATION]: Video mode ABI captured safely: 6 exports`. It contains no
+  payload fault, crash, reboot or logger discontinuity
+- bounded UART context:
+  [`20260823_154022_927427-exp-20260823-021-a17-capture-relocation-free-videoout-mode-abi-a0fe3182.md`](../../ps4-uart/sessions/20260823_154022_927427-exp-20260823-021-a17-capture-relocation-free-videoout-mode-abi-a0fe3182.md),
+  exact sibling `.raw` (62,749 bytes); logger `.events.jsonl` is empty;
+  evidence state `completed`, generation
+  `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- reconstruction: the strict extractor recovered all six declared bodies. One
+  ShellCore UART write interrupted `get-current+0x3d0` after seven bytes; the
+  exact following nine-byte continuation completed that 16-byte row and is
+  recorded by the extractor manifest. Reconstructed SHA-256 values are
+  `a9704b51a4d910e57988c9894b09b2c148cdfbe21a2e87612be23ecdf46ef9d3`
+  (`options-init`, 512 bytes),
+  `9015df35554b115150d339de06b093fc0128bb5986484fc41eab7da2a14b94a3`
+  (`get-current`, 2,048 bytes),
+  `88aa4ad333803e424f64d8cb2c1897dba8aaff06c0df1ed36d5dce6215907044`
+  (`capability`, 2,048 bytes),
+  `670e898ac0f1bfe0c1f4df1e18fd3a15a8fb47b96be01346c296d278ade3e4ce`
+  (`configure`, 2,048 bytes),
+  `76a084bff42be63f8310e1966804d3eb26b10dd728e80f777dfee3d0d6816c66`
+  (`configure-ex`, 2,048 bytes), and
+  `10923425a6ae60c71c09079370d2bd60e49cc1e7b60bd5c41dfd1136fcf74534`
+  (`mode-set-any`, 2,048 bytes)
+- offline conclusion: `sceVideoOutGetCurrentOutputMode_` has the safe
+  two-argument ABI `(handle, mode_out)` and writes a 32-byte descriptor with
+  `size` at offset 0, four one-byte format fields at offsets 4..7, 64-bit
+  refresh and resolution values at offsets 8 and 16, and eight reserved bytes
+  at offset 24. `sceVideoOutConfigureOutputMode_` takes six public arguments,
+  but no setter may be called until the active descriptor and the supported
+  resolution enum are captured
+- rollback: none required; no resolved export was called and no display or
+  persistent state changed
+- next action: re-arm BinLoader exactly once as A18, then query the active
+  32-byte mode descriptor once in separately bounded A19
+
+### EXP-20260823-021-A18 — re-arm BinLoader for current-mode query
+
+- state: complete
+- question: does one BinLoader OFF-to-ON transition create the fresh one-shot
+  listener required for the read-only current-mode query?
+- changed variable: reload only BinLoader Server once; do not connect to 9090,
+  send a payload, change display settings, move HDMI, or touch USB
+- expected evidence: exactly one `Server socket aborted` followed by one fresh
+  `Server started at 9090 port`, with no payload error, crash, reboot, HDMI loss
+  or logger discontinuity
+- timeout: 45 seconds after ON; stop on the marker or exact error
+- rollback: do not repeat the transition inside A18 if the marker is absent
+- operator action: after the bounded session starts, toggle BinLoader Server
+  OFF and then ON exactly once and report `done`; do not test the port
+- operator report: `done`; no visible, audio or controller issue reported
+- result: pass. The bounded UART slice contains exactly one
+  `Server socket aborted` followed by one `Server started at 9090 port`. It
+  contains no payload connection, crash, reboot or logger discontinuity
+- bounded UART context:
+  [`20260823_155605_631063-exp-20260823-021-a18-re-arm-binloader-for-current-mode-query-15ac73ee.md`](../../ps4-uart/sessions/20260823_155605_631063-exp-20260823-021-a18-re-arm-binloader-for-current-mode-query-15ac73ee.md),
+  exact sibling `.raw` (6,498 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; the fresh one-shot listener is the A19 precondition
+- next action: send only the prebuilt read-only current-mode probe in
+  separately bounded A19
+
+### EXP-20260823-021-A19 — query active VideoOut mode once
+
+- state: complete — fail safely with `NO_DEVICE`
+- question: what exact 32-byte VideoOut descriptor represents the current
+  working 1920x1080 HDMI mode on this console and monitor?
+- changed variable: send exactly one 7,828-byte
+  `orbis-current-mode-probe.bin`, SHA-256
+  `53c1b5649220b8060423154f69d5cee5f9800b8aafafbf9696ee5b6aae9b79da`.
+  It loads VideoOut, resolves only open, close and the A17-proven two-argument
+  getter, opens one normal main handle, calls the getter exactly once into a
+  32-byte descriptor protected by two 64-byte canaries, logs the result, and
+  closes the handle. `readelf -rW` reports no relocations. It does not resolve
+  or call a setter and contains no MMIO or persistent write path
+- expected evidence: one complete 7,828-byte sender write and GoldHEN launch;
+  getter result zero; descriptor size 32; both canaries intact; one raw
+  descriptor and decoded field line; close result zero; explicit
+  `setters=0 mmio=0 persistent_writes=0`; unchanged HDMI and responsive Orbis
+- timeout: 60 seconds; stop on result, validation error, HDMI loss, crash,
+  reboot or logger discontinuity
+- rollback: no display or persistent setting is changed; do not retry or reboot
+  inside A19. Any fault returns to offline analysis before another hardware
+  action
+- operator action: leave the current Orbis screen visible without pressing any
+  controls and report any visible/audio/controller change after the host send
+- host action: `send-loader-once` made one complete 7,828-byte write
+  (`requested=7828`, `written=7828`, `errno=0`); GoldHEN received and launched
+  that exact BIN in PartyDaemon PID 83
+- operator report: the screen showed `Current mode query stopped: validation
+  failed`; no video-mode change was observed
+- result: fail safely. `sceVideoOutOpen` returned a closable handle, but
+  `sceVideoOutGetCurrentOutputMode_` returned `0x80290018`, documented by the
+  independently maintained VideoOut error map as `NO_DEVICE`. The function
+  left all 32 output bytes at the prefill value `0xcc`; both 64-byte canaries
+  remained intact; `sceVideoOutClose` returned zero. The explicit end marker
+  confirms `setters=0 mmio=0 persistent_writes=0`. UART contains no crash,
+  reboot or logger discontinuity
+- bounded UART context:
+  [`20260823_155934_881909-exp-20260823-021-a19-query-active-videoout-mode-once-a10f57a3.md`](../../ps4-uart/sessions/20260823_155934_881909-exp-20260823-021-a19-query-active-videoout-mode-once-a10f57a3.md),
+  exact sibling `.raw` (1,715 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- conclusion: a fresh main-bus handle in GoldHEN's PartyDaemon payload target
+  can answer the older cached `sceVideoOutGetResolutionStatus` query, as A1
+  proved, but is not associated with the physical device required by the
+  current-output-mode command. Repeating the same call cannot change that
+  precondition
+- rollback: none required; the getter made no output write, no setter ran and
+  the display mode did not change
+- next action: stay offline and recover either the system-output query route or
+  the physical-device ownership boundary before predeclaring another payload;
+  do not repeat A19 and do not call a mode setter
+
+### EXP-20260823-021-A20 — re-arm BinLoader for system-getter ABI capture
+
+- state: complete
+- question: does one BinLoader OFF-to-ON transition create the fresh one-shot
+  listener required for the new no-call system-getter ABI capture?
+- changed variable: reload only BinLoader Server once; do not connect to 9090,
+  send a payload, change display settings, move HDMI, or touch USB
+- expected evidence: exactly one `Server socket aborted` followed by one fresh
+  `Server started at 9090 port`, with no payload error, crash, reboot, HDMI loss
+  or logger discontinuity
+- timeout: 45 seconds after ON; stop on the marker or exact error
+- rollback: do not repeat the transition inside A20 if the marker is absent
+- operator action: after the bounded session starts, toggle BinLoader Server
+  OFF and then ON exactly once and report `done`; do not test the port
+- operator report: `done`; no visible, audio or controller issue reported
+- result: pass. The bounded UART slice contains exactly one
+  `Server socket aborted` followed by one `Server started at 9090 port`, with no
+  payload connection, crash, reboot or logger discontinuity
+- bounded UART context:
+  [`20260823_161026_930889-exp-20260823-021-a20-re-arm-binloader-for-system-getter-abi-capt-e3d8caf4.md`](../../ps4-uart/sessions/20260823_161026_930889-exp-20260823-021-a20-re-arm-binloader-for-system-getter-abi-capt-e3d8caf4.md),
+  exact sibling `.raw` (4,526 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; the fresh one-shot listener is the A21 precondition
+- next action: send only the prebuilt no-call system-getter ABI probe in
+  separately bounded A21
+
+### EXP-20260823-021-A21 — capture system VideoOut getter ABIs without calls
+
+- state: complete
+- question: what exact firmware-12.02 ABIs let a system client query the active
+  mode and physical HDMI capability without relying on A19's per-process
+  `NO_DEVICE` handle?
+- changed variable: send exactly one 9,020-byte
+  `orbis-system-mode-abi-probe.bin`, SHA-256
+  `53df8cc1416edbb6a774ae0e4233295435ebdd4a29863bc1570ff8484ce2aea6`.
+  It resolves only `sceVideoOutSysGetCurrentOutputMode_`, its non-underscore
+  alias, and `sceVideoOutSysGetDeviceCapabilityInfoByBusSpecifier_`; validates
+  each address against the executable module range; and copies at most 2,048
+  bytes from every resolved export to UART. `readelf -rW` reports no
+  relocations. It calls no resolved export, does not resolve a setter, and has
+  no MMIO or persistent write path
+- expected evidence: one complete 9,020-byte sender write and GoldHEN launch;
+  clean missing-export diagnostics where applicable; every available symbol
+  offset and bounded dump; explicit `resolved_calls=0 setters_resolved=0
+  setters=0 mmio=0 persistent_writes=0` at begin and end; unchanged HDMI and
+  responsive Orbis
+- timeout: 90 seconds; stop on end marker, range error, HDMI loss, crash, reboot
+  or logger discontinuity
+- rollback: no resolved export is called and no display or persistent state is
+  changed; do not retry inside A21. Any fault returns to offline analysis before
+  another hardware action
+- operator action: leave the current Orbis screen visible without pressing any
+  controls and report any visible/audio/controller change after the host send
+- host action: `send-loader-once` made one complete 9,020-byte write
+  (`requested=9020`, `written=9020`, `errno=0`); GoldHEN received and launched
+  that exact BIN in PartyDaemon PID 83
+- operator report: no visible display change or other issue was reported
+- result: pass. The underscore current-mode export and the bus-specifier
+  capability export resolved and produced complete 2,048-byte dumps. The
+  non-underscore current-mode name was cleanly reported missing. UART ended
+  with `exports=2 resolved_calls=0 setters_resolved=0 setters=0 mmio=0
+  persistent_writes=0` and contains no crash, reboot or logger discontinuity
+- bounded UART context:
+  [`20260823_161342_261507-exp-20260823-021-a21-capture-system-videoout-getter-abis-without-8a03261d.md`](../../ps4-uart/sessions/20260823_161342_261507-exp-20260823-021-a21-capture-system-videoout-getter-abis-without-8a03261d.md),
+  exact sibling `.raw` (25,686 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- reconstruction: the strict A21 extractor recovered both complete bodies with
+  no UART continuation repair. SHA-256 values are
+  `5313f54de7cf4a96e5cc7629be2b0a82e02e12b9484f4de02bf55e7b85ef012c`
+  (`sys-current-u`) and
+  `9897a4736627aa557f3691889697034177e5fdb6c3a7d6fcd0168fe9f11d2d74`
+  (`sys-capability`). Their 1,792-byte and 1,920-byte overlapping regions match
+  A17's independently captured `get-current` and `capability` bodies exactly
+- offline conclusion: `sceVideoOutSysGetCurrentOutputMode_` at module offset
+  `0xe300` is only a direct jump alias to A19's same handle-based getter at
+  `0xe200`; calling it would repeat `NO_DEVICE`. In contrast,
+  `sceVideoOutSysGetDeviceCapabilityInfoByBusSpecifier_` at `0x4430` has the
+  proven five-argument ABI `(user_id, bus_type, index, output, output_size)`,
+  requires main user `0xff`, bus and index zero, and dispatches without a
+  per-process handle. Its internal callee requires an exact eight-byte output
+- rollback: none required; no resolved export was called and no display or
+  persistent state changed
+- next action: re-arm BinLoader exactly once as A22, then call only the proven
+  bus-specifier capability getter once in separately bounded A23
+
+### EXP-20260823-021-A22 — re-arm BinLoader for system capability query
+
+- state: complete
+- question: does one BinLoader OFF-to-ON transition create the fresh one-shot
+  listener required for the physical-device capability query?
+- changed variable: reload only BinLoader Server once; do not connect to 9090,
+  send a payload, change display settings, move HDMI, or touch USB
+- expected evidence: exactly one `Server socket aborted` followed by one fresh
+  `Server started at 9090 port`, with no payload error, crash, reboot, HDMI loss
+  or logger discontinuity
+- timeout: 45 seconds after ON; stop on the marker or exact error
+- rollback: do not repeat the transition inside A22 if the marker is absent
+- operator action: after the bounded session starts, toggle BinLoader Server
+  OFF and then ON exactly once and report `done`; do not test the port
+- operator report: `done`; no visible, audio or controller issue reported
+- result: pass. The bounded UART slice contains exactly one
+  `Server socket aborted` followed by one `Server started at 9090 port`, with no
+  payload connection, crash, reboot or logger discontinuity
+- bounded UART context:
+  [`20260823_161907_872713-exp-20260823-021-a22-re-arm-binloader-for-system-capability-quer-9119cb60.md`](../../ps4-uart/sessions/20260823_161907_872713-exp-20260823-021-a22-re-arm-binloader-for-system-capability-quer-9119cb60.md),
+  exact sibling `.raw` (378 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; the fresh one-shot listener is the A23 precondition
+- next action: send only the prebuilt read-only system capability probe in
+  separately bounded A23
+
+### EXP-20260823-021-A23 — query physical VideoOut capability once
+
+- state: complete
+- question: can the proven bus-specifier getter reach the physical HDMI device
+  from PartyDaemon, and what exact 64-bit capability word does it report?
+- changed variable: send exactly one 6,900-byte
+  `orbis-system-capability-probe.bin`, SHA-256
+  `76c6505a0afccc932a3213c76b3d022d6b31f9eba304bcd9416f32350dafa80f`.
+  It resolves only
+  `sceVideoOutSysGetDeviceCapabilityInfoByBusSpecifier_`, calls it exactly once
+  with `(0xff, 0, 0, output, 8)`, and protects the eight-byte output with two
+  64-byte canaries. `readelf -rW` reports no relocations. It opens no
+  per-process handle, resolves no setter, and has no MMIO or persistent write
+  path
+- expected evidence: one complete 6,900-byte sender write and GoldHEN launch;
+  getter result zero; both canaries intact; one 64-bit capability word; explicit
+  `setters_resolved=0 setters=0 mmio=0 persistent_writes=0`; unchanged HDMI and
+  responsive Orbis
+- timeout: 60 seconds; stop on result, validation error, HDMI loss, crash,
+  reboot or logger discontinuity
+- rollback: no display or persistent setting is changed; do not retry or reboot
+  inside A23. Any fault returns to offline analysis before another hardware
+  action
+- operator action: leave the current Orbis screen visible without pressing any
+  controls and report any visible/audio/controller change after the host send
+- host action: `send-loader-once` made one complete 6,900-byte write
+  (`requested=6900`, `written=6900`, `errno=0`); GoldHEN received and launched
+  that exact BIN in PartyDaemon PID 83
+- operator report: the notification reported capability `0000000000000003`;
+  no display-mode change or other issue was reported
+- result: pass. The physical-device getter returned zero, wrote capability word
+  `0x0000000000000003`, preserved both 64-byte canaries, and ended with
+  `setters_resolved=0 setters=0 mmio=0 persistent_writes=0`. UART contains no
+  crash, reboot or logger discontinuity
+- bounded UART context:
+  [`20260823_162225_263131-exp-20260823-021-a23-query-physical-videoout-capability-once-b82b2a7c.md`](../../ps4-uart/sessions/20260823_162225_263131-exp-20260823-021-a23-query-physical-videoout-capability-once-b82b2a7c.md),
+  exact sibling `.raw` (2,790 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- conclusion: the bus-specifier system route reaches the physical HDMI device
+  from PartyDaemon and avoids A19's per-process `NO_DEVICE` boundary. The word
+  proves capability access but does not enumerate timing modes. Public
+  reimplementations identify bit `0x80` as BT.2020 PQ; A23 returned only bits
+  zero and one, whose firmware-12.02 meanings remain unproven
+- rollback: none required; the query was read-only and no display or persistent
+  state changed
+- next action: capture the system bus-mode, device-info, monitor-info and
+  monitor-support ABIs without calls before querying any larger structure or
+  designing a timed setter
+
+### EXP-20260823-021-A24 — re-arm BinLoader for monitor-mode ABI capture
+
+- state: aborted before the declared BinLoader action; inconclusive for re-arm
+- question: does one BinLoader OFF-to-ON transition create the fresh one-shot
+  listener required for the no-call monitor-mode ABI capture?
+- changed variable: reload only BinLoader Server once; do not connect to 9090,
+  send a payload, change display settings, move HDMI, or touch USB
+- expected evidence: exactly one `Server socket aborted` followed by one fresh
+  `Server started at 9090 port`, with no payload error, crash, reboot, HDMI loss
+  or logger discontinuity
+- timeout: 45 seconds after ON; stop on the marker or exact error
+- rollback: do not repeat the transition inside A24 if the marker is absent
+- operator action: the operator did not touch BinLoader. They instead moved the
+  monitor cable from the PS4 to the Mac for a complementary display audit
+- bounded UART context:
+  [`20260823_162719_777503-exp-20260823-021-a24-re-arm-binloader-for-monitor-mode-abi-captu-e7ac109a.md`](../../ps4-uart/sessions/20260823_162719_777503-exp-20260823-021-a24-re-arm-binloader-for-monitor-mode-abi-captu-e7ac109a.md),
+  exact sibling `.raw` (3,246 bytes); logger `.events.jsonl` is empty; evidence
+  state `aborted`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- result: no BinLoader conclusion. The bounded slice contains an HDMI
+  `disconnected` event when the cable moved to the Mac, so the session did not
+  preserve its declared unchanged-display precondition. There was no payload,
+  crash, reboot, storage action or logger discontinuity
+- rollback: no software state changed. The PS4 remains without its monitor;
+  reconnecting HDMI is a separate future bounded hardware action
+- next action: finish the read-only macOS/driver timing audit before deciding
+  whether a PS4 monitor-query path is still justified
+
+### EXP-20260823-021-A25 — capture physical monitor-mode query ABIs
+
+- state: deferred before action; A24 did not satisfy its re-arm/display
+  precondition and the monitor is connected to the Mac
+- question: what exact firmware-12.02 ABIs expose the physical bus mode,
+  device information, monitor information and monitor-mode support test?
+- changed variable: send exactly one 9,068-byte
+  `orbis-monitor-mode-abi-probe.bin`, SHA-256
+  `626744d94a3013cf00ebb07355bf39dc509cd0e43dc2440f319fb24be9a87ff2`.
+  It resolves only `sceVideoOutSysGetVideoOutModeByBusSpecifier`,
+  `sceVideoOutSysGetDeviceInfo`, `sceVideoOutSysGetMonitorInfo_` and
+  `sceVideoOutSysIsSupportedByMonitorInfo_`; validates each address against the
+  executable module range; and copies at most 2,048 bytes from every resolved
+  export to UART. `readelf -rW` reports no relocations. It calls no resolved
+  export, does not resolve a setter, and has no MMIO or persistent write path
+- expected evidence: one complete 9,068-byte sender write and GoldHEN launch;
+  clean missing-export diagnostics where applicable; every available symbol
+  offset and bounded dump; explicit `resolved_calls=0 setters_resolved=0
+  setters=0 mmio=0 persistent_writes=0`; unchanged HDMI and responsive Orbis
+- timeout: 90 seconds; stop on end marker, range error, HDMI loss, crash, reboot
+  or logger discontinuity
+- rollback: no resolved export is called and no display or persistent state is
+  changed; do not retry inside A25. Any fault returns to offline analysis before
+  another hardware action
+- operator action: leave the current Orbis screen visible without pressing any
+  controls and report any visible/audio/controller change after the host send
+- next action on pass: reconstruct and disassemble the resolved query bodies
+  offline, then predeclare only the smallest guarded read-only monitor-info or
+  support call; do not call a mode setter
+
+### EXP-20260823-021-A26 — reconnect ultrawide monitor to Orbis
+
+- state: complete — degraded pass; visible Orbis restored but the cable event
+  was not captured inside the bounded slice
+- question: does moving the same G34WQC A HDMI connection from the Mac back to
+  the PS4 restore the previously accepted stable 1920x1080 Orbis picture?
+- changed variable: move only the monitor HDMI connection from the Mac path to
+  the PS4 and select that input if required; do not toggle BinLoader, send a
+  payload, change an Orbis or monitor display setting, touch USB or reboot
+- expected evidence: one HDMI-connected sequence on continuous UART and a
+  visible, responsive Orbis home screen at the monitor; no crash, reboot,
+  repeated connect/disconnect loop or logger discontinuity
+- timeout: 60 seconds after connection; stop on stable Orbis, no signal, a
+  repeated HDMI loop, crash, reboot or logger discontinuity
+- rollback: do not move the cable again inside A26. If the PS4 image does not
+  return, close/review the session and decide any cable rollback separately
+- operator action: after the bounded session starts, connect the monitor HDMI
+  path back to the PS4, select the PS4 input if needed, and report exactly what
+  is visible; do not open GoldHEN settings yet
+- operator report: `im in orbis everything working`
+- bounded UART context:
+  [`20260823_165143_568909-exp-20260823-021-a26-reconnect-ultrawide-monitor-to-orbis-07beacf5.md`](../../ps4-uart/sessions/20260823_165143_568909-exp-20260823-021-a26-reconnect-ultrawide-monitor-to-orbis-07beacf5.md),
+  exact sibling `.raw` (25,451 bytes); logger `.events.jsonl` is empty;
+  evidence state `completed`, generation
+  `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- result: the monitor visibly shows responsive Orbis and UART stayed continuous
+  without a crash, reboot or repeated HDMI loop. The slice contains ordinary
+  idle Shell activity but no HDMI-connected marker, so it cannot prove the
+  exact cable-transition timing or independently re-query 1920x1080
+- rollback: none required; the accepted visible Orbis state is retained
+- next action: build and inspect a relocation-free, no-call scaler/rendering ABI
+  probe offline before asking for one BinLoader re-arm
+
+### EXP-20260823-021-A27 — re-arm BinLoader for scaler ABI capture
+
+- state: complete — pass
+- question: does one BinLoader OFF-to-ON transition create the fresh one-shot
+  listener required for the no-call scaler/rendering ABI capture?
+- changed variable: reload only BinLoader Server once; do not connect to port
+  9090, send a payload, change Orbis or monitor display settings, touch USB or
+  reboot
+- expected evidence: exactly one `Server socket aborted` followed by one fresh
+  `Server started at 9090 port`, with stable HDMI, responsive Orbis and no
+  payload error, crash, reboot or logger discontinuity
+- timeout: 45 seconds after ON; stop on the fresh start marker or exact error
+- rollback: do not repeat the transition inside A27 if the marker is absent
+- operator action: after the bounded session starts, toggle BinLoader Server
+  OFF and then ON exactly once, return to the Orbis home screen and report
+  `done`; do not test the port
+- operator report: `done`
+- result: pass. UART recorded exactly one server socket abort followed by one
+  fresh `Server started at 9090 port`; no payload connection, HDMI loss, crash,
+  reboot or logger discontinuity occurred
+- bounded UART context:
+  [`20260823_174243_185125-exp-20260823-021-a27-re-arm-binloader-for-scaler-abi-capture-9b492d99.md`](../../ps4-uart/sessions/20260823_174243_185125-exp-20260823-021-a27-re-arm-binloader-for-scaler-abi-capture-9b492d99.md),
+  exact sibling `.raw` (5,185 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; preserve the fresh one-shot listener for A28
+- next action: send only the prebuilt no-call scaler ABI probe in A28
+
+### EXP-20260823-021-A28 — capture scaler/rendering ABIs without calls
+
+- state: complete — pass
+- question: what exact firmware-12.02 ABIs implement the candidate system
+  scaler, rendering, zoom, display-parameter, margin and buffer-attribute paths?
+- changed variable: send exactly one 9,268-byte
+  `orbis-scaler-abi-probe.bin`, SHA-256
+  `483aad77e06d446ac5d813efb8c97fd108415e6901599b84c2b79f0ee77b98d7`.
+  It resolves eight candidate exports, validates each address against the
+  executable module range and copies at most 2,048 bytes per resolved export
+  to UART. `readelf -rW` reports no relocations. It calls no resolved export
+  and contains no direct MMIO or persistent-write path
+- expected evidence: one complete 9,268-byte sender write and GoldHEN launch;
+  clean missing-export diagnostics where applicable; all available symbol
+  offsets and bounded dumps; explicit `resolved_calls=0 setter_calls=0 mmio=0
+  persistent_writes=0`; unchanged 1920x1080 HDMI and responsive Orbis
+- timeout: 120 seconds; stop on the end marker, range error, HDMI loss, crash,
+  reboot or logger discontinuity
+- rollback: no resolved export is called and no display or persistent state is
+  changed; do not retry inside A28. Any fault returns to offline analysis
+- operator action: leave the Orbis home screen visible without pressing any
+  controls and report any visible, audio or controller change after the send
+- host action: `send-loader-once` made one complete 9,268-byte write; GoldHEN
+  received and launched the exact audited BIN
+- operator report: no visible, audio or controller change was reported
+- result: pass. Eight candidate exports were captured without calling any
+  resolved export or display setter. The terminal marker reports
+  `exports=8 resolved_calls=0 setters_resolved=0 setters=0 mmio=0
+  persistent_writes=0`; UART contains no crash, reboot, HDMI loss or logger
+  discontinuity
+- bounded UART context:
+  [`20260823_175022_887682-exp-20260823-021-a28-capture-scaler-rendering-abis-without-calls-f9f118a5.md`](../../ps4-uart/sessions/20260823_175022_887682-exp-20260823-021-a28-capture-scaler-rendering-abis-without-calls-f9f118a5.md),
+  exact sibling `.raw` (97,882 bytes); logger `.events.jsonl` is empty;
+  evidence state `completed`, generation
+  `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: none required; the probe made no resolved calls and changed no
+  display or persistent state
+- conclusion: the no-call ABI capture is preserved for later Orbis scaler
+  analysis. The active test direction is now the isolated Linux
+  `3440x1440@50` kernel path; do not guess or call an Orbis setter as part of
+  that work
+- next action: locally build and audit the isolated ultrawide FPKG boot set,
+  then stage it transactionally while retaining the accepted 1080p generation
+
+### EXP-20260823-022-A1 — stage ultrawide v0.29 FPKG over GoldHEN FTP
+
+- state: complete — pass
+- question: can anonymous GoldHEN FTP stage the exact audited v0.29
+  ultrawide package without installing or launching the title, changing the
+  active internal boot set, contacting PayLoader or writing the external USB?
+- changed variable: upload the 21,102,592-byte FPKG once under
+  `/data/pkg/omarchy-v0.29-ultrawide-OMCH42069-dev.pkg.partial-42a28577`,
+  stream it back for exact verification, then rename it to
+  `/data/pkg/omarchy-v0.29-ultrawide-OMCH42069-dev.pkg`
+- expected evidence: remote read-back size 21,102,592 bytes and SHA-256
+  `42a28577c881813678f250ea53fcefa1208e0f10cd12fd0baa30bd37bc4ab344`,
+  the same final FTP size, completed UART continuity, and no app/boot/storage
+  fault
+- timeout: 5 minutes; stop after verified rename or the first FTP, hash,
+  storage or UART failure
+- rollback: on verification failure remove only the unique v0.29 partial. Do
+  not replace the installed title or either internal boot generation in A1
+- operator action: none; leave the console in Orbis/GoldHEN
+- result: pass. The local artifact passed its size/hash gate, FTP uploaded the
+  unique partial once, and a complete remote read-back matched exactly at
+  21,102,592 bytes with SHA-256
+  `42a28577c881813678f250ea53fcefa1208e0f10cd12fd0baa30bd37bc4ab344`.
+  FTP then renamed it to
+  `/data/pkg/omarchy-v0.29-ultrawide-OMCH42069-dev.pkg`; no install, app launch,
+  internal boot mutation, PayLoader contact or USB write occurred
+- bounded UART context:
+  [`20260823_192638_148853-exp-20260823-022-a1-stage-ultrawide-v0-29-fpkg-over-goldhen-ftp-45276d93.md`](../../ps4-uart/sessions/20260823_192638_148853-exp-20260823-022-a1-stage-ultrawide-v0-29-fpkg-over-goldhen-ftp-45276d93.md),
+  exact sibling `.raw` (495 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`,
+  epoch `1`
+- UART conclusion: routine WorkaroundCtl and Shell heap telemetry only; no
+  package, storage, app, display, fatal or logger fault
+- rollback: none required; exact v0.29 remains staged and the installed title
+  plus active/previous internal boot sets remain unchanged
+- next action: install only v0.29 in separately bounded A2; do not launch the
+  app or update boot files during the install action
+
+### EXP-20260823-022-A2 — install ultrawide v0.29 FPKG
+
+- state: complete — degraded; install passed but the title also launched and
+  staged boot files beyond the declared install-only boundary
+- question: does Package Installer update the existing `OMCH42069` title to
+  the exact staged v0.29 build without launching it or changing boot files?
+- changed variable: install only
+  `/data/pkg/omarchy-v0.29-ultrawide-OMCH42069-dev.pkg` through GoldHEN Package
+  Installer; do not launch Omarchy, update boot files, contact PayLoader or
+  touch the USB
+- expected evidence: installer completion with content ID
+  `IV0000-OMCH42069_00-OMARCHYPS4UI0000`, version `0.29`, completed UART
+  continuity and no save-data deletion, package database or storage fault
+- timeout: 5 minutes; stop at installer success, refusal, unexpected delete
+  prompt or first fault
+- rollback: cancel if offered content/save-data deletion instead of a normal
+  install/update. The exact accepted v0.28 FPKG remains locally available for
+  a separately bounded reinstall if v0.29 installation fails
+- operator action: in GoldHEN Package Installer, select
+  `omarchy-v0.29-ultrawide-OMCH42069-dev.pkg`, accept only a normal
+  install/update, do not launch it, and report the exact final message
+- operator report: `done`
+- result: degraded. Installation itself passed:
+  `sceAppInstaller::AppInstallApp(...)=0x00000000`, content ID
+  `IV0000-OMCH42069_00-OMARCHYPS4UI0000`, version `0.29`. The title then
+  launched inside the same bounded slice and advanced through boot staging,
+  exceeding the declared install-only stop condition. The unplanned staging
+  nevertheless failed closed/open correctly: it verified all four embedded
+  v0.29 artifacts, detected the prior 11,060,224-byte kernel as an update,
+  built and verified `boot.omarchy-new`, retained the prior active directory,
+  atomically promoted the ultrawide set and verified the committed active set
+  at kernel 11,244,544 bytes, initramfs 1,686,552 bytes, bootargs 465 bytes and
+  VRAM 5 bytes. The UI returned to Home with `boot-files=ready`; no loader send
+  or Linux handoff followed
+- bounded UART context:
+  [`20260823_192828_550359-exp-20260823-022-a2-install-ultrawide-v0-29-fpkg-2126bb53.md`](../../ps4-uart/sessions/20260823_192828_550359-exp-20260823-022-a2-install-ultrawide-v0-29-fpkg-2126bb53.md),
+  exact sibling `.raw` (34,705 bytes); logger `.events.jsonl` is empty;
+  evidence state `completed`, generation
+  `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: do not repeat staging. The transaction reports the prior active
+  generation retained as `/data/linux/boot.omarchy-prev`; independently verify
+  both directories before any launch
+- next action: read-only FTP inventory and exact hashes of active and retained
+  boot generations in separately bounded A3
+
+### EXP-20260823-022-A3 — verify ultrawide active and 1080p rollback sets
+
+- state: complete — pass
+- question: does read-only FTP independently prove the exact v0.29 ultrawide
+  set active, the accepted v0.28 1080p set retained, and no unfinished
+  transaction sibling?
+- changed variable: none; read-only list `/data/linux`, then download and hash
+  the four files under `/data/linux/boot` and
+  `/data/linux/boot.omarchy-prev`. Do not launch the app, write/delete/rename
+  any remote file, contact PayLoader or touch USB
+- expected evidence: active hashes `9d0fe917...` kernel, `841b7a1b...`
+  initramfs, `445b9584...` bootargs and `4f71bb76...` VRAM; previous hashes
+  `b7c8b9d6...`, `824530e2...`, `8064d91f...`, `4f71bb76...`; no
+  `.omarchy-ps4-staging` or `boot.omarchy-new`; completed UART continuity
+- timeout: 3 minutes; stop after exact verification or first FTP/UART failure
+- rollback: none; inspection is read-only
+- operator action: none; leave the current Omarchy app idle
+- result: pass. FTP independently verified the exact active hashes:
+  `9d0fe91771eea8e2e6969ce46417bc8e3497dc8ccec383826edb1160f2f0b270`,
+  `841b7a1b59ad0c53d97be49fb4369ba7918158df0fc557f9620fd3bddddb15ef`,
+  `445b9584db9815c793576193d1f7afc33e99e02115938396ee19c5ea23c5292f`
+  and `4f71bb761ace37c88826cd8cc1c948e1cf5b5d0cd153dc651a6efdb3dfb9f2b1`.
+  The previous directory exactly matches accepted v0.28 hashes
+  `b7c8b9d6...`, `824530e2...`, `8064d91f...`, `4f71bb76...`. `/data/linux`
+  contains `boot`, `boot.omarchy-prev`, and the older independently named
+  preclean backup; no transaction marker or `boot.omarchy-new` exists
+- bounded UART context:
+  [`20260823_193628_722516-exp-20260823-022-a3-verify-ultrawide-active-and-1080p-rollback-s-c48636e0.md`](../../ps4-uart/sessions/20260823_193628_722516-exp-20260823-022-a3-verify-ultrawide-active-and-1080p-rollback-s-c48636e0.md),
+  exact sibling `.raw` (114 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`,
+  epoch `1`
+- UART conclusion: one routine Shell heap-status line only; no logger,
+  filesystem, app, storage or fatal fault
+- rollback: none required; inspection was read-only and both generations are
+  exactly preserved
+- next action: plug the prepared USB into the PS4 as one separately bounded
+  physical action
+
+### EXP-20260823-022-A4 — connect prepared whole-device Omarchy USB
+
+- state: complete — fail for action isolation; USB enumeration passed but an
+  undeclared Confirm also initiated Linux
+- question: does connecting the directly installed Kingston Omarchy USB to the
+  previously successful PS4 port leave Orbis stable and make the device
+  available for the next Linux handoff?
+- changed variable: connect only the prepared Kingston USB to the same PS4 USB
+  port used for the previously successful Linux boot. Do not launch Omarchy,
+  update files, toggle BinLoader, move HDMI or reboot
+- expected evidence: one USB attachment/enumeration sequence on continuous
+  UART; Orbis remains visible and responsive. An Orbis unsupported-filesystem
+  notice is acceptable because the drive is one whole-device ext4 filesystem
+- timeout: 60 seconds after insertion; stop on stable Orbis, exact notification,
+  USB fault, crash, reboot or logger discontinuity
+- rollback: do not unplug inside A4. On a fault, close/review first and decide
+  the disconnect as a separate bounded action
+- operator action: insert the prepared Kingston USB into the established PS4
+  Linux USB port, press nothing else, and report the exact visible result
+- operator report: `nothing on screen`
+- result: the USB portion passed: Orbis enumerated the exact Kingston serial
+  `E0D55EA573F0194049CD0236` as SuperSpeed `da1`, 118,240 MiB, and reported its
+  whole-device ext4 as unknown/unsupported without destabilizing Orbis. The
+  same bounded slice then recorded `input=confirm screen=home focus=0`, although
+  no Confirm was part of the declared operator action. That unexpected input
+  verified the active v0.29 set, sent the loader once through local PayLoader,
+  armed kexec with the 11,244,544-byte ultrawide kernel and 1,686,552-byte
+  initramfs, and began the Orbis shutdown. The known shutdown path emitted an
+  exfat vnode panic, then continued into Linux ACPI-table fixup; the slice ended
+  before a Linux banner, USB root discovery or userspace result
+- bounded UART context:
+  [`20260823_193801_990722-exp-20260823-022-a4-connect-prepared-whole-device-omarchy-usb-b41f3e02.md`](../../ps4-uart/sessions/20260823_193801_990722-exp-20260823-022-a4-connect-prepared-whole-device-omarchy-usb-b41f3e02.md),
+  exact sibling `.raw` (15,992 bytes); logger `.events.jsonl` is empty;
+  evidence state `completed`, generation
+  `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: do not unplug or power-cycle from this incomplete handoff state.
+  Both internal boot generations remain preserved; determine whether the
+  already-started Linux boot progresses before declaring recovery
+- next action: passive, bounded observation of the already-started handoff in
+  A5; make no input, USB, HDMI or power change
+
+### EXP-20260823-022-A5 — observe unexpected ultrawide handoff completion
+
+- state: complete — fail; stalled before the Linux banner
+- question: does the already-initiated v0.29 ultrawide handoff progress from
+  ACPI-table fixup through Linux, Kingston USB root discovery and Omarchy
+  userspace, or remain stalled at a specific boundary?
+- changed variable: none; passive UART observation plus a read-only reachability
+  check for the previously assigned Linux address `192.168.50.125`. Do not
+  press controls, move HDMI, unplug USB or power-cycle
+- expected evidence: Linux banner and `3440x1440@50` mode construction,
+  Kingston/xHCI enumeration, `OMARCHY-PS4` root mount and first-owner UI; or an
+  exact last UART boundary with no network reachability
+- timeout: 90 seconds; stop on established userspace, explicit panic/stall
+  boundary, logger discontinuity or timeout
+- rollback: none during observation. Any recovery or 1080p restore is a new
+  bounded action after A5 closes
+- operator action: leave the console and USB untouched; report only if the
+  screen changes
+- result: fail. During a passive interval longer than the 90-second timeout,
+  the continuous UART byte count remained exactly 580,817 with no bytes after
+  `ACPI tables fixed`; the previously assigned Linux address
+  `192.168.50.125` was unreachable. No Linux banner, xHCI/Kingston discovery,
+  root mount or userspace evidence occurred. The USB root therefore was not
+  mounted, and this is an early-kernel handoff stall rather than a rootfs or
+  owner-setup failure
+- bounded UART context:
+  [`20260823_200800_929105-exp-20260823-022-a5-observe-unexpected-ultrawide-handoff-complet-6f519940.md`](../../ps4-uart/sessions/20260823_200800_929105-exp-20260823-022-a5-observe-unexpected-ultrawide-handoff-complet-6f519940.md),
+  exact sibling `.raw` (0 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`,
+  epoch `1`
+- rollback: the external root was never mounted. Power the stalled console off
+  in A6 while leaving USB/UART connected, then cold-boot Orbis separately
+- next action: one held physical power-button shutdown in A6; no retry
+
+### EXP-20260823-022-A6 — power off stalled ultrawide handoff
+
+- state: complete — degraded pass; safe recovery achieved but the bounded
+  action also crossed cold-boot and GoldHEN-load boundaries
+- question: can the console be brought fully off from the pre-Linux stall
+  without touching the unmounted USB root or losing UART continuity?
+- changed variable: hold only the physical PS4 power button until the console
+  beeps and the power LED/fan turn fully off. Do not unplug USB/UART/HDMI,
+  press controller input or attempt another boot
+- expected evidence: a power transition or UART stop and operator-confirmed
+  fully-off LED/fan; no filesystem activity is expected because A5 proved the
+  external root never mounted
+- timeout: hold for at most 15 seconds, then allow 30 seconds to reach full off
+- rollback: none; the desired safe state is fully powered off. If it does not
+  turn off, release the button, report the LED/fan state and do not repeat
+- operator action: hold the physical PS4 power button until it beeps and is
+  fully off, then release and report `off`; leave the USB connected
+- operator report: `ok goldhen loaded`
+- result: degraded pass. The console left the stalled handoff, completed a cold
+  boot, displayed Orbis at 1920x1080/59.94, reached `-- boot sequence
+  finished --`, and then loaded GoldHEN successfully with `All done!` and a
+  fresh PayLoader listener. The requested powered-off stop was not reported or
+  preserved as the final action state because cold boot and jailbreak also
+  occurred inside A6
+- bounded UART context:
+  [`20260823_201013_970701-exp-20260823-022-a6-power-off-stalled-ultrawide-handoff-8a9f36b1.md`](../../ps4-uart/sessions/20260823_201013_970701-exp-20260823-022-a6-power-off-stalled-ultrawide-handoff-8a9f36b1.md),
+  exact sibling `.raw` (159,898 bytes); logger `.events.jsonl` is empty;
+  evidence state `completed`, generation
+  `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- rollback: recovery is complete; Orbis and GoldHEN are active. The USB stayed
+  connected and the exact internal 1080p generation remains retained
+- next action: atomically restore the retained 1080p generation while
+  preserving the failed ultrawide set in separately bounded A7
+
+### EXP-20260823-022-A7 — restore retained 1080p internal boot set
+
+- state: complete — pass
+- question: can GoldHEN FTP atomically restore the exact accepted v0.28 1080p
+  directory as active while preserving the failed v0.29 ultrawide generation
+  intact for offline diagnosis?
+- changed variable: after exact read-only hash gates, rename only
+  `/data/linux/boot` to
+  `/data/linux/boot.ultrawide-failed-EXP-20260823-022`, then rename
+  `/data/linux/boot.omarchy-prev` to `/data/linux/boot`. Do not edit any child,
+  launch Omarchy, contact PayLoader, touch USB or reboot
+- expected evidence: active `boot` has accepted hashes `b7c8b9d6...`,
+  `824530e2...`, `8064d91f...`, `4f71bb76...`; the failed directory retains
+  `9d0fe917...`, `841b7a1b...`, `445b9584...`, `4f71bb76...`; no active
+  transaction marker/staging directory; completed UART continuity
+- timeout: 3 minutes; stop after exact verification or first FTP/UART failure
+- rollback: if the second rename fails, immediately rename only the uniquely
+  named failed candidate back to `/data/linux/boot`. Otherwise preserve both
+  generations and do not reverse the successful recovery
+- operator action: none; leave Orbis/GoldHEN idle
+- result: pass. Exact pre-action hash gates verified both generations. FTP
+  renamed the ultrawide active directory intact to
+  `boot.ultrawide-failed-EXP-20260823-022`, promoted the retained accepted set
+  to `boot`, and exact read-back verified active kernel SHA-256
+  `b7c8b9d67c600ee08b2321f7f4fac08c506791b0ab9c3f3d01598a90471a9de5`
+  plus preserved failed kernel SHA-256
+  `9d0fe91771eea8e2e6969ce46417bc8e3497dc8ccec383826edb1160f2f0b270`.
+  All four files in both directories retained their expected hashes; no
+  transaction marker or staging directory remains
+- bounded UART context:
+  [`20260823_202459_123684-exp-20260823-022-a7-restore-retained-1080p-internal-boot-set-8df88c0b.md`](../../ps4-uart/sessions/20260823_202459_123684-exp-20260823-022-a7-restore-retained-1080p-internal-boot-set-8df88c0b.md),
+  exact sibling `.raw` (157 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`,
+  epoch `1`
+- UART conclusion: two routine Shell telemetry lines only; no storage,
+  filesystem, app, display, fatal or logger fault
+- rollback: not required. Accepted 1080p is active; failed ultrawide is retained
+  intact for analysis
+- next action: add the accepted kernel's matching module tree to the prepared
+  USB before booting it; the current USB contains only the ultrawide module ABI
+
+### EXP-20260823-022-A8 — disconnect unmounted Omarchy USB from Orbis
+
+- state: complete — pass
+- question: can the prepared whole-device ext4 USB be disconnected cleanly
+  from Orbis so its accepted 1080p module tree can be added through OrbStack?
+- changed variable: unplug only the Kingston USB from the PS4; do not launch
+  Omarchy, contact PayLoader, move HDMI, toggle GoldHEN or power-cycle
+- expected evidence: one detach sequence for serial
+  `E0D55EA573F0194049CD0236`, stable responsive Orbis and completed UART
+  continuity. No filesystem sync is required because Orbis rejected and never
+  mounted the ext4 device
+- timeout: 45 seconds; stop on detach, exact error, crash, reboot or logger
+  discontinuity
+- rollback: do not reconnect it to the PS4 inside A8. After A8 closes, connect
+  it to the Mac for local module installation
+- operator action: unplug the Kingston USB from the PS4, then plug it into the
+  Mac; press nothing on the PS4 and report `plugged into Mac`
+- operator report: `plugged, restored`
+- result: pass. UART recorded the exact Kingston serial disconnecting from
+  `usbus0`, `umass1` and `da1`, followed by AutoMounter explicitly reporting
+  `no file system is mounted` and `OnUsbStorageEjected`. Orbis remained stable
+- bounded UART context:
+  [`20260823_202817_004219-exp-20260823-022-a8-disconnect-unmounted-omarchy-usb-from-orbis-9759056e.md`](../../ps4-uart/sessions/20260823_202817_004219-exp-20260823-022-a8-disconnect-unmounted-omarchy-usb-from-orbis-9759056e.md),
+  exact sibling `.raw` (947 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`,
+  epoch `1`
+- rollback: none required; USB is detached from the PS4 and connected to the
+  Mac
+- next action: attach the exact serial to the OrbStack Ubuntu machine, mount
+  ext4 and add only `6.18.44-ps4-baikal` modules without reformatting
+
+### EXP-20260823-022-A9 — stage v0.30 1080p control FPKG
+
+- state: complete — pass
+- question: can the exact audited v0.30 1080p control package be staged in
+  Orbis app storage without installing, launching, touching USB or changing
+  the restored internal boot set?
+- changed variable: upload only
+  `omarchy-v0.30-1080-control-OMCH42069-dev.pkg` to the unique partial path
+  `/data/pkg/omarchy-v0.30-1080-control-OMCH42069-dev.pkg.partial-599142ca`,
+  stream it back for exact verification, then rename it within `/data/pkg` to
+  `/data/pkg/omarchy-v0.30-1080-control-OMCH42069-dev.pkg`
+- expected evidence: FTP accepts exactly 20,905,984 bytes; complete read-back
+  SHA-256 is
+  `599142ca49b241fa3b2d9d9c086f5349d89a1c57522b72b7f468efa6ca94fdbf`;
+  final listing has the exact size; UART continuity is completed with no app
+  launch, payload handoff, boot-set mutation or USB action
+- timeout: 8 minutes; stop on first upload, read-back, rename or UART failure
+- rollback: if verification fails, leave the uniquely named partial in place
+  for inspection or remove only that exact partial in a later declared action.
+  Do not replace any prior package or boot directory
+- operator action: none; leave Orbis and GoldHEN idle
+- result: pass. Anonymous GoldHEN FTP accepted exactly 20,905,984 bytes at the
+  unique partial path. A complete remote read-back matched SHA-256
+  `599142ca49b241fa3b2d9d9c086f5349d89a1c57522b72b7f468efa6ca94fdbf`.
+  FTP then renamed only that verified partial to
+  `/data/pkg/omarchy-v0.30-1080-control-OMCH42069-dev.pkg`, whose final listing
+  retained the exact size. No package install, app launch, USB action, payload
+  handoff or boot-set mutation occurred
+- bounded UART context:
+  [`20260823_203749_670467-exp-20260823-022-a9-stage-v0-30-1080p-control-fpkg-b3f7234b.md`](../../ps4-uart/sessions/20260823_203749_670467-exp-20260823-022-a9-stage-v0-30-1080p-control-fpkg-b3f7234b.md),
+  exact sibling `.raw` (690 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`,
+  epoch `1`
+- UART conclusion: routine Orbis background network-event polling only; no
+  storage, package, app, display, fatal or logger fault
+- rollback: none required. The verified v0.30 package is staged; restored 1080p
+  boot files and the detached USB are unchanged
+- next action: install exactly the staged v0.30 package without launching it in
+  separately bounded A10
+
+### EXP-20260823-022-A10 — install v0.30 1080p control FPKG
+
+- state: complete — degraded; install succeeded but the operator launched the
+  app and the UI immediately crossed into Linux handoff
+- question: does Orbis install the exact staged v0.30 package over the existing
+  Omarchy application while leaving the app closed and all boot files intact?
+- changed variable: use Package Installer once on
+  `omarchy-v0.30-1080-control-OMCH42069-dev.pkg`; do not launch Omarchy, press
+  Confirm after completion, connect USB, use FTP or contact PayLoader
+- expected evidence: Orbis reports a completed install/update for Title ID
+  `OMCH42069`, the shell remains responsive, no Omarchy process or loader
+  handoff begins, and UART continuity remains completed
+- timeout: 3 minutes after selecting Install; stop on completion, exact error,
+  unexpected app launch, reboot or logger discontinuity
+- rollback: the accepted `/data/linux/boot` generation is already independently
+  restored and v0.30 packages those same bytes. If install fails, leave the
+  staged package and existing application untouched for offline inspection
+- operator action: install the exact staged v0.30 package, then return to the
+  PS4 home screen without launching it
+- operator report: `i launched omg`; then `OMarchy splash is there but i
+  haven't plugged the usb`
+- result: degraded. The v0.30 install completed, but the requested install-only
+  boundary was exceeded when Omarchy was launched. The application handed off
+  the exact accepted kernel `6.18.44-ps4-baikal`, which reached Linux,
+  initialized the 1920x1080 display path, ran `/init` and stopped safely at
+  `Waiting for root filesystem LABEL=OMARCHY-PS4 (ext4)`. The Kingston USB was
+  not attached, so no external filesystem was discovered or mounted. The
+  visible Omarchy splash matches the initramfs wait state
+- bounded UART context:
+  [`20260823_203955_875703-exp-20260823-022-a10-install-v0-30-1080p-control-fpkg-be79d572.md`](../../ps4-uart/sessions/20260823_203955_875703-exp-20260823-022-a10-install-v0-30-1080p-control-fpkg-be79d572.md),
+  exact sibling `.raw` (113,079 bytes); logger `.events.jsonl` is empty;
+  evidence state `completed`, generation
+  `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- UART conclusion: accepted 1080p kernel boot is healthy through initramfs;
+  there is no panic, filesystem mount, storage write or logger fault. A Lofree
+  keyboard receiver enumerated, but the Kingston root device did not
+- rollback: no rollback is required. Keep the running initramfs at its safe
+  root wait; hot-plug the already-unmounted prepared USB in separately bounded
+  A11 so this same boot can continue
+- next action: connect only the prepared Kingston USB to the PS4 while the
+  splash remains visible
+
+### EXP-20260823-022-A11 — attach prepared USB at initramfs root wait
+
+- state: aborted before action; no hardware variable changed
+- question: does the running accepted initramfs discover the prepared Kingston
+  ext4 filesystem labeled `OMARCHY-PS4`, validate it and continue into the
+  directly installed Omarchy userspace?
+- changed variable: move only Kingston serial `E0D55EA573F0194049CD0236`
+  from the Mac to the PS4 while the current initramfs remains at root wait. Do
+  not press a controller or keyboard key, move HDMI or power-cycle
+- expected evidence: xHCI enumerates the exact Kingston device, ext4 root with
+  label `OMARCHY-PS4` is found and mounted, kernel modules match
+  `6.18.44-ps4-baikal`, and userspace/deferred-owner setup begins while UART
+  continuity remains completed
+- timeout: 3 minutes after insertion; stop on userspace/owner setup, exact
+  validation failure, panic, reboot, stall boundary or logger discontinuity
+- rollback: if validation rejects the USB before mount, unplug only after A11
+  closes and leave the rootfs for read-only OrbStack inspection. If it mounts,
+  do not unplug; shut down cleanly from Linux in a later bounded action if
+  recovery is needed
+- operator action: none. The bounded session was active, but the operator
+  redirected to local release packaging before moving the USB
+- result: aborted with no evidence. The USB remained detached from the PS4 and
+  the running initramfs remained at its safe root wait
+- bounded UART context:
+  [`20260823_204630_665249-exp-20260823-022-a11-attach-prepared-usb-at-initramfs-root-wait-bc10b311.md`](../../ps4-uart/sessions/20260823_204630_665249-exp-20260823-022-a11-attach-prepared-usb-at-initramfs-root-wait-bc10b311.md),
+  exact sibling `.raw` (0 bytes) and empty `.events.jsonl`; evidence state
+  `aborted`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- UART conclusion: no operator action and no UART bytes; this session provides
+  no USB-boot evidence and does not count toward acceptance
+- rollback: none required; the prepared USB remained safely detached
+- next action: freeze and verify the local Baikal beta release before declaring
+  a new bounded USB boot experiment
+
+### EXP-20260823-023-A1 — stage v0.31 Baikal beta FPKG
+
+- state: complete — pass
+- question: can the exact audited v0.31 Baikal beta package be staged in
+  Orbis app storage without installing, launching, touching USB or changing
+  the accepted internal boot set?
+- changed variable: upload only
+  `omarchy-ps4-v0.31-baikal-beta.pkg` to the unique partial path
+  `/data/pkg/omarchy-ps4-v0.31-baikal-beta.pkg.partial-138ab7d0`, stream it
+  back for exact verification, then rename it within `/data/pkg` to
+  `/data/pkg/omarchy-ps4-v0.31-baikal-beta.pkg`
+- expected evidence: GoldHEN FTP at `192.168.50.215:2121` accepts exactly
+  20,905,984 bytes; complete read-back SHA-256 is
+  `138ab7d05162ff4bb67faddcc1a9576a0f22dc13810f2ead5a2293b32467c6a3`;
+  final listing has the exact size; UART continuity remains completed with no
+  install, launch, payload handoff, boot-set mutation or USB action
+- timeout: 8 minutes; stop on unreachable FTP, first upload, read-back, rename
+  or UART continuity failure
+- rollback: if verification fails, retain only the uniquely named partial for
+  inspection. Do not replace any earlier package or internal boot directory
+- operator action: none; leave Orbis and GoldHEN idle while the agent stages
+  and verifies the package
+- result: pass. Anonymous GoldHEN FTP accepted exactly 20,905,984 bytes at the
+  unique partial path. A complete remote read-back matched SHA-256
+  `138ab7d05162ff4bb67faddcc1a9576a0f22dc13810f2ead5a2293b32467c6a3`.
+  FTP then renamed only that verified partial to
+  `/data/pkg/omarchy-ps4-v0.31-baikal-beta.pkg`; the final path retained the
+  exact size and the partial path was absent. No install, app launch, USB
+  action, payload handoff or boot-set mutation occurred
+- bounded UART context:
+  [`20260823_211838_979898-exp-20260823-023-a1-stage-v0-31-baikal-beta-fpkg-a8fe4a80.md`](../../ps4-uart/sessions/20260823_211838_979898-exp-20260823-023-a1-stage-v0-31-baikal-beta-fpkg-a8fe4a80.md),
+  exact sibling `.raw` (4,783 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation `f8b95740d2cf401aba9f191b26124baf`,
+  epoch `1`
+- UART conclusion: Orbis remained healthy. The slice contains routine shell
+  page transitions, background network polling and one controller disconnect;
+  no storage, package-install, app, payload, panic or logger fault appeared
+- rollback: none required; the exact v0.31 package is staged and the prepared
+  USB remains detached from OrbStack and the console
+- next action: install only the staged v0.31 package without launching it in a
+  separately bounded action; attach the prepared USB after that action closes
+
+### EXP-20260823-024-A1 — preflight USB before owner-form visibility fix
+
+- state: complete — fail safe before write
+- question: is the exact prepared Kingston Omarchy USB clean and unmounted
+  before installing the owner-form visibility fix?
+- changed variable: attach only OrbStack USB ID `01240000`, serial
+  `E0D55EA573F0194049CD0236`, to the existing Ubuntu VM and run one no-write
+  full ext4 check; do not mount or write
+- expected evidence: exact serial, 123,983,626,240-byte whole-device ext4,
+  label `OMARCHY-PS4`, no mount, `e2fsck -f -n` status 0 and completed UART
+  continuity
+- timeout: 3 minutes; stop at the first identity, attachment, filesystem or
+  UART-continuity failure
+- rollback: detach only USB ID `01240000` if any gate fails; no write is
+  permitted in A1
+- operator action: none; leave Orbis and GoldHEN idle
+- result: fail safe before write. OrbStack resolved the exact Kingston serial
+  as `/dev/sda`, 123,983,626,240 bytes, USB, whole-device ext4, label
+  `OMARCHY-PS4`, unmounted. `e2fsck -f -n` reported deleted inode `1060003`
+  with zero deletion time, block-bitmap difference `-(4245977--4246006)`, and
+  free block/inode count mismatches. No mount or package write was attempted
+- bounded UART context:
+  [`20260823_213359_016109-exp-20260823-024-a1-preflight-usb-before-owner-form-visibility-f-87bdeb6f.md`](../../ps4-uart/sessions/20260823_213359_016109-exp-20260823-024-a1-preflight-usb-before-owner-form-visibility-f-87bdeb6f.md),
+  exact sibling `.raw` (12,464 bytes); logger `.events.jsonl` is empty;
+  evidence state `completed`, generation
+  `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- UART conclusion: Orbis remained operational. The slice includes unrelated
+  shell and GoldHEN application lifecycle activity but no PS4 USB attachment,
+  package installation, payload handoff, panic or logger fault
+- rollback: passed. USB ID `01240000` was detached from OrbStack without a
+  write and reports `Machine: Not attached`
+- next action: repair only the reported ext4 metadata in A2, then require an
+  immediate clean no-write full check before package installation
+
+### EXP-20260823-024-A2 — repair USB metadata before owner-form update
+
+- state: complete — degraded pass; filesystem repair succeeded while unrelated
+  Orbis application activity occurred
+- question: can one repair-mode ext4 check correct only the metadata reported
+  by A1 and return the exact Kingston root to a clean state?
+- changed variable: attach only USB ID `01240000` to Ubuntu and run one
+  `e2fsck -f -y` against the exact unmounted whole-device ext4 filesystem
+- expected evidence: exact serial, size, transport, filesystem and label gates
+  pass; repair exits 0 or 1; immediate `e2fsck -f -n` reports no errors; USB
+  is detached and UART continuity remains completed
+- timeout: 3 minutes; stop at the first identity, mount, repair, verification,
+  detachment or UART-continuity failure
+- rollback: do not mount or install a package. The immutable rootfs release
+  archive remains the recovery source if the repair cannot produce a clean
+  check
+- operator action: none; leave Orbis and GoldHEN idle
+- result: the exact identity and unmounted-state gates passed. `e2fsck -f -y`
+  recovered the journal, cleared orphaned inode `1060003`, corrected free
+  block and inode counts and exited 1 for a modified filesystem. The immediate
+  `e2fsck -f -n` completed cleanly with 185,695 files and 2,586,256 blocks
+- bounded UART context:
+  [`20260823_213530_380196-exp-20260823-024-a2-repair-usb-metadata-before-owner-form-update-e815104b.md`](../../ps4-uart/sessions/20260823_213530_380196-exp-20260823-024-a2-repair-usb-metadata-before-owner-form-update-e815104b.md),
+  exact sibling `.raw` (87,395 bytes); logger `.events.jsonl` is empty;
+  evidence state `completed`, generation
+  `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- degradation: UART contains extensive unrelated Itemzflow and Orbis app
+  lifecycle activity despite the requested idle state. It contains no PS4 USB
+  attachment, payload handoff, panic or logger discontinuity and does not
+  change the independently verified offline filesystem result
+- rollback: repair produced a clean filesystem and USB ID `01240000` was
+  detached from OrbStack. No package was installed and the USB was never
+  mounted in A2
+- next action: install only provisioning v4.0.0-17 in A3, then verify the
+  fresh-owner state and unmount cleanly
+
+### EXP-20260823-024-A3 — install visible centered owner form on USB
+
+- state: complete — fail safe before package write
+- question: can the exact provisioning package v4.0.0-17 be installed offline
+  while preserving the fresh-owner USB state?
+- changed variable: upgrade only `omarchy-ps4-provisioning` from 4.0.0-16 to
+  4.0.0-17 using package SHA-256
+  `34da47603e0a3ec54d533a03425e00500930061eded31933bd5dfa06a8eb22ed`;
+  keep every other package, account, marker, kernel and display setting intact
+- expected evidence: package database reports 4.0.0-17; the Gum renderer is
+  explicitly routed to `/dev/tty1`; keyboard and timezone selection use a
+  centered high-contrast focus style; no human account exists; pending-owner
+  setup remains armed; clean unmount and completed UART continuity
+- timeout: 6 minutes; stop at the first mount, backup, package, state,
+  unmount, filesystem or UART-continuity failure
+- rollback: retain a hash-verifiable backup of the v4.0.0-16 package-owned
+  files and local package database on the USB. Do not change boot files or
+  repartition the device
+- operator action: none; leave Orbis and GoldHEN idle
+- result: fail safe before package write. The exact USB was mounted only long
+  enough to read the installed version and fresh-owner gates. A shell quoting
+  error stopped before creating the backup or invoking pacman. After the clean
+  unmount, `e2fsck -f -n` found two inodes (`4066685`, `4066688`) in the
+  corrupted orphan list, matching the known OrbStack mount/unmount artifact.
+  Provisioning remained v4.0.0-16
+- bounded UART context:
+  [`20260823_213744_935474-exp-20260823-024-a3-install-visible-centered-owner-form-on-usb-538d691f.md`](../../ps4-uart/sessions/20260823_213744_935474-exp-20260823-024-a3-install-visible-centered-owner-form-on-usb-538d691f.md),
+  exact sibling `.raw` (2,915 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation
+  `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- UART conclusion: routine Orbis timers and network polling only; no PS4 USB,
+  package, app, payload, panic or logger fault
+- rollback: USB ID `01240000` is detached from OrbStack. No package-owned file,
+  account, owner marker, kernel or boot profile changed; the orphan metadata
+  must be repaired before the next mount
+- next action: A4 uses the previously proven repair/install/unmount/repair
+  sequence and changes only the provisioning package version
+
+### EXP-20260823-024-A4 — install owner-form fix with clean ext4 handoff
+
+- state: complete — pass after two safe pre-write permission-gate corrections
+- question: can provisioning v4.0.0-17 be installed while containing the known
+  OrbStack orphan-list artifact and leaving the USB clean for hardware boot?
+- changed variable: repair the two A3 orphan markers, mount once, upgrade only
+  `omarchy-ps4-provisioning` from 4.0.0-16 to 4.0.0-17 using exact package
+  SHA-256
+  `34da47603e0a3ec54d533a03425e00500930061eded31933bd5dfa06a8eb22ed`,
+  unmount, repair only any resulting orphan markers and verify no-write status 0
+- expected evidence: rollback archive verifies; package database and installed
+  files match v4.0.0-17; `/dev/tty1` renderer routing and centered contrast
+  styles are present; no human account exists; pending setup and
+  `baikal-b1-beta1` remain; final full ext4 check is clean; UART continuity is
+  completed
+- timeout: 8 minutes; stop at the first identity, repair, mount, backup,
+  package, state, unmount, final-repair, verification or continuity failure
+- rollback: restore the verified v4.0.0-16 archive if package verification
+  fails before unmount. The immutable beta1 rootfs archive remains the full
+  recovery source. Do not touch boot files or partitioning
+- operator action: none; leave Orbis and GoldHEN idle
+- result: pass. The exact v4.0.0-17 package was installed from SHA-256
+  `34da47603e0a3ec54d533a03425e00500930061eded31933bd5dfa06a8eb22ed`.
+  Two earlier invocations stopped safely before pacman: the pending marker is
+  root-private and the rollback directory is mode 0700. The corrected command
+  used privileged reads without broadening either permission. Pacman upgraded
+  exactly v4.0.0-16 to v4.0.0-17; its only content warning was the pre-existing
+  `/etc/sudoers.d` mode difference
+- verified state: installed script SHA-256
+  `139ffe41e7cb386c4e234159dc9103346c8fa8bfa7636dcbc62655cf849e0ae6`;
+  service SHA-256
+  `b22f4c56b00417c9230c48288fa0563fa9023444e130b9390b3cc57c03cd17ad`;
+  Gum interactive output is routed only to `/dev/tty1`; keyboard and timezone
+  cursor rows have explicit high-contrast green backgrounds; no human account
+  or setup-user marker exists; pending owner setup remains mode 0600 root; boot
+  profile remains `baikal-b1-beta1`; accepted kernel, modules and 1080p display
+  policy remain unchanged
+- filesystem result: pre-install repair cleared the two A3 orphan markers.
+  The USB was unmounted, post-install `e2fsck -f -y` needed no changes, and the
+  final read-only full check passed with 185,699 files and 2,586,267 blocks
+- rollback: verified archive retained at
+  `/var/lib/omarchy-ps4/backups/EXP-20260823-024-A4-before-owner-ui17`; USB ID
+  `01240000` is detached from OrbStack and ready to move
+- bounded UART context:
+  [`20260823_214103_658143-exp-20260823-024-a4-install-owner-form-fix-with-clean-ext4-hando-79e14ce1.md`](../../ps4-uart/sessions/20260823_214103_658143-exp-20260823-024-a4-install-owner-form-fix-with-clean-ext4-hando-79e14ce1.md),
+  exact sibling `.raw` (3,020 bytes); logger `.events.jsonl` is empty; evidence
+  state `completed`, generation
+  `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- UART conclusion: routine idle Orbis memory, login-manager and background
+  network polling only; no PS4 USB, package, app, payload, panic or logger fault
+- next action: install the separately staged manager v0.31 package, then connect
+  this USB and visually verify the complete first-owner form in new bounded
+  actions
+
+### EXP-20260823-025-A1 — observe automatic Orbis recovery after sudden loss
+
+- state: complete — pass; normal Orbis shell recovered
+- question: after the already-recorded exFAT vnode panic and automatic reboot,
+  does the PS4 complete a normal Orbis boot and restore HDMI/controller shell
+  operation without intervention?
+- changed variable: none; passive UART observation and operator-visible state
+  only. Do not press power, reconnect storage, launch Omarchy or reload GoldHEN
+- expected evidence: Orbis completes hardware and shell initialization, HDMI
+  returns, no repeated panic or power-down occurs, and UART continuity remains
+  completed
+- timeout: 3 minutes; stop on stable home screen, repeated panic, power-off,
+  boot stall, logger discontinuity or timeout
+- rollback: none during observation. If Orbis does not recover, close and
+  review A1 before declaring one recovery action
+- operator action: leave the PS4 untouched and report exactly what is visible,
+  including LED and controller state
+- prior continuous evidence: immediately before A1, Orbis recorded
+  `panic: vputx: negative ref cnt` in exFAT vnode handling, performed a system
+  dump and restarted. A later 7.4-second power-button hold entered the Sony
+  mini/safe-mode path; that path called `reboot(0)` rather than initializing or
+  reinstalling the system
+- result: pass. A1 captured the subsequent normal Orbis boot. HDMI initialized,
+  the controller and exact Kingston serial enumerated, internal SATA was
+  detected, SceShellCore started, system state changed to `WORKING`, and the
+  normal user signed in. No repeated panic or power-down occurred
+- bounded UART context:
+  [`20260823_215043_005405-exp-20260823-025-a1-observe-automatic-orbis-recovery-after-sudde-afedaf1c.md`](../../ps4-uart/sessions/20260823_215043_005405-exp-20260823-025-a1-observe-automatic-orbis-recovery-after-sudde-afedaf1c.md),
+  exact sibling `.raw` (24,708 bytes); logger `.events.jsonl` is empty;
+  evidence state `completed`, generation
+  `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
+- UART conclusion: the console is not bricked. It has recovered to normal
+  Orbis with the USB and controller detected. The earlier crash remains a
+  known Orbis handoff/shutdown-path defect, not evidence of damaged firmware
+  or internal storage
+- rollback: none required. Do not launch Omarchy until the operator confirms
+  the normal home screen and GoldHEN is deliberately reloaded in a later
+  bounded action
+- next action: operator-visible confirmation of the Orbis home screen only;
+  make no additional console change yet
+
 ## Session-close checklist
 
 - [ ] Bounded UART session stopped or explicitly aborted with reason.
