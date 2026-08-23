@@ -2,7 +2,7 @@
 
 pkgname=omarchy-ps4
 pkgver=4.0.0
-pkgrel=6
+pkgrel=7
 pkgdesc='Pinned Omarchy Quattro runtime adapted for PlayStation 4 Linux'
 arch=('any')
 url='https://github.com/meerzulee/omarchy-ps4'
@@ -20,7 +20,7 @@ depends=(
   'gum'
   'hyprland'
   'jq'
-  'omarchy-ps4-settings=4.0.0-4'
+  'omarchy-ps4-settings=4.0.0-6'
   'pacman-contrib'
   'perl'
   'pipewire'

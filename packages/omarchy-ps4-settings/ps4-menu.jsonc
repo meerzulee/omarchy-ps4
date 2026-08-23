@@ -3,7 +3,9 @@
   // meaningless on the PS4 loader, legacy DCE8 display path, and external root.
   "system.suspend": {"when":"false"},
   "system.hibernate": {"when":"false"},
-  "system.reboot": {"when":"false"},
+  // Reboot is offered: it returns the console to PS4 system software, which is
+  // the only way off Linux short of a hard power-off. Linux then has to be
+  // launched again from the loader.
   "trigger.toggle.nightlight": {"when":"false"},
   "style.unlock": {"when":"false"},
   "update.channel": {"when":"false"},

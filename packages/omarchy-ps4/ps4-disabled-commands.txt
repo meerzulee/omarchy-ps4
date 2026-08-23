@@ -38,7 +38,6 @@ omarchy-reinstall-pkgs
 omarchy-restart-hyprsunset
 omarchy-system-factory-reset
 omarchy-system-factory-reset-finish
-omarchy-system-reboot
 omarchy-toggle-nightlight
 omarchy-toggle-crash-capture
 omarchy-update
