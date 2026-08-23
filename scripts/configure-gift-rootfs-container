@@ -138,6 +138,10 @@ rm -rf /var/cache/pacman/pkg/* /var/lib/pacman/sync/*
 
 /workspace/scripts/validate-gift-rootfs-container "$kernel_release"
 
+# Docker creates /.dockerenv in the build container. Shipping it makes
+# systemd-detect-virt report "docker" on the console, which trips
+# ConditionVirtualization=!container and leaves systemd-timesyncd inert --
+# the PS4 has no RTC, so the clock then stays at the epoch. Leave it behind.
 tar \
   --create \
   --file "$archive_output" \
@@ -154,6 +158,7 @@ tar \
   --exclude='./sys' \
   --exclude='./dev' \
   --exclude='./run' \
+  --exclude='./.dockerenv' \
   --directory=/ \
   .
 
