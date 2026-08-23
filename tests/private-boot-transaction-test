@@ -6,11 +6,25 @@ repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 temporary=$(mktemp -d /tmp/omarchy-ps4-private-boot.XXXXXX)
 trap 'rm -rf -- "$temporary"' EXIT
 
+artifact_dir=$repo_dir/fpkg/vendor/internal-boot
+profile_flags=()
+case ${1:-} in
+  --ultrawide)
+    artifact_dir=$repo_dir/fpkg/vendor/internal-boot-ultrawide
+    profile_flags=(-DOMARCHY_ULTRAWIDE_BOOT=1)
+    shift
+    ;;
+esac
+if (( $# > 0 )); then
+  printf 'Usage: %s [--ultrawide]\n' "$0" >&2
+  exit 2
+fi
+
 app_misc=$temporary/app-misc
 boot_parent=$temporary/data/linux
 mkdir -p "$app_misc" "$temporary/data"
 for artifact in bzImage initramfs.cpio.gz bootargs.txt vram.txt; do
-  install -m 0644 "$repo_dir/fpkg/vendor/internal-boot/$artifact" \
+  install -m 0644 "$artifact_dir/$artifact" \
     "$app_misc/$artifact"
 done
 
@@ -23,6 +37,7 @@ compiler=${CXX:-c++}
   -Wpedantic \
   -Werror \
   -DOMARCHY_INTERNAL_BOOT=1 \
+  "${profile_flags[@]}" \
   -DOMARCHY_APP_MISC_PREFIX="\"$app_misc\"" \
   -DOMARCHY_BOOT_PARENT_PATH="\"$boot_parent\"" \
   -I"$repo_dir/fpkg/ui-prototype" \

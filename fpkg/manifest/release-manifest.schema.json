@@ -22,7 +22,7 @@
     "target": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["architecture", "models", "southbridges", "firmwares", "root_transport", "root_layout", "root_filesystem", "root_label"],
+      "required": ["architecture", "models", "southbridges", "root_transport", "root_layout", "root_filesystem", "root_label"],
       "properties": {
         "architecture": { "const": "x86_64" },
         "models": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },

@@ -35,6 +35,25 @@ constexpr bool kInternalBoot = true;
 #else
 constexpr bool kInternalBoot = false;
 #endif
+#ifdef OMARCHY_ULTRAWIDE_BOOT
+constexpr const char* kKernelLogName = "linux-6.18.44-baikal-ultrawide";
+constexpr const char* kKernelSummary = "6.18.44 - Baikal - 3440x1440@50";
+constexpr const char* kKernelTitle = "Linux 6.18.44 - Baikal ultrawide";
+constexpr const char* kKernelDetail =
+    "Baikal B1 - 1024 MB video memory - experimental ultrawide build";
+#elif defined(OMARCHY_1080_CONTROL_BOOT)
+constexpr const char* kKernelLogName = "linux-6.18.44-baikal-1080-control";
+constexpr const char* kKernelSummary = "6.18.44 - Baikal - 1080p control";
+constexpr const char* kKernelTitle = "Linux 6.18.44 - Baikal 1080p";
+constexpr const char* kKernelDetail =
+    "Baikal B1 - 1024 MB video memory - accepted recovery build";
+#else
+constexpr const char* kKernelLogName = "linux-6.18.44-baikal";
+constexpr const char* kKernelSummary = "6.18.44 - Baikal B1";
+constexpr const char* kKernelTitle = "Linux 6.18.44 - Baikal";
+constexpr const char* kKernelDetail =
+    "Baikal B1 - 1024 MB video memory - verified beta build";
+#endif
 
 struct Color {
   uint8_t r;
@@ -457,9 +476,9 @@ void refresh_system_check(App& app) {
   app.boot_check_blocked =
       state == omarchy_ps4::InternalBootState::Interrupted ||
       state == omarchy_ps4::InternalBootState::Blocked;
-  printf("[omarchy-ui] system-check boot-files=%s kernel=linux-6.18.44-baikal "
+  printf("[omarchy-ui] system-check boot-files=%s kernel=%s "
          "usb=deferred-to-linux handoff=checked-at-launch\n",
-         omarchy_ps4::internal_boot_state_name(state));
+         omarchy_ps4::internal_boot_state_name(state), kKernelLogName);
 #else
   app.boot_set_ready = false;
   app.boot_update_available = false;
@@ -693,7 +712,7 @@ void draw_home(Framebuffer& framebuffer, Fonts& fonts, const App& app) {
               app.boot_set_ready ? kGreen
                   : app.boot_check_blocked ? kError : kWarning);
   status_card(framebuffer, fonts, 496, "KERNEL",
-              "6.18.44 - Baikal - automatic", kBright);
+              kKernelSummary, kBright);
   status_card(framebuffer, fonts, 570, "OMARCHY USB",
               "Connect before boot -", kForeground, "checked by Linux");
 }
@@ -759,7 +778,7 @@ void draw_install_review(Framebuffer& framebuffer, Fonts& fonts, int focus) {
   framebuffer.rectangle(110, 408, 1150, 334, kPanel);
   framebuffer.border(110, 408, 1150, 334, 1, kSelection);
   fact_row(framebuffer, fonts, 462, "Release", "Omarchy 4.0.0");
-  fact_row(framebuffer, fonts, 520, "Kernel", "Linux 6.18.44 - Baikal");
+  fact_row(framebuffer, fonts, 520, "Kernel", kKernelTitle);
   fact_row(framebuffer, fonts, 578, "Linux root", "External Omarchy USB");
   fact_row(framebuffer, fonts, 636, "Video memory", "1024 MB");
   fact_row(framebuffer, fonts, 694, "Internal storage",
@@ -839,15 +858,14 @@ void draw_ready(Framebuffer& framebuffer, Fonts& fonts, int focus) {
 }
 
 void draw_kernel_select(Framebuffer& framebuffer, Fonts& fonts, int focus) {
-  page_title(framebuffer, fonts, "CHOOSE KERNEL", "Linux 6.18.44 - Baikal",
+  page_title(framebuffer, fonts, "CHOOSE KERNEL", kKernelTitle,
              "Only kernels tested for this hardware appear here.");
   framebuffer.rectangle(110, 430, 1120, 214, kPanel);
   framebuffer.border(110, 430, 1120, 214, focus == 0 ? 3 : 1,
                      focus == 0 ? kBlue : kSelection);
   text(framebuffer, fonts.label, 150, 478, "RECOMMENDED", kGreen);
   text(framebuffer, fonts.title, 150, 548, "Linux 6.18.44", kBright);
-  text(framebuffer, fonts.small, 150, 596,
-       "Baikal B1 - 1024 MB video memory - current verified build", kForeground);
+  text(framebuffer, fonts.small, 150, 596, kKernelDetail, kForeground);
   text(framebuffer, fonts.small, 1320, 472, "MORE KERNELS", kForeground);
   text(framebuffer, fonts.small, 1320, 516,
        "Added only after hardware acceptance.", kForeground);
@@ -864,7 +882,7 @@ void draw_boot_review(Framebuffer& framebuffer, Fonts& fonts, int focus) {
                  : "This is the final product confirmation, shown here as a simulation.");
   framebuffer.rectangle(110, 424, 1120, 250, kPanel);
   fact_row(framebuffer, fonts, 482, "Release", "Omarchy 4.0.0");
-  fact_row(framebuffer, fonts, 544, "Kernel", "Linux 6.18.44 - Baikal");
+  fact_row(framebuffer, fonts, 544, "Kernel", kKernelTitle);
   fact_row(framebuffer, fonts, 606, "Omarchy USB", "Verified by Linux during startup");
   text(framebuffer, fonts.small, 110, 742,
        kPrivateBoot
@@ -1042,8 +1060,9 @@ void show(App& app, Screen screen) {
   app.screen = screen;
   app.focus = 0;
   app.dirty_frames = 2;
-  printf("[omarchy-ui] screen=%s boot_files=%s kernel=linux-6.18.44-baikal\n",
-         screen_name(screen), app.boot_set_ready ? "ready" : "missing");
+  printf("[omarchy-ui] screen=%s boot_files=%s kernel=%s\n",
+         screen_name(screen), app.boot_set_ready ? "ready" : "missing",
+         kKernelLogName);
 }
 
 int focus_count(const App& app) {
@@ -1145,7 +1164,7 @@ void confirm(App& app, Image& background, int user_id, bool save_data_ready) {
       break;
     case Screen::KernelSelect:
       if (app.focus == 0) {
-        printf("[omarchy-ui] kernel selected=linux-6.18.44-baikal\n");
+        printf("[omarchy-ui] kernel selected=%s\n", kKernelLogName);
         refresh_system_check(app);
         show(app, app.boot_set_ready ? Screen::BootReview : Screen::Home);
       } else {

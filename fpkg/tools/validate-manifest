@@ -66,13 +66,40 @@ def validate(document: object, production: bool) -> list[str]:
     require(type(release["sequence"]) is int and release["sequence"] > 0, "release.sequence: expected positive integer")
     require(isinstance(release["published_at"], str) and release["published_at"].endswith("Z"), "release.published_at: expected UTC timestamp")
 
-    target = exact_keys(root["target"], {"architecture", "models", "southbridges", "firmwares", "root_transport", "root_layout", "root_filesystem", "root_label"}, "target")
+    target = root["target"]
+    require(isinstance(target, dict), "target: expected object")
+    required_target_keys = {
+        "architecture",
+        "models",
+        "southbridges",
+        "root_transport",
+        "root_layout",
+        "root_filesystem",
+        "root_label",
+    }
+    allowed_target_keys = required_target_keys | {"firmwares"}
+    actual_target_keys = set(target)
+    require(
+        required_target_keys <= actual_target_keys
+        and actual_target_keys <= allowed_target_keys,
+        "target: keys differ "
+        f"(missing={sorted(required_target_keys-actual_target_keys)}, "
+        f"extra={sorted(actual_target_keys-allowed_target_keys)})",
+    )
     require(target["architecture"] == "x86_64", "target.architecture: expected x86_64")
-    for name in ("models", "southbridges", "firmwares"):
+    for name in ("models", "southbridges"):
         values = target[name]
         require(isinstance(values, list) and values and all(isinstance(x, str) and x for x in values), f"target.{name}: expected non-empty string list")
         require(len(values) == len(set(values)), f"target.{name}: duplicate value")
-    require(all(FIRMWARE.fullmatch(x) for x in target["firmwares"]), "target.firmwares: invalid firmware")
+    if "firmwares" in target:
+        firmwares = target["firmwares"]
+        require(
+            isinstance(firmwares, list)
+            and firmwares
+            and all(isinstance(x, str) and FIRMWARE.fullmatch(x) for x in firmwares),
+            "target.firmwares: invalid firmware",
+        )
+        require(len(firmwares) == len(set(firmwares)), "target.firmwares: duplicate value")
     require(target["root_transport"] == "usb", "target.root_transport: only usb is supported")
     require(target["root_layout"] == "whole-device-filesystem", "target.root_layout: expected whole-device-filesystem")
     require(target["root_filesystem"] == "ext4", "target.root_filesystem: expected ext4")

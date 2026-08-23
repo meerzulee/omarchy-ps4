@@ -7,12 +7,46 @@ fpkg_dir=$(cd -- "$script_dir/.." && pwd)
 repo_dir=$(cd -- "$fpkg_dir/.." && pwd)
 workspace_dir=$(cd -- "$repo_dir/.." && pwd)
 
-kernel_source=$workspace_dir/linux-ps4-kernel/output/6.18-baikal/bzImage
+profile=accepted
+case ${1:-} in
+  --ultrawide)
+    profile=ultrawide
+    shift
+    ;;
+esac
+if (( $# > 0 )); then
+  printf 'Usage: %s [--ultrawide]\n' "$0" >&2
+  exit 2
+fi
+
 initramfs_source=$repo_dir/output/xfce-baseline/initramfs.cpio.gz
-bootargs_source=$fpkg_dir/bootargs/6.18-baikal-internal-root.txt
-manifest_source=$fpkg_dir/manifest/release-manifest.example.json
-stage_dir=$fpkg_dir/vendor/internal-boot
-inventory=$fpkg_dir/vendor/provenance/internal-boot-set.json
+if [[ $profile == ultrawide ]]; then
+  kernel_source=$workspace_dir/linux-ps4-kernel/output/6.18-baikal-ultrawide/bzImage
+  bootargs_source=$fpkg_dir/bootargs/6.18-baikal-ultrawide-3440x1440.txt
+  manifest_source=$fpkg_dir/manifest/release-manifest.ultrawide-dev.json
+  stage_dir=$fpkg_dir/vendor/internal-boot-ultrawide
+  inventory=$fpkg_dir/vendor/provenance/internal-boot-set-ultrawide.json
+  kernel_size=11244544
+  kernel_sha256=9d0fe91771eea8e2e6969ce46417bc8e3497dc8ccec383826edb1160f2f0b270
+  initramfs_size=1686552
+  initramfs_sha256=841b7a1b59ad0c53d97be49fb4369ba7918158df0fc557f9620fd3bddddb15ef
+  bootargs_size=465
+  bootargs_sha256=445b9584db9815c793576193d1f7afc33e99e02115938396ee19c5ea23c5292f
+  release=omarchy-ps4-4.0.0-baikal-b1-ultrawide-dev1
+else
+  kernel_source=$workspace_dir/linux-ps4-kernel/output/6.18-baikal/bzImage
+  bootargs_source=$fpkg_dir/bootargs/6.18-baikal-internal-root.txt
+  manifest_source=$fpkg_dir/manifest/release-manifest.example.json
+  stage_dir=$fpkg_dir/vendor/internal-boot
+  inventory=$fpkg_dir/vendor/provenance/internal-boot-set.json
+  kernel_size=11060224
+  kernel_sha256=b7c8b9d67c600ee08b2321f7f4fac08c506791b0ab9c3f3d01598a90471a9de5
+  initramfs_size=1686508
+  initramfs_sha256=824530e22392376d5fc27994a9ccff97f0442b7a41681155f46e183f892365ae
+  bootargs_size=502
+  bootargs_sha256=8064d91f286d4275dac08e2fae29e43fbf745ea7be15f797edbbd0e5036a4930
+  release=omarchy-ps4-4.0.0-baikal-b1-beta1
+fi
 
 verify() {
   local source_file=$1 expected_size=$2 expected_sha256=$3 label=$4
@@ -35,12 +69,9 @@ verify() {
   }
 }
 
-verify "$kernel_source" 11060224 \
-  b7c8b9d67c600ee08b2321f7f4fac08c506791b0ab9c3f3d01598a90471a9de5 kernel
-verify "$initramfs_source" 1686508 \
-  824530e22392376d5fc27994a9ccff97f0442b7a41681155f46e183f892365ae initramfs
-verify "$bootargs_source" 502 \
-  8064d91f286d4275dac08e2fae29e43fbf745ea7be15f797edbbd0e5036a4930 bootargs
+verify "$kernel_source" "$kernel_size" "$kernel_sha256" kernel
+verify "$initramfs_source" "$initramfs_size" "$initramfs_sha256" initramfs
+verify "$bootargs_source" "$bootargs_size" "$bootargs_sha256" bootargs
 "$fpkg_dir/tools/validate-manifest" "$manifest_source" >/dev/null
 
 rm -rf "$stage_dir"
@@ -61,15 +92,15 @@ printf '%s\n' \
   '  "release_eligible": false,' \
   '  "reason": "loader license and USB image digests are unresolved",' \
   '  "destination": "/data/linux/boot",' \
-  '  "release": "omarchy-ps4-4.0.0-baikal-b1-beta1",' \
+  "  \"release\": \"$release\"," \
   '  "vram_mb": 1024,' \
   '  "contents": {' \
-  '    "kernel": {"size": 11060224, "sha256": "b7c8b9d67c600ee08b2321f7f4fac08c506791b0ab9c3f3d01598a90471a9de5"},' \
-  '    "initramfs": {"size": 1686508, "sha256": "824530e22392376d5fc27994a9ccff97f0442b7a41681155f46e183f892365ae"},' \
-  '    "bootargs": {"size": 502, "sha256": "8064d91f286d4275dac08e2fae29e43fbf745ea7be15f797edbbd0e5036a4930"},' \
+  "    \"kernel\": {\"size\": $kernel_size, \"sha256\": \"$kernel_sha256\"}," \
+  "    \"initramfs\": {\"size\": $initramfs_size, \"sha256\": \"$initramfs_sha256\"}," \
+  "    \"bootargs\": {\"size\": $bootargs_size, \"sha256\": \"$bootargs_sha256\"}," \
   '    "vram": {"size": 5, "sha256": "4f71bb761ace37c88826cd8cc1c948e1cf5b5d0cd153dc651a6efdb3dfb9f2b1"}' \
   '  }' \
   '}' >"$inventory"
 
-printf 'internal-boot-set: staged private inputs in %s\n' "$stage_dir"
+printf 'internal-boot-set: staged %s private inputs in %s\n' "$profile" "$stage_dir"
 printf '%s\n' 'internal-boot-set: release eligible: no'

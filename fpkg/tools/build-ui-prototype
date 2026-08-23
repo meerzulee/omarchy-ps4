@@ -11,9 +11,21 @@ case ${1:-} in
     profile=private-kernel-manager
     shift
     ;;
+  --private-kernel-manager-ultrawide)
+    profile=private-kernel-manager-ultrawide
+    shift
+    ;;
+  --private-kernel-manager-1080-control)
+    profile=private-kernel-manager-1080-control
+    shift
+    ;;
+  --baikal-beta)
+    profile=baikal-beta
+    shift
+    ;;
 esac
 if (( $# > 0 )); then
-  printf 'Usage: %s [--private-boot|--private-kernel-manager]\n' "$0" >&2
+  printf 'Usage: %s [--private-boot|--private-kernel-manager|--private-kernel-manager-ultrawide|--private-kernel-manager-1080-control|--baikal-beta]\n' "$0" >&2
   exit 2
 fi
 
@@ -63,6 +75,8 @@ if [[ $profile != ui-only ]]; then
 fi
 if [[ $profile == private-kernel-manager ]]; then
   "$repo_dir/fpkg/tools/stage-internal-boot-set"
+elif [[ $profile == private-kernel-manager-ultrawide ]]; then
+  "$repo_dir/fpkg/tools/stage-internal-boot-set" --ultrawide
 fi
 
 make -C "$repo_dir/fpkg/ui-prototype" \
@@ -78,6 +92,15 @@ case $profile in
     ;;
   private-kernel-manager)
     package="$repo_dir/output/fpkg-private-kernel-manager/IV0000-OMCH42069_00-OMARCHYPS4UI0000.pkg"
+    ;;
+  private-kernel-manager-ultrawide)
+    package="$repo_dir/output/fpkg-private-kernel-manager-ultrawide/IV0000-OMCH42069_00-OMARCHYPS4UI0000.pkg"
+    ;;
+  private-kernel-manager-1080-control)
+    package="$repo_dir/output/fpkg-private-kernel-manager-1080-control/IV0000-OMCH42069_00-OMARCHYPS4UI0000.pkg"
+    ;;
+  baikal-beta)
+    package="$repo_dir/output/fpkg-baikal-beta/IV0000-OMCH42069_00-OMARCHYPS4UI0000.pkg"
     ;;
   *)
     package="$repo_dir/output/fpkg-ui-prototype/IV0000-OMCH42069_00-OMARCHYPS4UI0000.pkg"

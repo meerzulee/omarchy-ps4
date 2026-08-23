@@ -14,8 +14,25 @@ else ifeq ($(PROFILE),private-kernel-manager)
   VERSION := 0.28
   PROFILE_CXXFLAGS := -DOMARCHY_PRIVATE_BOOT=1 -DOMARCHY_INTERNAL_BOOT=1
   OUTPUT_NAME := fpkg-private-kernel-manager
+else ifeq ($(PROFILE),private-kernel-manager-ultrawide)
+  TITLE := Omarchy
+  VERSION := 0.29
+  PROFILE_CXXFLAGS := -DOMARCHY_PRIVATE_BOOT=1 -DOMARCHY_INTERNAL_BOOT=1 \
+	-DOMARCHY_ULTRAWIDE_BOOT=1
+  OUTPUT_NAME := fpkg-private-kernel-manager-ultrawide
+else ifeq ($(PROFILE),private-kernel-manager-1080-control)
+  TITLE := Omarchy
+  VERSION := 0.30
+  PROFILE_CXXFLAGS := -DOMARCHY_PRIVATE_BOOT=1 -DOMARCHY_INTERNAL_BOOT=1 \
+	-DOMARCHY_1080_CONTROL_BOOT=1
+  OUTPUT_NAME := fpkg-private-kernel-manager-1080-control
+else ifeq ($(PROFILE),baikal-beta)
+  TITLE := Omarchy
+  VERSION := 0.31
+  PROFILE_CXXFLAGS := -DOMARCHY_PRIVATE_BOOT=1 -DOMARCHY_INTERNAL_BOOT=1
+  OUTPUT_NAME := fpkg-baikal-beta
 else
-  $(error Unsupported PROFILE '$(PROFILE)'; use ui-only, private-boot, or private-kernel-manager)
+  $(error Unsupported PROFILE '$(PROFILE)'; use ui-only, private-boot, private-kernel-manager, private-kernel-manager-ultrawide, private-kernel-manager-1080-control, or baikal-beta)
 endif
 TITLE_ID := OMCH42069
 CONTENT_ID := IV0000-OMCH42069_00-OMARCHYPS4UI0000
@@ -39,6 +56,22 @@ PRIVATE_LOADER_EXPECTED_SHA := c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef084
 PRIVATE_LOADER_EXPECTED_SIZE := 320936
 PRIVATE_BOOT_SET := $(REPO_ROOT)/fpkg/vendor/internal-boot
 PRIVATE_BOOT_PROVENANCE := $(REPO_ROOT)/fpkg/vendor/provenance/internal-boot-set.json
+BOOT_KERNEL_SIZE := 11060224
+BOOT_KERNEL_SHA := b7c8b9d67c600ee08b2321f7f4fac08c506791b0ab9c3f3d01598a90471a9de5
+BOOT_INITRAMFS_SIZE := 1686508
+BOOT_INITRAMFS_SHA := 824530e22392376d5fc27994a9ccff97f0442b7a41681155f46e183f892365ae
+BOOT_ARGS_SIZE := 502
+BOOT_ARGS_SHA := 8064d91f286d4275dac08e2fae29e43fbf745ea7be15f797edbbd0e5036a4930
+ifeq ($(PROFILE),private-kernel-manager-ultrawide)
+  PRIVATE_BOOT_SET := $(REPO_ROOT)/fpkg/vendor/internal-boot-ultrawide
+  PRIVATE_BOOT_PROVENANCE := $(REPO_ROOT)/fpkg/vendor/provenance/internal-boot-set-ultrawide.json
+  BOOT_KERNEL_SIZE := 11244544
+  BOOT_KERNEL_SHA := 9d0fe91771eea8e2e6969ce46417bc8e3497dc8ccec383826edb1160f2f0b270
+  BOOT_INITRAMFS_SIZE := 1686552
+  BOOT_INITRAMFS_SHA := 841b7a1b59ad0c53d97be49fb4369ba7918158df0fc557f9620fd3bddddb15ef
+  BOOT_ARGS_SIZE := 465
+  BOOT_ARGS_SHA := 445b9584db9815c793576193d1f7afc33e99e02115938396ee19c5ea23c5292f
+endif
 
 TOKYO_WALLPAPERS := 0-winding-road.jpg 2-swirl-buck.jpg 4-omakub.jpg
 LAST_HORIZON_WALLPAPERS := 1-eyes-wide.jpg 2-blink.jpg 3-bokeh.jpg 4-new-horizons.jpg
@@ -81,7 +114,10 @@ LIBS := -lc -lkernel -lc++ -lSceVideoOut -lSceSysmodule -lSceFreeType \
 LDFLAGS := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr \
 	-L$(TOOLCHAIN)/lib $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 
-.PHONY: all fpkg private-boot private-kernel-manager host-test audit clean check-tools
+.PHONY: all fpkg private-boot private-kernel-manager \
+	private-kernel-manager-ultrawide private-kernel-manager-1080-control \
+	baikal-beta \
+	host-test audit clean check-tools
 
 all: fpkg
 
@@ -92,6 +128,15 @@ private-boot:
 
 private-kernel-manager:
 	$(MAKE) PROFILE=private-kernel-manager clean fpkg audit
+
+private-kernel-manager-ultrawide:
+	$(MAKE) PROFILE=private-kernel-manager-ultrawide clean fpkg audit
+
+private-kernel-manager-1080-control:
+	$(MAKE) PROFILE=private-kernel-manager-1080-control clean fpkg audit
+
+baikal-beta:
+	$(MAKE) PROFILE=baikal-beta clean fpkg audit
 
 host-test:
 	mkdir -p $(BUILD_DIR)/host
@@ -115,13 +160,13 @@ check-tools:
 		test "$$(stat -f %z "$(PRIVATE_LOADER)" 2>/dev/null || stat -c %s "$(PRIVATE_LOADER)")" = "$(PRIVATE_LOADER_EXPECTED_SIZE)"; \
 		test "$$(shasum -a 256 "$(PRIVATE_LOADER)" | awk '{print $$1}')" = "$(PRIVATE_LOADER_EXPECTED_SHA)"; \
 	fi
-	@if test "$(PROFILE)" = private-kernel-manager; then set -e; \
-		test "$$(stat -f %z "$(PRIVATE_BOOT_SET)/bzImage" 2>/dev/null || stat -c %s "$(PRIVATE_BOOT_SET)/bzImage")" = 11060224; \
-		test "$$(shasum -a 256 "$(PRIVATE_BOOT_SET)/bzImage" | awk '{print $$1}')" = b7c8b9d67c600ee08b2321f7f4fac08c506791b0ab9c3f3d01598a90471a9de5; \
-		test "$$(stat -f %z "$(PRIVATE_BOOT_SET)/initramfs.cpio.gz" 2>/dev/null || stat -c %s "$(PRIVATE_BOOT_SET)/initramfs.cpio.gz")" = 1686508; \
-		test "$$(shasum -a 256 "$(PRIVATE_BOOT_SET)/initramfs.cpio.gz" | awk '{print $$1}')" = 824530e22392376d5fc27994a9ccff97f0442b7a41681155f46e183f892365ae; \
-		test "$$(stat -f %z "$(PRIVATE_BOOT_SET)/bootargs.txt" 2>/dev/null || stat -c %s "$(PRIVATE_BOOT_SET)/bootargs.txt")" = 502; \
-		test "$$(shasum -a 256 "$(PRIVATE_BOOT_SET)/bootargs.txt" | awk '{print $$1}')" = 8064d91f286d4275dac08e2fae29e43fbf745ea7be15f797edbbd0e5036a4930; \
+	@if test "$(PROFILE)" = baikal-beta || echo "$(PROFILE)" | grep -q '^private-kernel-manager'; then set -e; \
+		test "$$(stat -f %z "$(PRIVATE_BOOT_SET)/bzImage" 2>/dev/null || stat -c %s "$(PRIVATE_BOOT_SET)/bzImage")" = "$(BOOT_KERNEL_SIZE)"; \
+		test "$$(shasum -a 256 "$(PRIVATE_BOOT_SET)/bzImage" | awk '{print $$1}')" = "$(BOOT_KERNEL_SHA)"; \
+		test "$$(stat -f %z "$(PRIVATE_BOOT_SET)/initramfs.cpio.gz" 2>/dev/null || stat -c %s "$(PRIVATE_BOOT_SET)/initramfs.cpio.gz")" = "$(BOOT_INITRAMFS_SIZE)"; \
+		test "$$(shasum -a 256 "$(PRIVATE_BOOT_SET)/initramfs.cpio.gz" | awk '{print $$1}')" = "$(BOOT_INITRAMFS_SHA)"; \
+		test "$$(stat -f %z "$(PRIVATE_BOOT_SET)/bootargs.txt" 2>/dev/null || stat -c %s "$(PRIVATE_BOOT_SET)/bootargs.txt")" = "$(BOOT_ARGS_SIZE)"; \
+		test "$$(shasum -a 256 "$(PRIVATE_BOOT_SET)/bootargs.txt" | awk '{print $$1}')" = "$(BOOT_ARGS_SHA)"; \
 		test "$$(shasum -a 256 "$(PRIVATE_BOOT_SET)/vram.txt" | awk '{print $$1}')" = 4f71bb761ace37c88826cd8cc1c948e1cf5b5d0cd153dc651a6efdb3dfb9f2b1; \
 		test -f "$(PRIVATE_BOOT_SET)/release.json"; \
 		test -f "$(PRIVATE_BOOT_PROVENANCE)"; \
@@ -266,7 +311,7 @@ STAGED_PROFILE_INPUTS := \
 	$(STAGE_DIR)/assets/misc/ps4-linux-loader.elf \
 	$(STAGE_DIR)/assets/misc/ps4-linux-loader.elf.sha256 \
 	$(STAGE_DIR)/assets/misc/loader-provenance.json
-else ifeq ($(PROFILE),private-kernel-manager)
+else ifneq ($(filter private-kernel-manager private-kernel-manager-ultrawide private-kernel-manager-1080-control baikal-beta,$(PROFILE)),)
 STAGED_PROFILE_INPUTS := \
 	$(STAGE_DIR)/KERNEL-MANAGER.txt \
 	$(STAGE_DIR)/assets/misc/ps4-linux-loader.elf \
@@ -328,11 +373,12 @@ else ifeq ($(PROFILE),private-boot)
 else
 	@test -f $(BUILD_DIR)/audit/uroot/KERNEL-MANAGER.txt
 	@test -f $(BUILD_DIR)/audit/uroot/assets/misc/internal-boot-set.json
-	@test "$$(stat -f %z $(BUILD_DIR)/audit/uroot/assets/misc/bzImage 2>/dev/null || stat -c %s $(BUILD_DIR)/audit/uroot/assets/misc/bzImage)" = 11060224
-	@test "$$(shasum -a 256 $(BUILD_DIR)/audit/uroot/assets/misc/bzImage | awk '{print $$1}')" = b7c8b9d67c600ee08b2321f7f4fac08c506791b0ab9c3f3d01598a90471a9de5
-	@test "$$(shasum -a 256 $(BUILD_DIR)/audit/uroot/assets/misc/initramfs.cpio.gz | awk '{print $$1}')" = 824530e22392376d5fc27994a9ccff97f0442b7a41681155f46e183f892365ae
-	@test "$$(stat -f %z $(BUILD_DIR)/audit/uroot/assets/misc/bootargs.txt 2>/dev/null || stat -c %s $(BUILD_DIR)/audit/uroot/assets/misc/bootargs.txt)" = 502
-	@test "$$(shasum -a 256 $(BUILD_DIR)/audit/uroot/assets/misc/bootargs.txt | awk '{print $$1}')" = 8064d91f286d4275dac08e2fae29e43fbf745ea7be15f797edbbd0e5036a4930
+	@test "$$(stat -f %z $(BUILD_DIR)/audit/uroot/assets/misc/bzImage 2>/dev/null || stat -c %s $(BUILD_DIR)/audit/uroot/assets/misc/bzImage)" = "$(BOOT_KERNEL_SIZE)"
+	@test "$$(shasum -a 256 $(BUILD_DIR)/audit/uroot/assets/misc/bzImage | awk '{print $$1}')" = "$(BOOT_KERNEL_SHA)"
+	@test "$$(stat -f %z $(BUILD_DIR)/audit/uroot/assets/misc/initramfs.cpio.gz 2>/dev/null || stat -c %s $(BUILD_DIR)/audit/uroot/assets/misc/initramfs.cpio.gz)" = "$(BOOT_INITRAMFS_SIZE)"
+	@test "$$(shasum -a 256 $(BUILD_DIR)/audit/uroot/assets/misc/initramfs.cpio.gz | awk '{print $$1}')" = "$(BOOT_INITRAMFS_SHA)"
+	@test "$$(stat -f %z $(BUILD_DIR)/audit/uroot/assets/misc/bootargs.txt 2>/dev/null || stat -c %s $(BUILD_DIR)/audit/uroot/assets/misc/bootargs.txt)" = "$(BOOT_ARGS_SIZE)"
+	@test "$$(shasum -a 256 $(BUILD_DIR)/audit/uroot/assets/misc/bootargs.txt | awk '{print $$1}')" = "$(BOOT_ARGS_SHA)"
 	@test "$$(shasum -a 256 $(BUILD_DIR)/audit/uroot/assets/misc/vram.txt | awk '{print $$1}')" = 4f71bb761ace37c88826cd8cc1c948e1cf5b5d0cd153dc651a6efdb3dfb9f2b1
 	@LC_ALL=C grep -aqF '/data/linux/boot' $(STAGE_DIR)/eboot.bin
 	@LC_ALL=C grep -aqF '.omarchy-ps4-staging' $(STAGE_DIR)/eboot.bin
