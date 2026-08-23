@@ -2,7 +2,7 @@
 
 pkgname=omarchy-ps4-settings
 pkgver=4.0.0
-pkgrel=4
+pkgrel=6
 pkgdesc='PS4-safe settings, applications, and session defaults for Omarchy Quattro'
 arch=('any')
 url='https://github.com/meerzulee/omarchy-ps4'
@@ -32,12 +32,12 @@ sha256sums=(
   'SKIP'
   '2181f8acfd8a3853e8e3e287a61eb226aabcc66366902085d96b788f7b38bf39'
   'ad14354d524a24c74ac590a6143b0f53b88792474dbb5dce5badb5fdc0176fc6'
-  'e7135ba2e175ca0f232ef490edd9731e25d96b347d4242a520d5298ccffdce7b'
+  'bc920ce9ef2602cf186a1f3ef9f1a29e0ee5adbd2caaf4322a54a3c6accb6f6b'
   '123b08c43dc89040f91d231d1d9d44891c5ff2d8f642965d3637a15fdca44532'
   '16ba16d951108165777c3ad533a395612956c5c45b301d2d6e0ba661f6570264'
   '29d13a5b2cf835a975dbf498567771f061efb0439365e7d12426a16b1272cf65'
   '87b48e4ac5f87b7924c0700dc30017c88d45c05d777b17f13f2a43ab832c2f93'
-  'f81b53ae11ef1403ce1b21728a1bff97cceb3720b63968a068b84d17da7da0c6'
+  '65e6d05b426eb29e46f53d907afaacb5d8e6d55ea64e29f1d9ffc653b98b71ac'
   '5ef8215f03636e72f8d5b1d59e923270fcdb96c1dc73a15e344b6d22222d1399'
   'eebbc8cb148ba136b996227f1b9ddc582785721560c22136f722878f9072a711'
 )
@@ -153,6 +153,15 @@ package() {
 
   install -Dm644 logo.txt "$pkgdir/etc/skel/.config/omarchy/branding/screensaver.txt"
   install -Dm644 icon.txt "$pkgdir/etc/skel/.config/omarchy/branding/about.txt"
+
+  # btop.conf ships color_theme="current", but the themes/current.theme link that
+  # resolves it is only created by omarchy-upgrade-to-quattro. A PS4 image is a
+  # fresh install, never an upgrade, so that migration never runs and btop falls
+  # back to its built-in green theme. Ship the link in skel instead; it is
+  # relative so it resolves for whichever owner provisioning creates.
+  install -d "$pkgdir/etc/skel/.config/btop/themes"
+  ln -s ../../../.local/state/omarchy/current/theme/btop.theme \
+    "$pkgdir/etc/skel/.config/btop/themes/current.theme"
   install -Dm644 default/hypr/toggles/flags.lua \
     "$pkgdir/etc/skel/.local/state/omarchy/toggles/hypr/flags.lua"
   install -Dm644 default/nautilus-python/extensions/localsend.py \
