@@ -5,6 +5,10 @@
 Omarchy Linux on a jailbroken PS4. A small PS4 application installs and boots
 the kernel; the desktop lives on a separate USB drive.
 
+[![Watch the demo](docs/assets/demo-thumbnail.jpg)](https://x.com/meerzulee/status/2091577507393004018)
+
+*Cold boot to desktop on the Baikal B1 console — [watch on x.com](https://x.com/meerzulee/status/2091577507393004018).*
+
 Hardware-development beta. One console verified: PS4 Slim, Baikal B1.
 
 ## Download
