@@ -3,23 +3,83 @@
   "logo": {
     "type": "file",
     "source": "~/.config/omarchy/branding/about.txt",
-    "color": { "1": "blue" },
-    "padding": { "top": 1, "right": 5, "left": 1 }
+    "color": {
+      "1": "green"
+    },
+    "padding": {
+      "top": 2,
+      "right": 6,
+      "left": 2
+    }
   },
-  "display": { "disableLinewrap": true },
+  "display": {
+    "disableLinewrap": true
+  },
   "modules": [
+    "break",
     "break",
     {
       "type": "custom",
-      "key": "󰊴 System",
-      "keyColor": "blue",
-      "format": "Omarchy PS4 Quattro 4.0"
+      "format": "\u001b[90m┌──────────────────────Hardware──────────────────────┐"
     },
     {
       "type": "custom",
-      "key": "│ ├",
-      "keyColor": "blue",
+      "key": " PC",
+      "keyColor": "green",
       "format": "PS4 Slim · Baikal B1"
+    },
+    {
+      "type": "cpu",
+      "key": "│ ├",
+      "showPeCoreCount": true,
+      "keyColor": "green"
+    },
+    {
+      "type": "custom",
+      "key": "│ ├",
+      "keyColor": "green",
+      "format": "AMD Liverpool · amdgpu"
+    },
+    {
+      "type": "display",
+      "key": "│ ├󱄄",
+      "keyColor": "green"
+    },
+    {
+      "type": "disk",
+      "key": "│ ├󰋊",
+      "keyColor": "green",
+      "folders": "/"
+    },
+    {
+      "type": "memory",
+      "key": "│ ├",
+      "keyColor": "green"
+    },
+    {
+      "type": "swap",
+      "key": "│ ├󰓡",
+      "keyColor": "green"
+    },
+    {
+      "type": "sound",
+      "key": "└ └",
+      "keyColor": "green"
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[90m└────────────────────────────────────────────────────┘"
+    },
+    "break",
+    {
+      "type": "custom",
+      "format": "\u001b[90m┌──────────────────────Software──────────────────────┐"
+    },
+    {
+      "type": "command",
+      "key": " OS",
+      "keyColor": "blue",
+      "text": "version=$(omarchy-version) && echo \"Omarchy PS4 Quattro $version\""
     },
     {
       "type": "kernel",
@@ -27,65 +87,81 @@
       "keyColor": "blue"
     },
     {
-      "type": "cpu",
-      "key": "│ ├",
-      "keyColor": "blue",
-      "showPeCoreCount": true
-    },
-    {
-      "type": "custom",
-      "key": "│ ├",
-      "keyColor": "blue",
-      "format": "AMD Liverpool · amdgpu"
-    },
-    {
-      "type": "display",
-      "key": "│ ├󱄄",
+      "type": "initsystem",
+      "key": "│ ├",
       "keyColor": "blue"
-    },
-    {
-      "type": "memory",
-      "key": "│ ├",
-      "keyColor": "blue"
-    },
-    {
-      "type": "disk",
-      "key": "└ └󰋊",
-      "keyColor": "blue",
-      "folders": "/"
-    },
-    "break",
-    {
-      "type": "command",
-      "key": " Theme",
-      "keyColor": "magenta",
-      "text": "omarchy-theme-current"
     },
     {
       "type": "wm",
       "key": "│ ├",
-      "keyColor": "magenta"
+      "keyColor": "blue"
     },
     {
       "type": "terminal",
       "key": "│ ├",
-      "keyColor": "magenta"
+      "keyColor": "blue"
     },
     {
       "type": "packages",
       "key": "│ ├󰏖",
-      "keyColor": "magenta"
+      "keyColor": "blue"
+    },
+    {
+      "type": "command",
+      "key": "└ └󰸌",
+      "keyColor": "blue",
+      "text": "theme=$(omarchy-theme-current); echo -e \"$theme \\e[38m●\\e[37m●\\e[36m●\\e[35m●\\e[34m●\\e[33m●\\e[32m●\\e[31m●\""
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[90m└────────────────────────────────────────────────────┘"
+    },
+    "break",
+    {
+      "type": "custom",
+      "format": "\u001b[90m┌──────────────────────Network───────────────────────┐"
+    },
+    {
+      "type": "command",
+      "key": "󰖩 Wi-Fi",
+      "keyColor": "magenta",
+      "text": "ssid=$(nmcli -t -f NAME,TYPE con show --active 2>/dev/null | awk -F: '$2==\"802-11-wireless\"{print $1; exit}'); [ -n \"$ssid\" ] || exit 0; sig=$(nmcli -t -f ACTIVE,SIGNAL dev wifi 2>/dev/null | awk -F: '$1==\"yes\"{print $2; exit}'); [ -n \"$sig\" ] && echo \"$ssid · $sig%\" || echo \"$ssid\""
     },
     {
       "type": "localip",
-      "key": "│ ├󰩟",
+      "key": "└ └󰩟",
       "keyColor": "magenta",
       "showIpv6": false
     },
     {
+      "type": "custom",
+      "format": "\u001b[90m└────────────────────────────────────────────────────┘"
+    },
+    "break",
+    {
+      "type": "custom",
+      "format": "\u001b[90m┌───────────────Age / Uptime / Update────────────────┐"
+    },
+    {
+      "type": "command",
+      "key": "󱦟 OS Age",
+      "keyColor": "magenta",
+      "text": "echo $(( ($(date +%s) - $(stat -c %W /)) / 86400 )) days"
+    },
+    {
       "type": "uptime",
-      "key": "└ └󱫐",
+      "key": "󱫐 Uptime",
       "keyColor": "magenta"
+    },
+    {
+      "type": "command",
+      "key": " Update",
+      "keyColor": "magenta",
+      "text": "updated=$(omarchy-version-pkgs); echo \"$updated\""
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[90m└────────────────────────────────────────────────────┘"
     },
     "break"
   ]
