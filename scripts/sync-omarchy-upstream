@@ -16,9 +16,11 @@ checkout="$project_dir/cache/omarchy-quattro"
 # shellcheck disable=SC1090,SC1091
 source "$lock_file"
 
+new_checkout=false
 if [[ ! -d $checkout/.git ]]; then
   mkdir -p -- "${checkout%/*}"
   git clone --filter=blob:none --no-checkout "$OMARCHY_URL" "$checkout"
+  new_checkout=true
 fi
 
 actual_remote=$(git -C "$checkout" remote get-url origin)
@@ -27,9 +29,14 @@ actual_remote=$(git -C "$checkout" remote get-url origin)
   exit 2
 }
 
-if ! git -C "$checkout" diff --quiet || ! git -C "$checkout" diff --cached --quiet; then
-  printf 'error: cached Omarchy checkout has tracked local changes: %s\n' "$checkout" >&2
-  exit 2
+# --no-checkout intentionally leaves a new clone without an index/worktree.
+# A cached diff against HEAD would report the entire tree as deleted. Check
+# for operator edits only in a checkout that existed before this invocation.
+if [[ $new_checkout == false ]]; then
+  if ! git -C "$checkout" diff --quiet || ! git -C "$checkout" diff --cached --quiet; then
+    printf 'error: cached Omarchy checkout has tracked local changes: %s\n' "$checkout" >&2
+    exit 2
+  fi
 fi
 
 git -C "$checkout" fetch --depth 1 origin "$OMARCHY_COMMIT"

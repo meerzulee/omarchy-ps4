@@ -28,7 +28,7 @@ class DevelopmentSetupTests(unittest.TestCase):
         self.project = self.workspace / "omarchy-ps4"
         for name in ("scripts", "manifests", "workspace"):
             (self.project / name).mkdir(parents=True)
-        for name in ("setup-workspace", "fetch-ps4-loader"):
+        for name in ("setup-workspace", "fetch-ps4-loader", "sync-omarchy-upstream"):
             shutil.copy2(PROJECT / "scripts" / name, self.project / "scripts" / name)
         for name in ("README.md", "AGENTS.md"):
             (self.project / "workspace" / name).write_text(f"Template {name}\n")
@@ -69,7 +69,36 @@ class DevelopmentSetupTests(unittest.TestCase):
         (self.project / "manifests/development-sources.json").write_text(json.dumps(self.manifest))
 
     def command(self, name, *args, check=True):
-        return run(sys.executable, str(self.project / "scripts" / name), *args, check=check)
+        interpreter = "bash" if name == "sync-omarchy-upstream" else sys.executable
+        return run(interpreter, str(self.project / "scripts" / name), *args, check=check)
+
+    def test_upstream_sync_populates_new_clone_and_preserves_existing_edits(self):
+        source = Path(self.temporary.name) / "upstream-source"
+        source.mkdir()
+        run("git", "init", "--quiet", "--initial-branch=master", str(source))
+        run("git", "config", "user.name", "Setup Test", cwd=source)
+        run("git", "config", "user.email", "setup-test@example.invalid", cwd=source)
+        (source / "version").write_text("4.0.0.alpha\n")
+        run("git", "add", "version", cwd=source)
+        run("git", "commit", "--quiet", "-m", "Pinned upstream", cwd=source)
+        pin = run("git", "rev-parse", "HEAD", cwd=source).stdout.strip()
+        (source / "version").write_text("newer-upstream\n")
+        run("git", "commit", "--quiet", "-am", "Newer upstream", cwd=source)
+        (self.project / "upstream").mkdir()
+        (self.project / "upstream/omarchy.lock").write_text(
+            f"OMARCHY_URL={source.as_uri()}\nOMARCHY_COMMIT={pin}\n"
+            "OMARCHY_SOURCE_VERSION=4.0.0.alpha\nOMARCHY_RELEASE_VERSION=4.0.0\n"
+        )
+        self.command("sync-omarchy-upstream")
+        checkout = self.project / "cache/omarchy-quattro"
+        self.assertEqual(run("git", "rev-parse", "HEAD", cwd=checkout).stdout.strip(), pin)
+        self.assertEqual((checkout / "version").read_text(), "4.0.0.alpha\n")
+        self.command("sync-omarchy-upstream")
+        (checkout / "version").write_text("operator's uncommitted work\n")
+        result = self.command("sync-omarchy-upstream", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("tracked local changes", result.stderr)
+        self.assertEqual((checkout / "version").read_text(), "operator's uncommitted work\n")
 
     def test_pinned_clone_offline_check_and_existing_work_are_preserved(self):
         self.assertNotEqual(self.command("setup-workspace", "--check", check=False).returncode, 0)
