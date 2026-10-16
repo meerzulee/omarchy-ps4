@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "repositories": [
+    {
+      "directory": "linux-ps4-kernel",
+      "url": "https://github.com/meerzulee/linux-ps4.git",
+      "branch": "agent/document-baikal-capabilities",
+      "commit": "f61663b369b76f1fc7e8cf29dd946a1bfc5b1e75"
+    },
+    {
+      "directory": "ps4-uart",
+      "url": "https://github.com/meerzulee/ps4-uart.git",
+      "branch": "master",
+      "commit": "c53d250de55044940727b8b607947a0b9e9dae00"
+    }
+  ],
+  "loader": {
+    "version": "v25",
+    "source_commit": "9acef9fbf79097a2bb39d6c9c17228198bc445cc",
+    "url": "https://github.com/ps4-linux/ps4-linux-loader/releases/download/v25/PS4-Linux-Loader-v25.zip",
+    "archive_sha256": "fe64a196bf91f5447225e1b3418981fd860b221847e6fc1a92ea1fd3ac321e34",
+    "member": "elf/linux-1024mb.elf",
+    "elf_size": 320936,
+    "elf_sha256": "c813d169ef37e4bee574a5058bc6c0b92564e74ab445ef0846d67fa9d1e5ce65",
+    "destination": "payloads/ps4-linux-loader/v25/elf/linux-1024mb.elf"
+  }
+}

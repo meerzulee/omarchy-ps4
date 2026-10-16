@@ -37,6 +37,29 @@ Other southbridges and firmware combinations are unverified.
 [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) — jailbreak, USB, package,
 first boot, owner setup.
 
+## Develop on another computer
+
+With Git and Python 3 available, start from GitHub on macOS ARM64 or Arch
+Linux x86-64:
+
+```sh
+mkdir -p "$HOME/Work/ps4"
+cd "$HOME/Work/ps4"
+git clone https://github.com/meerzulee/omarchy-ps4.git
+cd omarchy-ps4
+./scripts/setup-workspace
+```
+
+The helper gets the pinned kernel and UART repositories and creates workspace
+README/AGENTS instructions. Existing checkouts and local changes are preserved.
+The kernel build fetches upstream Linux automatically; it does not need a
+source directory copied from the previous computer.
+
+Follow [`docs/DEVELOPMENT-HOSTS.md`](docs/DEVELOPMENT-HOSTS.md) for host tools,
+the dependency source map and checksum-verified loader acquisition. Source
+development works natively on either host; full image builders currently use
+the Mac's OrbStack environment. The USB rootfs remains outside the public release.
+
 ## Stack
 
 Linux 6.18.44 · Hyprland on Wayland · UWSM · Quickshell · Omarchy 4.0.0 ·
@@ -55,6 +78,7 @@ Linux 6.18.44 · Hyprland on Wayland · UWSM · Quickshell · Omarchy 4.0.0 ·
 | --- | --- |
 | [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) | install and first boot |
 | [`docs/BUILDING.md`](docs/BUILDING.md) | reproducible build sequence |
+| [`docs/DEVELOPMENT-HOSTS.md`](docs/DEVELOPMENT-HOSTS.md) | macOS ARM64 and Arch Linux x86-64 setup, GitHub state and device handoff |
 | [`docs/PLAN.md`](docs/PLAN.md) | gate-driven roadmap |
 | [`docs/CHECKPOINT-2026-08-22.md`](docs/CHECKPOINT-2026-08-22.md) | current state and resume plan |
 | [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) | what is claimed and on what evidence |
@@ -62,6 +86,7 @@ Linux 6.18.44 · Hyprland on Wayland · UWSM · Quickshell · Omarchy 4.0.0 ·
 | [`docs/DEVELOPMENT-MODE.md`](docs/DEVELOPMENT-MODE.md) | hardware experiment rules |
 | [`experiments/SESSIONS.md`](experiments/SESSIONS.md) | UART experiment record |
 | [`fpkg/README.md`](fpkg/README.md) | the PS4 application |
+| [`docs/PORTABLE-PORTAL-IDEA.md`](docs/PORTABLE-PORTAL-IDEA.md) | portable PC/PS4 boot-manager concept |
 | [`docs/ARCHITECTURE-RESEARCH.md`](docs/ARCHITECTURE-RESEARCH.md) | original design research |
 
 ## Licensing

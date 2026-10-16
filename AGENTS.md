@@ -39,10 +39,32 @@
 
 ## Local infrastructure
 
+- Read `docs/DEVELOPMENT-HOSTS.md` when setting up another development device.
+- Start a fresh device from `https://github.com/meerzulee/omarchy-ps4.git`
+  and run `scripts/setup-workspace`. The authoritative kernel/UART URLs,
+  branches and commits are in `manifests/development-sources.json`; do not
+  substitute a historical workspace checkout or an unrelated PS4 kernel fork.
+- Obtain upstream Linux through the sibling kernel's builder, upstream Omarchy
+  through `scripts/sync-omarchy-upstream`, and the pinned loader through
+  `scripts/fetch-ps4-loader`. Follow the manifest/hash gates instead of asking
+  the operator to copy inputs that can be retrieved from their recorded source.
+- Workspace README/AGENTS templates are versioned in `workspace/`; the setup
+  helper copies only missing files and never resets an existing repository.
+- macOS ARM64 uses the existing OrbStack build wrappers. On Linux x86-64,
+  source work and host tests run natively, and the sibling kernel can build
+  with native `make`. Full distribution image builds still use the Mac host.
 - Use OrbStack exclusively for Docker, containers, and Linux virtual machines.
 - Before Docker work, verify OrbStack is running and the active Docker context
   is `orbstack`.
 - Do not start Docker Desktop, Colima, Lima, or Homebrew-managed PostgreSQL.
+- Do not bypass OrbStack checks or substitute another runtime on Linux. A
+  native Linux port of the image builders is separate implementation work.
+- Keep the kernel, Omarchy and UART repositories as siblings and derive paths
+  from the checkout. Recreate Python environments after a device move.
+- Preserve local commits and uncommitted work during handoff; do not push,
+  publish, merge divergent histories or reset a checkout without task authority.
+- Include the full raw URL for operational web links and an absolute path for
+  local artifacts; provide a macOS `open` command when immediately useful.
 
 ## Safety
 

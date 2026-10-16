@@ -94,10 +94,12 @@ docker info >/dev/null
 The scripts stop if OrbStack is unavailable or another Docker context is
 active.
 
-## Private inputs that are not in Git
+## Build inputs and where to get them
 
-The repository intentionally does not commit generated binaries, proprietary
-firmware-derived inputs or the private loader. A complete build expects:
+Start with `scripts/setup-workspace` to obtain the pinned sibling kernel and
+UART sources. See [`DEVELOPMENT-HOSTS.md`](DEVELOPMENT-HOSTS.md#where-each-dependency-comes-from)
+for the source map. Generated build outputs and the downloaded loader are
+not committed to this repository. A complete build expects:
 
 ```text
 ../linux-ps4-kernel/output/6.18-baikal/
@@ -114,9 +116,14 @@ firmware-derived inputs or the private loader. A complete build expects:
 ```
 
 The exact default paths are defined in `scripts/build-xfce-initramfs` and
-`fpkg/tools/vendor-loader`. An alternate initramfs seed can be supplied with
-`PS4_SOURCE_INITRAMFS`. Do not publish firmware-derived material or the loader
-without completing their separate provenance and redistribution review.
+`fpkg/tools/vendor-loader`. Build the kernel/modules pair from the pinned
+kernel checkout. Its historical initramfs seed is already present in that
+checkout; an alternate recorded seed can use `PS4_SOURCE_INITRAMFS`. Download
+the official loader with `scripts/fetch-ps4-loader`, which checks both ZIP and
+ELF hashes, then stage it with `fpkg/tools/vendor-loader`. The FPKG wrapper
+downloads the pinned OpenOrbis toolchain automatically. Preserve separate
+provenance and redistribution review for firmware-derived material and loaders;
+fetching an input does not authorize publishing a new binary.
 
 ## Complete build, step by step
 
@@ -525,6 +532,7 @@ exporting.
 Useful local gates are:
 
 ```sh
+./tests/development-setup-test
 ./tests/full-profile-test
 ./tests/gift-rootfs-contract-test
 ./tests/private-boot-transaction-test

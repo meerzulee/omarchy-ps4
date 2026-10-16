@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Download the pinned upstream loader to the local workspace, verifying both hashes."""
+
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+import urllib.request
+import zipfile
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def main():
+    project = Path(__file__).resolve().parents[1]
+    workspace = project.parent
+    pin = json.loads((project / "manifests/development-sources.json").read_text())["loader"]
+    destination = workspace / pin["destination"]
+    if not destination.resolve().is_relative_to(workspace):
+        raise RuntimeError("Loader destination is outside the workspace")
+    if destination.exists() or destination.is_symlink():
+        if destination.is_symlink() or digest(destination.read_bytes()) != pin["elf_sha256"]:
+            raise RuntimeError(f"Existing loader differs from the pin; preserving it: {destination}")
+        print(f"Verified existing loader: {destination}")
+        return
+    print(f"Downloading {pin['url']}", flush=True)
+    request = urllib.request.Request(pin["url"], headers={"User-Agent": "omarchy-ps4-source-setup"})
+    with urllib.request.urlopen(request, timeout=45) as response:
+        data = response.read(10 * 1024 * 1024 + 1)
+    if digest(data) != pin["archive_sha256"]:
+        raise RuntimeError("Upstream loader archive SHA-256 mismatch; no loader was installed")
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        info = archive.getinfo(pin["member"])
+        if info.file_size != pin["elf_size"]:
+            raise RuntimeError("Loader ELF size mismatch")
+        elf = archive.read(info)
+    if digest(elf) != pin["elf_sha256"]:
+        raise RuntimeError("Loader ELF SHA-256 mismatch")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as staged:
+        staged.write(elf)
+        temporary = Path(staged.name)
+    try:
+        temporary.chmod(0o644)
+        # Publish the verified file atomically without replacing an existing input.
+        os.link(temporary, destination)
+    finally:
+        temporary.unlink()
+    print(f"Verified and saved: {destination}")
+    print(f"SHA-256: {pin['elf_sha256']}")
+    print("Stage for an FPKG with ./fpkg/tools/vendor-loader. No payload was sent.")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, RuntimeError, KeyError, ValueError, zipfile.BadZipFile) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)

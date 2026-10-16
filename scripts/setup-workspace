@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""Clone pinned development dependencies beside omarchy-ps4, preserving existing work."""
+
+import argparse
+import json
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+
+
+def git(checkout, *args, check=True):
+    return subprocess.run(
+        ["git", "-C", str(checkout), *args],
+        check=check, capture_output=True, text=True,
+    )
+
+
+def canonical(url):
+    return url.replace("git@github.com:", "https://github.com/").rstrip("/").removesuffix(".git")
+
+
+def inspect(checkout, source):
+    if checkout.is_symlink() or not (checkout / ".git").exists():
+        raise RuntimeError(f"Expected a Git checkout; preserving existing path: {checkout}")
+    origin = git(checkout, "remote", "get-url", "origin").stdout.strip()
+    if canonical(origin) != canonical(source["url"]):
+        raise RuntimeError(f"Unexpected origin; preserving existing checkout: {checkout}")
+    contains = git(checkout, "merge-base", "--is-ancestor", source["commit"], "HEAD", check=False)
+    if contains.returncode:
+        raise RuntimeError(
+            f"{checkout.name} does not contain pinned commit {source['commit']}; "
+            "inspect/fetch it deliberately or use a new workspace. No existing files were changed."
+        )
+    dirty = bool(git(checkout, "status", "--porcelain").stdout)
+    print(f"Verified {checkout.name}" + (" (local changes preserved)" if dirty else ""), flush=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="verify existing repositories and workspace files without writes or network")
+    args = parser.parse_args()
+    project = Path(__file__).resolve().parents[1]
+    if project.name != "omarchy-ps4":
+        raise RuntimeError("Clone the distribution into a directory named omarchy-ps4")
+    workspace = project.parent
+    manifest = json.loads((project / "manifests/development-sources.json").read_text())
+    if manifest["schema"] != 1:
+        raise RuntimeError("Unsupported development source manifest")
+    missing = []
+    for source in manifest["repositories"]:
+        name = source["directory"]
+        if name not in ("linux-ps4-kernel", "ps4-uart") or not re.fullmatch(r"[0-9a-f]{40}", source["commit"]):
+            raise RuntimeError("Invalid repository directory or commit in development manifest")
+        checkout = workspace / name
+        if checkout.exists() or checkout.is_symlink():
+            inspect(checkout, source)
+        else:
+            missing.append(source)
+    templates = [(project / "workspace" / name, workspace / name) for name in ("README.md", "AGENTS.md")]
+    for template, _ in templates:
+        if not template.is_file():
+            raise RuntimeError(f"Missing workspace template: {template}")
+    if args.check:
+        absent = [source["directory"] for source in missing]
+        absent += [str(target) for _, target in templates if not target.is_file()]
+        if absent:
+            raise RuntimeError("Missing setup paths: " + ", ".join(absent) + "; run ./scripts/setup-workspace")
+        print(f"Workspace source setup verified: {workspace}")
+        return
+    for source in missing:
+        checkout = workspace / source["directory"]
+        print(f"Cloning {source['url']} at {source['commit']}", flush=True)
+        subprocess.run(["git", "clone", "--branch", source["branch"], source["url"], str(checkout)], check=True)
+        # Only this newly created clone is positioned at the manifest pin.
+        # Existing repositories are inspected above and are never switched/reset.
+        git(checkout, "checkout", "-B", source["branch"], source["commit"])
+        inspect(checkout, source)
+    for template, target in templates:
+        if target.exists() or target.is_symlink():
+            print(f"Keeping existing workspace file: {target}", flush=True)
+        else:
+            with target.open("xb") as output, template.open("rb") as source:
+                shutil.copyfileobj(source, output)
+            print(f"Created {target}", flush=True)
+    print(f"Workspace ready: {workspace}")
+    print("Read README.md, AGENTS.md and omarchy-ps4/docs/DEVELOPMENT-HOSTS.md.")
+    print("Recreate ps4-uart/.venv. Kernel upstream source downloads during its build.")
+    print("Optional loader input: ./scripts/fetch-ps4-loader (no console operation).")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, RuntimeError, KeyError, ValueError, subprocess.CalledProcessError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
