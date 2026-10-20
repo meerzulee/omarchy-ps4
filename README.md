@@ -1,5 +1,14 @@
 # Omarchy PS4
 
+> [!IMPORTANT]
+> **Future versions and updates will be available in Omarchy psX:**
+> https://github.com/meerzulee/omarchy-psx
+>
+> This repository retains the historical Omarchy PS4 source and releases.
+> The old `linux-ps4` kernel repository is also legacy; the newest project
+> kernels and ongoing kernel development are in **Linux psX:**
+> https://github.com/meerzulee/linux-psx
+
 ![Omarchy Quattro running on a Baikal B1 PS4](docs/assets/omarchy-ps4-quattro.png)
 
 Omarchy Linux on a jailbroken PS4. A small PS4 application installs and boots
@@ -17,7 +26,7 @@ Hardware-development beta. One console verified: PS4 Slim, Baikal B1.
 · unsigned · `omarchy-ps4-v0.31-baikal-beta.pkg`, 20,905,984 bytes,
 `138ab7d05162ff4bb67faddcc1a9576a0f22dc13810f2ead5a2293b32467c6a3`
 
-Kernel source and builds:
+Historical kernel source and builds (legacy):
 [`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4)
 · [`v6.18.44-ps4-baikal-r1`](https://github.com/meerzulee/linux-ps4/releases/tag/v6.18.44-ps4-baikal-r1)
 
