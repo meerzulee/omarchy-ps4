@@ -8,7 +8,7 @@ the next gated work. Do not promote a local pass into a hardware support claim.
 
 - Console: PS4 Slim, Baikal B1 southbridge, firmware 12.02.
 - Kernel: Linux `6.18.44-ps4-baikal` from the patch-based
-  [`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4) repository.
+  [`meerzulee/linux-psx`](https://github.com/meerzulee/linux-psx) repository.
 - Linux root: external ext4 USB filesystem labelled `OMARCHY-PS4`.
 - Boot files: FAT32 filesystem labelled `PS4BOOT`.
 - Recovery desktop: LightDM plus XFCE. Do not replace this with SDDM.

@@ -128,7 +128,7 @@ Linux kernel and initramfs into memory, and performs a controlled transition
 from Orbis OS to Linux.
 
 The Linux kernel must be selected for the console's southbridge. The
-[`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4) project owns
+[`meerzulee/linux-psx`](https://github.com/meerzulee/linux-psx) project owns
 this distribution's patch-based kernel source, configuration, provenance and
 test binaries. Kernel binaries must always be distributed with the exact
 source, configuration, commit, and toolchain information used to build them.
@@ -348,7 +348,7 @@ Linux, but that is not enough to establish Quattro compatibility.
 
 The first technical milestone must test:
 
-1. A pinned [`linux-ps4`](https://github.com/meerzulee/linux-ps4) kernel
+1. A pinned [`linux-psx`](https://github.com/meerzulee/linux-psx) kernel
    release on the declared target console.
 2. Current PS4-patched Mesa and libdrm packages.
 3. DRM/KMS output at 1080p over HDMI.
@@ -405,7 +405,7 @@ hardware.
 
 - Select one declared test console revision and firmware.
 - Boot a minimal Arch rootfs with a pinned
-  [`linux-ps4`](https://github.com/meerzulee/linux-ps4) kernel and initramfs.
+  [`linux-psx`](https://github.com/meerzulee/linux-psx) kernel and initramfs.
 - Validate patched Mesa, Hyprland, Quickshell, input, audio, and networking.
 - Record kernel commit, southbridge, firmware, model, and all test results.
 
@@ -508,7 +508,7 @@ Exit condition: failed updates recover without reinstalling the distro.
 - Quattro update process: https://github.com/basecamp/omarchy/blob/quattro/docs/update-process.md
 - Quattro Pacman configuration: https://github.com/basecamp/omarchy/blob/quattro/default/pacman/pacman-stable.conf
 - PS4 Linux loader: https://github.com/ps4-linux/ps4-linux-loader
-- Omarchy PS4 kernel project: https://github.com/meerzulee/linux-ps4
+- Omarchy PS4 kernel project: https://github.com/meerzulee/linux-psx
 - Upstream PS4 kernel reference: https://github.com/rmuxnet/linux
 - PS4 Linux compatibility database: https://github.com/ps4-linux/ps4-linux.github.io
 - PS4 Linux installation guide: https://github.com/DionKill/ps4-linux-tutorial

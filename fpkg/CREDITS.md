@@ -30,7 +30,7 @@ records attribution and does not imply endorsement of this distribution.
 
 - rmuxnet and the PS4 Linux community
 - Kernel source and patch provenance:
-  https://github.com/meerzulee/linux-ps4
+  https://github.com/meerzulee/linux-psx
 - Linux kernel licensing and corresponding-source obligations remain intact
 
 ## Tooling and base system

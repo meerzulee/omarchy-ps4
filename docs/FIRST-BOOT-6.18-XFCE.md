@@ -11,7 +11,7 @@ Prepared: 2026-08-10
 - partition 2: ext4, label `OMARCHY-PS4`, clean Arch/XFCE rootfs
 - active kernel: `6.18.44-ps4-baikal`
 - kernel source and provenance:
-  [`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4)
+  [`meerzulee/linux-psx`](https://github.com/meerzulee/linux-psx)
 - VRAM reservation: 1 GiB
 - offline rollback: verified Linux 5.4 files under `recovery/` on FAT32
 

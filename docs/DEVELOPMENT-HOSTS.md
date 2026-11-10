@@ -64,7 +64,7 @@ rules. No fixed `/Users/...` path or private source archive is required.
 
 | Input | Recorded source and pin | Acquisition |
 | --- | --- | --- |
-| PS4 kernel patches/configs | `meerzulee/linux-ps4`, development branch and full commit in `manifests/development-sources.json` | `scripts/setup-workspace` creates `../linux-ps4-kernel/` |
+| PS4 kernel patches/configs | `meerzulee/linux-psx`, development branch and full commit in `manifests/development-sources.json` | `scripts/setup-workspace` creates `../linux-ps4-kernel/` |
 | Upstream Linux source | `gregkh/linux`, tag and `BASE_COMMIT` in kernel `targets/6.18-baikal.env` | Downloaded and commit-checked by the kernel build; stored in generated `src/` |
 | UART tool | `meerzulee/ps4-uart`, merged bounded-session/diagnostics revision in the development manifest | `scripts/setup-workspace` creates `../ps4-uart/` |
 | Omarchy Quattro source | `basecamp/omarchy`, full commit in `upstream/omarchy.lock` | `scripts/sync-omarchy-upstream` |
@@ -78,7 +78,7 @@ rules. No fixed `/Users/...` path or private source archive is required.
 
 Repositories and upstream releases:
 
-https://github.com/meerzulee/linux-ps4
+https://github.com/meerzulee/linux-psx
 
 https://github.com/meerzulee/ps4-uart
 

@@ -121,7 +121,7 @@ continuous capture and the operator report are sufficient for routine steps.
 
 | Repository | Owns | Does not own |
 |---|---|---|
-| [`meerzulee/linux-ps4`](https://github.com/meerzulee/linux-ps4) (local checkout: `linux-ps4-kernel`) | kernel patches, config, modules, reproducible kernel builds, patch provenance | desktop UX and distribution policy |
+| [`meerzulee/linux-psx`](https://github.com/meerzulee/linux-psx) (local checkout: `linux-ps4-kernel`) | kernel patches, config, modules, reproducible kernel builds, patch provenance | desktop UX and distribution policy |
 | [`meerzulee/omarchy-ps4`](https://github.com/meerzulee/omarchy-ps4) | rootfs, XFCE baseline, compatibility ladder, install/recovery UX, experiments | vendored kernel history or opaque payload binaries |
 | `ps4-uart` | continuous capture, bounded session extraction, local session index | compatibility decisions |
 

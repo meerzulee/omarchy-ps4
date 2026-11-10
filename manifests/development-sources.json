@@ -3,9 +3,9 @@
   "repositories": [
     {
       "directory": "linux-ps4-kernel",
-      "url": "https://github.com/meerzulee/linux-ps4.git",
-      "branch": "agent/document-baikal-capabilities",
-      "commit": "f61663b369b76f1fc7e8cf29dd946a1bfc5b1e75"
+      "url": "https://github.com/meerzulee/linux-psx.git",
+      "branch": "master",
+      "commit": "f064643ddeb663db4e87fe077f04a0e4bef44f58"
     },
     {
       "directory": "ps4-uart",

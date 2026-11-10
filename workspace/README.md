@@ -22,7 +22,7 @@ read-only check.
 
 | Directory | Responsibility | Source |
 | --- | --- | --- |
-| `linux-ps4-kernel/` | PS4 patch series, kernel configs, builds and provenance | https://github.com/meerzulee/linux-ps4 |
+| `linux-ps4-kernel/` | PS4 patch series, kernel configs, builds and provenance | https://github.com/meerzulee/linux-psx |
 | `omarchy-ps4/` | Distribution, PS4 manager, provisioning and curated experiments | https://github.com/meerzulee/omarchy-ps4 |
 | `ps4-uart/` | Continuous UART capture and bounded sessions | https://github.com/meerzulee/ps4-uart |
 | `payloads/`, `backups/`, `lab/` | Locally acquired inputs, recovery and inventory | Created only when required |
@@ -56,7 +56,7 @@ archive needs to be copied from the previous computer.
 
 Kernel release:
 
-https://github.com/meerzulee/linux-ps4/releases/tag/v6.18.44-ps4-baikal-r1
+https://github.com/meerzulee/linux-psx/releases
 
 Omarchy manager release:
 

@@ -159,7 +159,7 @@ Expected kernel outputs are under:
 The kernel repository fetches the pinned upstream Linux source, applies its
 ordered Baikal patch series, uses the committed configuration, and records the
 kernel, modules and checksums. The
-[`linux-ps4` repository](https://github.com/meerzulee/linux-ps4) is the
+[`linux-psx` repository](https://github.com/meerzulee/linux-psx) is the
 authoritative public kernel build guide.
 
 ### 3. Build the PS4 initramfs
