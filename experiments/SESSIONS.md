@@ -49,9 +49,9 @@ This is the resume point for the project. Read this file, `docs/PLAN.md`, and
 | `DEV-20260811-012` | complete | Replaced the incompatible archived HDMI diagnostic with pointer-safe post-0034 patch 0035; strict gate applied 53/53 and clean OrbStack build/checksums passed | [`6.18-PORT.md`](https://github.com/meerzulee/linux-ps4/blob/master/docs/6.18-PORT.md); A29 bzImage SHA-256 `ab754ca139d8c4a09fb6c57e81c07b3dfde618d31146e15b7ca6d1fa5de0d46e` |
 | `DEV-20260811-013` | complete | Audited Vue After Free 2.0 PSN-prompt recovery and compared the exact 6.18 A29 hardware paths with rmux Baikal 7.0.8; identified loader-provided dynamic EDID as the clearest isolated display gap and corrected managed-bridge prior-art attribution | [`VUE-AFTER-2-RECOVERY.md`](../knowledge/2026-08-11/VUE-AFTER-2-RECOVERY.md); [`RMUX-7.0-BAIKAL-COMPARISON.md`](https://github.com/meerzulee/linux-ps4/blob/master/docs/RMUX-7.0-BAIKAL-COMPARISON.md) |
 
-The two older files under `experiments/uart/` captured the continuous OrbisOS
-stream before this bounded-session protocol. They are useful background logs,
-but they are not evidence of a Linux 6.18 boot.
+The two older files once kept under `experiments/uart/` captured the continuous
+OrbisOS stream before this bounded-session protocol. They were background logs,
+not evidence of a Linux 6.18 boot, and raw UART captures now stay local.
 
 ## Release and repository queue
 
@@ -9438,11 +9438,10 @@ but they are not evidence of a Linux 6.18 boot.
   [`20260823_135234_291112-exp-20260823-021-a6-inspect-actual-raw-edid-export-without-calli-17a5a659.md`](../../ps4-uart/sessions/20260823_135234_291112-exp-20260823-021-a6-inspect-actual-raw-edid-export-without-calli-17a5a659.md),
   exact sibling `.raw`; logger `.events.jsonl` is empty; evidence state
   `completed`, generation `f8b95740d2cf401aba9f191b26124baf`, epoch `1`
-- offline disassembly: the export begins `mov rsi,rdi; mov
-  rdi,[0x83dba4060]; jmp 0x83db9b7d0`. This proves the public ABI accepts one
-  output pointer and forwards it as the internal getter's second argument after
-  the AvSetting global context; it neither reads a second public argument nor
-  performs a mode-set in its wrapper
+- offline analysis: the export is a short wrapper that loads a global context and
+  jumps to an internal getter. This proves the public ABI accepts one output
+  pointer and forwards it as the getter's second argument after that context; it
+  neither reads a second public argument nor performs a mode-set in its wrapper
 - rollback: none required; the function was never called and the one-shot
   listener is consumed
 - next action: build a getter probe with a 1 MiB zeroed output region, 64 KiB
